@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import '../../../core/constants/app_colors.dart';
 import '../models/food_truck.dart';
@@ -16,24 +17,9 @@ class MapScreen extends ConsumerStatefulWidget {
 
 class _MapScreenState extends ConsumerState<MapScreen> {
   final _mapController = MapController();
+  bool _isFollowing = true;
 
-  // Default center: San Francisco. Replaced by GPS on permission grant.
   static const _defaultCenter = LatLng(37.7749, -122.4194);
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(userLocationProvider.future).then((position) {
-        if (position != null && mounted) {
-          _mapController.move(
-            LatLng(position.latitude, position.longitude),
-            14.0,
-          );
-        }
-      });
-    });
-  }
 
   @override
   void dispose() {
@@ -53,10 +39,14 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     });
   }
 
-  void _centerOnUser() {
+  void _recenter() {
     final pos = ref.read(userLocationProvider).asData?.value;
     if (pos != null) {
-      _mapController.move(LatLng(pos.latitude, pos.longitude), 15.0);
+      setState(() => _isFollowing = true);
+      _mapController.move(
+        LatLng(pos.latitude, pos.longitude),
+        _mapController.camera.zoom,
+      );
     }
   }
 
@@ -66,6 +56,19 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     final locationAsync = ref.watch(userLocationProvider);
     final userPos = locationAsync.asData?.value;
 
+    // Follow user position whenever _isFollowing is true.
+    ref.listen<AsyncValue<Position?>>(userLocationProvider, (_, next) {
+      if (_isFollowing) {
+        final pos = next.asData?.value;
+        if (pos != null) {
+          _mapController.move(
+            LatLng(pos.latitude, pos.longitude),
+            _mapController.camera.zoom,
+          );
+        }
+      }
+    });
+
     return Scaffold(
       body: Stack(
         children: [
@@ -73,8 +76,14 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             mapController: _mapController,
             options: MapOptions(
               initialCenter: _defaultCenter,
-              initialZoom: 12.0,
+              initialZoom: 14.0,
               onTap: (_, _) => ref.read(selectedTruckProvider.notifier).select(null),
+              // User drag → stop following.
+              onPositionChanged: (_, hasGesture) {
+                if (hasGesture && _isFollowing) {
+                  setState(() => _isFollowing = false);
+                }
+              },
             ),
             children: [
               TileLayer(
@@ -87,8 +96,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                     CircleMarker(
                       point: LatLng(userPos.latitude, userPos.longitude),
                       radius: 8,
-                      color: AppColors.primary.withValues(alpha: 0.25),
-                      borderColor: AppColors.primary,
+                      color: Colors.blue.withValues(alpha: 0.25),
+                      borderColor: Colors.blue,
                       borderStrokeWidth: 2,
                       useRadiusInMeter: false,
                     ),
@@ -112,37 +121,27 @@ class _MapScreenState extends ConsumerState<MapScreen> {
               ),
             ],
           ),
-          // Location button
-          Positioned(
-            right: 16,
-            bottom: 96,
-            child: FloatingActionButton.small(
-              heroTag: 'location_fab',
-              onPressed: _centerOnUser,
-              backgroundColor: Colors.white,
-              foregroundColor: AppColors.primary,
-              elevation: 2,
-              child: const Icon(Icons.my_location),
+          // Recenter button — only visible when user has panned away.
+          if (!_isFollowing)
+            Positioned(
+              bottom: 100,
+              left: 0,
+              right: 0,
+              child: Center(child: _RecenterButton(onTap: _recenter)),
             ),
-          ),
-          // Loading indicator while fetching trucks
           if (trucksAsync.isLoading)
             const Positioned(
               top: 56,
               left: 0,
               right: 0,
-              child: Center(
-                child: _MapChip(label: 'Loading trucks…'),
-              ),
+              child: Center(child: _MapChip(label: 'Loading trucks…')),
             ),
           if (trucksAsync.asData?.value.isEmpty ?? false)
             const Positioned(
               top: 56,
               left: 0,
               right: 0,
-              child: Center(
-                child: _MapChip(label: 'No active trucks in this area'),
-              ),
+              child: Center(child: _MapChip(label: 'No active trucks in this area')),
             ),
         ],
       ),
@@ -170,6 +169,48 @@ class _TruckPin extends StatelessWidget {
         ],
       ),
       child: const Icon(Icons.lunch_dining, color: Colors.white, size: 24),
+    );
+  }
+}
+
+class _RecenterButton extends StatelessWidget {
+  const _RecenterButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.15),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.my_location, size: 18, color: AppColors.primary),
+            SizedBox(width: 8),
+            Text(
+              'Recenter',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: AppColors.primary,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

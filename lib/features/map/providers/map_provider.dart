@@ -12,21 +12,25 @@ final activeTrucksProvider = FutureProvider<List<FoodTruck>>((ref) {
   return ref.read(mapRepositoryProvider).fetchActiveTrucks();
 });
 
-// Returns null if permission denied or location unavailable.
-final userLocationProvider = FutureProvider<Position?>((ref) async {
+// Streams live position updates. Yields null if permission denied or unavailable.
+// distanceFilter: 10 suppresses GPS jitter — only emits after 10 m of movement.
+final userLocationProvider = StreamProvider<Position?>((ref) async* {
   final serviceEnabled = await Geolocator.isLocationServiceEnabled();
-  if (!serviceEnabled) return null;
+  if (!serviceEnabled) { yield null; return; }
 
   var permission = await Geolocator.checkPermission();
   if (permission == LocationPermission.denied) {
     permission = await Geolocator.requestPermission();
-    if (permission == LocationPermission.denied) return null;
+    if (permission == LocationPermission.denied) { yield null; return; }
   }
-  if (permission == LocationPermission.deniedForever) return null;
+  if (permission == LocationPermission.deniedForever) { yield null; return; }
 
-  return Geolocator.getCurrentPosition(
-    locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
-  );
+  yield* Geolocator.getPositionStream(
+    locationSettings: const LocationSettings(
+      accuracy: LocationAccuracy.high,
+      distanceFilter: 10,
+    ),
+  ).map((p) => p as Position?);
 });
 
 class SelectedTruckNotifier extends Notifier<FoodTruck?> {
