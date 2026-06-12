@@ -12,26 +12,29 @@ import 'features/owner_dashboard/screens/dashboard_screen.dart';
 import 'shells/consumer_shell.dart';
 import 'shells/owner_shell.dart';
 
+// Router is created ONCE. The _AuthListenable triggers redirect re-evaluation
+// when auth state changes. The redirect uses ref.read (not watch) so the router
+// itself is never recreated — only its redirect logic re-runs.
 final routerProvider = Provider<GoRouter>((ref) {
-  final authAsync = ref.watch(authProvider);
-
   return GoRouter(
     initialLocation: '/map',
     refreshListenable: _AuthListenable(ref),
     redirect: (context, state) {
+      final authAsync = ref.read(authProvider);
+
+      // Still loading the initial session — don't redirect yet.
       if (authAsync.isLoading) return null;
 
-      final user = authAsync.value;
+      final user = authAsync.asData?.value;
       final isAuthenticated = user != null;
-      final isOnAuthRoute = state.matchedLocation == '/login' ||
-          state.matchedLocation == '/register' ||
-          state.matchedLocation == '/register-owner';
+      final loc = state.matchedLocation;
+      final isOnAuthRoute = loc == '/login' || loc == '/register' || loc == '/register-owner';
 
       if (!isAuthenticated && !isOnAuthRoute) return '/login';
       if (isAuthenticated && isOnAuthRoute) {
         return user.isOwner ? '/dashboard' : '/map';
       }
-      if (isAuthenticated && user.isOwner && _isConsumerOnlyRoute(state.matchedLocation)) {
+      if (isAuthenticated && user.isOwner && loc.startsWith('/favorites')) {
         return '/dashboard';
       }
       return null;
@@ -76,11 +79,7 @@ final routerProvider = Provider<GoRouter>((ref) {
   );
 });
 
-bool _isConsumerOnlyRoute(String location) {
-  return location.startsWith('/favorites');
-}
-
-// Bridges Riverpod auth state into a Listenable so GoRouter can refresh.
+// Notifies go_router to re-run redirect when auth state changes.
 class _AuthListenable extends ChangeNotifier {
   _AuthListenable(Ref ref) {
     ref.listen(authProvider, (prev, next) => notifyListeners());

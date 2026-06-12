@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/constants/app_spacing.dart';
@@ -24,7 +25,7 @@ class AccountScreen extends ConsumerWidget {
         loading: () => const Center(child: CircularProgressIndicator(color: AppColors.primary)),
         error: (e, _) => Center(child: Text('Error: $e')),
         data: (user) {
-          if (user == null) return const SizedBox.shrink();
+          if (user == null) return const Center(child: CircularProgressIndicator(color: AppColors.primary));
           return ListView(
             padding: const EdgeInsets.all(AppSpacing.md),
             children: [
@@ -68,12 +69,12 @@ class AccountScreen extends ConsumerWidget {
   Future<void> _signOut(BuildContext context, WidgetRef ref) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Sign out?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
           TextButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () => Navigator.pop(dialogContext, true),
             child: const Text('Sign out', style: TextStyle(color: AppColors.error)),
           ),
         ],
@@ -81,6 +82,7 @@ class AccountScreen extends ConsumerWidget {
     );
     if (confirmed == true) {
       await ref.read(authProvider.notifier).signOut();
+      if (context.mounted) context.go('/login');
     }
   }
 }

@@ -45,7 +45,9 @@ class _RegisterOwnerScreenState extends ConsumerState<RegisterOwnerScreen> {
     if (mounted) {
       setState(() => _isLoading = false);
       final error = ref.read(authProvider).error;
-      if (error != null) _showError(error.toString());
+      if (error != null) {
+        _showError(error.toString());
+      }
     }
   }
 
@@ -55,6 +57,7 @@ class _RegisterOwnerScreenState extends ConsumerState<RegisterOwnerScreen> {
         content: Text(message),
         backgroundColor: AppColors.error,
         behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 4),
       ),
     );
   }

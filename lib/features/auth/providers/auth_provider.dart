@@ -11,15 +11,12 @@ final authRepositoryProvider = Provider<AuthRepository>((ref) {
   return AuthRepository(ref.watch(supabaseClientProvider));
 });
 
-// Holds the signed-in AppUser. Null means unauthenticated.
+// Holds the signed-in AppUser. Null = unauthenticated.
+// State is managed ONLY by explicit method calls — no internal listeners
+// that could fire mid-signup and race with profile insertion.
 class AuthNotifier extends AsyncNotifier<AppUser?> {
   @override
   Future<AppUser?> build() async {
-    // Listen to auth state changes and rebuild when they occur.
-    ref.listen(
-      _authStateChangesProvider,
-      (_, next) => ref.invalidateSelf(),
-    );
     return ref.read(authRepositoryProvider).fetchCurrentUser();
   }
 
@@ -71,8 +68,3 @@ class AuthNotifier extends AsyncNotifier<AppUser?> {
 final authProvider = AsyncNotifierProvider<AuthNotifier, AppUser?>(
   AuthNotifier.new,
 );
-
-// Internal provider that emits whenever Supabase auth state changes.
-final _authStateChangesProvider = StreamProvider<AuthState>((ref) {
-  return Supabase.instance.client.auth.onAuthStateChange;
-});

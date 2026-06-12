@@ -26,7 +26,7 @@ class AuthRepository {
     );
     final uid = response.user!.id;
 
-    await _supabase.from(SupabaseConstants.profilesTable).insert({
+    await _supabase.from(SupabaseConstants.profilesTable).upsert({
       'id': uid,
       'email': email,
       'display_name': displayName,
@@ -48,7 +48,7 @@ class AuthRepository {
     );
     final uid = response.user!.id;
 
-    await _supabase.from(SupabaseConstants.profilesTable).insert({
+    await _supabase.from(SupabaseConstants.profilesTable).upsert({
       'id': uid,
       'email': email,
       'display_name': displayName,

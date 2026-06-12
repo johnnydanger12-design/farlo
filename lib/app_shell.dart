@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/constants/app_colors.dart';
+import 'features/auth/models/app_user.dart';
+import 'features/auth/providers/auth_provider.dart';
 import 'router.dart';
 
 class AppShell extends ConsumerWidget {
@@ -9,6 +11,15 @@ class AppShell extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
+
+    // Belt-and-suspenders: navigate to /login whenever the user transitions
+    // from authenticated → null (sign-out or expired session).
+    ref.listen<AsyncValue<AppUser?>>(authProvider, (prev, next) {
+      if (next.isLoading) return;
+      final wasAuthed = prev?.asData?.value != null;
+      final isAuthed = next.asData?.value != null;
+      if (wasAuthed && !isAuthed) router.go('/login');
+    });
 
     return MaterialApp.router(
       title: 'Good Truck Finder',
