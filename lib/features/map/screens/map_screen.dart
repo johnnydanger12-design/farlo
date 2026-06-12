@@ -29,6 +29,11 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   void _onTruckTapped(FoodTruck truck) {
     ref.read(selectedTruckProvider.notifier).select(truck);
+    setState(() => _isFollowing = false);
+    _mapController.move(
+      LatLng(truck.latitude, truck.longitude),
+      _mapController.camera.zoom,
+    );
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,

@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
@@ -54,19 +57,17 @@ class TruckBottomSheet extends StatelessWidget {
                       // Placeholder width: avatar diameter + gap to name
                       const SizedBox(width: _avatarRadius * 2 + AppSpacing.md),
                       Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              truck.name,
-                              style: AppTextStyles.heading3,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 4),
-                            _OpenBadge(isOpen: truck.isOpen),
-                          ],
+                        child: Text(
+                          truck.name,
+                          style: AppTextStyles.heading3,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      _TakeMeThereButton(
+                        latitude: truck.latitude,
+                        longitude: truck.longitude,
                       ),
                     ],
                   ),
@@ -125,14 +126,24 @@ class TruckBottomSheet extends StatelessWidget {
             ),
           ),
 
-          // ── Avatar — center sits on the card's top-left edge ────────────
+          // ── Avatar + open badge — center of avatar sits on card's top edge ──
           Positioned(
             top: 0,
             left: _avatarLeft,
-            child: _TruckAvatar(
-              logoUrl: truck.logoUrl,
-              name: truck.name,
-              radius: _avatarRadius,
+            child: SizedBox(
+              width: _avatarRadius * 2,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _TruckAvatar(
+                    logoUrl: truck.logoUrl,
+                    isOpen: truck.isOpen,
+                    radius: _avatarRadius,
+                  ),
+                  const SizedBox(height: 4),
+                  _OpenBadge(isOpen: truck.isOpen),
+                ],
+              ),
             ),
           ),
         ],
@@ -144,26 +155,27 @@ class TruckBottomSheet extends StatelessWidget {
 class _TruckAvatar extends StatelessWidget {
   const _TruckAvatar({
     required this.logoUrl,
-    required this.name,
+    required this.isOpen,
     required this.radius,
   });
 
   final String? logoUrl;
-  final String name;
+  final bool isOpen;
   final double radius;
 
   @override
   Widget build(BuildContext context) {
+    final bgColor = isOpen ? AppColors.primary : AppColors.textHint;
     return Container(
       width: radius * 2,
       height: radius * 2,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: AppColors.primary.withValues(alpha: 0.12),
+        color: bgColor,
         border: Border.all(color: Colors.white, width: 3),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.12),
+            color: Colors.black.withValues(alpha: 0.2),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -174,30 +186,51 @@ class _TruckAvatar extends StatelessWidget {
               child: Image.network(
                 logoUrl!,
                 fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => _Fallback(name: name, radius: radius),
+                errorBuilder: (_, _, _) => _TruckIcon(radius: radius),
               ),
             )
-          : _Fallback(name: name, radius: radius),
+          : _TruckIcon(radius: radius),
     );
   }
 }
 
-class _Fallback extends StatelessWidget {
-  const _Fallback({required this.name, required this.radius});
+class _TruckIcon extends StatelessWidget {
+  const _TruckIcon({required this.radius});
 
-  final String name;
   final double radius;
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Text(
-        name.isNotEmpty ? name[0].toUpperCase() : '?',
-        style: TextStyle(
-          fontSize: radius * 0.8,
-          fontWeight: FontWeight.w700,
+    return Icon(Icons.lunch_dining, color: Colors.white, size: radius * 1.1);
+  }
+}
+
+class _TakeMeThereButton extends StatelessWidget {
+  const _TakeMeThereButton({required this.latitude, required this.longitude});
+
+  final double latitude;
+  final double longitude;
+
+  Future<void> _launch() async {
+    final uri = Platform.isIOS
+        ? Uri.parse('maps://?daddr=$latitude,$longitude&dirflg=d')
+        : Uri.parse(
+            'https://www.google.com/maps/dir/?api=1&destination=$latitude,$longitude&travelmode=driving',
+          );
+    if (await canLaunchUrl(uri)) await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: _launch,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
           color: AppColors.primary,
+          borderRadius: BorderRadius.circular(20),
         ),
+        child: const Icon(Icons.navigation_rounded, color: Colors.white, size: 18),
       ),
     );
   }
