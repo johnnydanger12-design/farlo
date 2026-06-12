@@ -74,5 +74,9 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Good Truck Finder needs access to your photo library to let you upload truck photos and logos.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Good Truck Finder needs camera access to let you take photos of your truck.</string>
 </dict>
 </plist>

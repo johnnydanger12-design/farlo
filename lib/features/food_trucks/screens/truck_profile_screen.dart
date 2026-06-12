@@ -5,10 +5,16 @@ import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/widgets/star_rating_widget.dart';
 import '../../../core/widgets/error_view.dart';
+import '../../auth/providers/auth_provider.dart';
 import '../../map/models/food_truck.dart';
 import '../../food_trucks/models/operating_hours.dart';
 import '../../food_trucks/models/menu_item.dart';
 import '../providers/food_truck_provider.dart';
+import '../../favorites/providers/favorites_provider.dart';
+import '../../reviews/models/review.dart';
+import '../../reviews/providers/reviews_provider.dart';
+import '../../reviews/widgets/review_card.dart';
+import '../../reviews/widgets/write_review_sheet.dart';
 
 class TruckProfileScreen extends ConsumerWidget {
   const TruckProfileScreen({super.key, required this.truckId});
@@ -33,15 +39,15 @@ class TruckProfileScreen extends ConsumerWidget {
   }
 }
 
-class _TruckProfileContent extends StatefulWidget {
+class _TruckProfileContent extends ConsumerStatefulWidget {
   const _TruckProfileContent({required this.truck});
   final FoodTruck truck;
 
   @override
-  State<_TruckProfileContent> createState() => _TruckProfileContentState();
+  ConsumerState<_TruckProfileContent> createState() => _TruckProfileContentState();
 }
 
-class _TruckProfileContentState extends State<_TruckProfileContent> {
+class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
   final _pageController = PageController();
   int _currentPhoto = 0;
 
@@ -51,10 +57,37 @@ class _TruckProfileContentState extends State<_TruckProfileContent> {
     super.dispose();
   }
 
+  Future<void> _openReviewSheet(Review? existing) async {
+    final result = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => WriteReviewSheet(truckId: widget.truck.id, existing: existing),
+    );
+    if (result == true) {
+      // Refresh the truck to get updated rating/count
+      ref.invalidate(foodTruckProvider(widget.truck.id));
+    }
+  }
+
+  Future<void> _deleteReview(String reviewId) async {
+    await ref.read(reviewsRepositoryProvider).deleteReview(reviewId);
+    ref.invalidate(truckReviewsProvider(widget.truck.id));
+    ref.invalidate(myReviewProvider(widget.truck.id));
+    ref.invalidate(foodTruckProvider(widget.truck.id));
+  }
+
   @override
   Widget build(BuildContext context) {
     final truck = widget.truck;
     final hasPhotos = truck.photoUrls.isNotEmpty;
+    final asyncReviews = ref.watch(truckReviewsProvider(truck.id));
+    final asyncMyReview = ref.watch(myReviewProvider(truck.id));
+    final user = ref.watch(authProvider).asData?.value;
+    final isAuthenticated = user != null;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -66,6 +99,23 @@ class _TruckProfileContentState extends State<_TruckProfileContent> {
             pinned: true,
             backgroundColor: AppColors.secondary,
             foregroundColor: Colors.white,
+            actions: isAuthenticated
+                ? [
+                    IconButton(
+                      icon: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 200),
+                        child: Icon(
+                          (ref.watch(favoritedTruckIdsProvider).asData?.value.contains(truck.id) ?? false)
+                              ? Icons.favorite_rounded
+                              : Icons.favorite_border_rounded,
+                          key: ValueKey(ref.watch(favoritedTruckIdsProvider).asData?.value.contains(truck.id)),
+                          color: Colors.white,
+                        ),
+                      ),
+                      onPressed: () => ref.read(favoritedTruckIdsProvider.notifier).toggle(truck.id),
+                    ),
+                  ]
+                : null,
             flexibleSpace: FlexibleSpaceBar(
               background: hasPhotos
                   ? _PhotoCarousel(
@@ -96,6 +146,8 @@ class _TruckProfileContentState extends State<_TruckProfileContent> {
                             Text(truck.name, style: AppTextStyles.heading2),
                             const SizedBox(height: 4),
                             Text(truck.cuisineType, style: AppTextStyles.bodySmall),
+                            const SizedBox(height: 4),
+                            _FollowerCount(truckId: truck.id),
                           ],
                         ),
                       ),
@@ -190,7 +242,89 @@ class _TruckProfileContentState extends State<_TruckProfileContent> {
               ),
             ),
 
+          const _SectionSpacer(),
+
+          // ── Reviews ──────────────────────────────────────────────────────
+          SliverToBoxAdapter(
+            child: Container(
+              color: AppColors.surface,
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('Reviews', style: AppTextStyles.heading3),
+                      // Show "Edit" if user already reviewed, "Write" if not
+                      asyncMyReview.when(
+                        data: (myReview) => TextButton(
+                          onPressed: isAuthenticated
+                              ? () => _openReviewSheet(myReview)
+                              : () => _showLoginPrompt(context),
+                          child: Text(
+                            myReview != null ? 'Edit Review' : 'Write a Review',
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.primary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        loading: () => const SizedBox.shrink(),
+                        error: (_, _) => const SizedBox.shrink(),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  asyncReviews.when(
+                    loading: () => const Center(child: CircularProgressIndicator()),
+                    error: (e, _) => Text('Could not load reviews', style: AppTextStyles.bodySmall),
+                    data: (reviews) {
+                      if (reviews.isEmpty) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
+                          child: Center(
+                            child: Text('No reviews yet — be the first!', style: AppTextStyles.bodySmall),
+                          ),
+                        );
+                      }
+                      return Column(
+                        children: reviews.map((r) {
+                          final isOwn = r.userId == user?.id;
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                            child: ReviewCard(
+                              review: r,
+                              isOwn: isOwn,
+                              onDelete: isOwn ? () => _deleteReview(r.id) : null,
+                            ),
+                          );
+                        }).toList(),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+
           const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.xl)),
+        ],
+      ),
+    );
+  }
+
+  void _showLoginPrompt(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Sign in required'),
+        content: const Text('You need to be signed in to leave a review.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('OK'),
+          ),
         ],
       ),
     );
@@ -259,6 +393,31 @@ class _TruckIconPlaceholder extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const Icon(Icons.lunch_dining, color: Colors.white54, size: 72);
+  }
+}
+
+class _FollowerCount extends ConsumerWidget {
+  const _FollowerCount({required this.truckId});
+  final String truckId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final countAsync = ref.watch(truckFollowerCountProvider(truckId));
+    return countAsync.when(
+      loading: () => const SizedBox.shrink(),
+      error: (_, _) => const SizedBox.shrink(),
+      data: (count) {
+        final label = count == 1 ? '1 follower' : '$count followers';
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.favorite_border_rounded, size: 13, color: AppColors.textSecondary),
+            const SizedBox(width: 4),
+            Text(label, style: AppTextStyles.caption),
+          ],
+        );
+      },
+    );
   }
 }
 
@@ -332,7 +491,7 @@ class _HoursTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final today = DateTime.now().weekday % 7; // weekday: Mon=1..Sun=7 → 0=Sun..6=Sat
+    final today = DateTime.now().weekday % 7;
 
     return Column(
       children: hours.map((h) {
@@ -376,7 +535,6 @@ class _MenuList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Group by category
     final categories = <String, List<MenuItem>>{};
     for (final item in items.where((i) => i.isAvailable)) {
       categories.putIfAbsent(item.category, () => []).add(item);

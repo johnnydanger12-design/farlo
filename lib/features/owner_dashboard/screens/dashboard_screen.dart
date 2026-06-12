@@ -60,6 +60,12 @@ class DashboardScreen extends ConsumerWidget {
                 subtitle: 'Add and manage menu items',
                 onTap: () => context.go('/dashboard/manage-menu'),
               ),
+              _DashboardTile(
+                icon: Icons.star_outline,
+                label: 'Subscription',
+                subtitle: 'Manage your plan',
+                onTap: () => context.go('/dashboard/subscription'),
+              ),
             ],
           );
         },

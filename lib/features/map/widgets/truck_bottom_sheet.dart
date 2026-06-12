@@ -1,25 +1,31 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/widgets/star_rating_widget.dart';
+import '../../auth/providers/auth_provider.dart';
+import '../../favorites/providers/favorites_provider.dart';
 import '../models/food_truck.dart';
 
-class TruckBottomSheet extends StatelessWidget {
+class TruckBottomSheet extends ConsumerWidget {
   const TruckBottomSheet({super.key, required this.truck});
 
   final FoodTruck truck;
 
-  // Avatar protrudes by exactly this amount above the card top edge.
   static const double _avatarRadius = 30.0;
   static const double _avatarLeft = AppSpacing.md;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(authProvider).asData?.value;
+    final isAuthenticated = user != null;
+    final isFav = ref.watch(favoritedTruckIdsProvider).asData?.value.contains(truck.id) ?? false;
+
     return Container(
       margin: const EdgeInsets.fromLTRB(AppSpacing.md, 0, AppSpacing.md, AppSpacing.md),
       child: Stack(
@@ -27,7 +33,6 @@ class TruckBottomSheet extends StatelessWidget {
         children: [
           // ── Card ────────────────────────────────────────────────────────
           Container(
-            // Pushes the card down so the top half of the avatar floats above.
             margin: const EdgeInsets.only(top: _avatarRadius),
             decoration: const BoxDecoration(
               color: Colors.white,
@@ -49,13 +54,13 @@ class TruckBottomSheet extends StatelessWidget {
                     ),
                   ),
                 ),
-                // Header row — left space clears the protruding avatar
+                // Header row
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      // Placeholder width: avatar diameter + gap to name
+                      // Placeholder width clears the protruding avatar
                       const SizedBox(width: _avatarRadius * 2 + AppSpacing.md),
                       Expanded(
                         child: Text(
@@ -66,6 +71,14 @@ class TruckBottomSheet extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: AppSpacing.sm),
+                      // Heart button (only when signed in)
+                      if (isAuthenticated)
+                        _HeartButton(
+                          truckId: truck.id,
+                          isFav: isFav,
+                          onTap: () => ref.read(favoritedTruckIdsProvider.notifier).toggle(truck.id),
+                        ),
+                      if (isAuthenticated) const SizedBox(width: AppSpacing.sm),
                       _TakeMeThereButton(
                         latitude: truck.latitude,
                         longitude: truck.longitude,
@@ -102,8 +115,7 @@ class TruckBottomSheet extends StatelessWidget {
                           ),
                         ],
                       ),
-                      if (truck.description != null &&
-                          truck.description!.isNotEmpty) ...[
+                      if (truck.description != null && truck.description!.isNotEmpty) ...[
                         const SizedBox(height: AppSpacing.sm),
                         Text(
                           truck.description!,
@@ -127,7 +139,7 @@ class TruckBottomSheet extends StatelessWidget {
             ),
           ),
 
-          // ── Avatar + open badge — center of avatar sits on card's top edge ──
+          // ── Avatar + open badge ─────────────────────────────────────────
           Positioned(
             top: 0,
             left: _avatarLeft,
@@ -148,6 +160,30 @@ class TruckBottomSheet extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _HeartButton extends StatelessWidget {
+  const _HeartButton({required this.truckId, required this.isFav, required this.onTap});
+
+  final String truckId;
+  final bool isFav;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 200),
+        child: Icon(
+          isFav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+          key: ValueKey(isFav),
+          color: isFav ? Colors.red : AppColors.textHint,
+          size: 24,
+        ),
       ),
     );
   }

@@ -1,23 +1,207 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/app_spacing.dart';
+import '../../../core/constants/app_text_styles.dart';
+import '../../../core/widgets/star_rating_widget.dart';
+import '../models/favorite_entry.dart';
+import '../providers/favorites_provider.dart';
 
-class FavoritesScreen extends StatelessWidget {
+class FavoritesScreen extends ConsumerWidget {
   const FavoritesScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return const Scaffold(
+  Widget build(BuildContext context, WidgetRef ref) {
+    final asyncFavorites = ref.watch(favoritesListProvider);
+
+    return Scaffold(
       backgroundColor: AppColors.background,
-      body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+      appBar: AppBar(
+        title: const Text('Favorites'),
+        backgroundColor: AppColors.surface,
+        foregroundColor: AppColors.textPrimary,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
+      ),
+      body: asyncFavorites.when(
+        loading: () => Center(
+          child: CircularProgressIndicator(color: Theme.of(context).colorScheme.primary),
+        ),
+        error: (e, _) => Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.error_outline, size: 48, color: AppColors.textHint),
+              const SizedBox(height: AppSpacing.sm),
+              Text('Could not load favorites', style: AppTextStyles.bodySmall),
+              const SizedBox(height: AppSpacing.md),
+              TextButton(
+                onPressed: () => ref.invalidate(favoritesListProvider),
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+        data: (favorites) {
+          if (favorites.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.favorite_border, size: 64, color: AppColors.textHint),
+                  const SizedBox(height: AppSpacing.md),
+                  Text('No favorites yet', style: AppTextStyles.heading3),
+                  const SizedBox(height: AppSpacing.sm),
+                  Text(
+                    'Tap the heart on any truck to save it here.',
+                    style: AppTextStyles.bodySmall,
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            );
+          }
+
+          return RefreshIndicator(
+            onRefresh: () async => ref.invalidate(favoritesListProvider),
+            color: Theme.of(context).colorScheme.primary,
+            child: ListView.separated(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              itemCount: favorites.length,
+              separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.sm),
+              itemBuilder: (context, i) => _FavoriteTile(entry: favorites[i]),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _FavoriteTile extends ConsumerWidget {
+  const _FavoriteTile({required this.entry});
+
+  final FavoriteEntry entry;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final truck = entry.truck;
+
+    return GestureDetector(
+      onTap: truck != null ? () => context.push('/map/truck/${truck.id}') : null,
+      child: Container(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
           children: [
-            Icon(Icons.favorite_border, size: 64, color: AppColors.textHint),
-            SizedBox(height: 12),
-            Text('Favorites — Phase 4'),
+            // Logo
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
+              ),
+              child: truck?.logoUrl != null
+                  ? ClipOval(
+                      child: Image.network(
+                        truck!.logoUrl!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) => const _TruckIcon(),
+                      ),
+                    )
+                  : const _TruckIcon(),
+            ),
+            const SizedBox(width: AppSpacing.md),
+
+            // Info
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    truck?.name ?? 'Unknown truck',
+                    style: AppTextStyles.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    truck?.cuisineType ?? '',
+                    style: AppTextStyles.caption,
+                  ),
+                  if (truck != null && truck.reviewCount > 0) ...[
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        StarRatingWidget(rating: truck.averageRating, size: 12, showValue: false),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${truck.averageRating.toStringAsFixed(1)} (${truck.reviewCount})',
+                          style: AppTextStyles.caption,
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+
+            // Open badge + unfavorite
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                if (truck != null)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: (truck.isOpen ? AppColors.openGreen : AppColors.textHint)
+                          .withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      truck.isOpen ? 'Open' : 'Closed',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: truck.isOpen ? AppColors.openGreen : AppColors.textHint,
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: AppSpacing.sm),
+                GestureDetector(
+                  onTap: () => ref.read(favoritedTruckIdsProvider.notifier).toggle(entry.truckId),
+                  child: const Icon(Icons.favorite_rounded, color: Colors.red, size: 22),
+                ),
+              ],
+            ),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _TruckIcon extends StatelessWidget {
+  const _TruckIcon();
+
+  @override
+  Widget build(BuildContext context) {
+    return Icon(
+      Icons.lunch_dining,
+      color: Theme.of(context).colorScheme.primary,
+      size: 28,
     );
   }
 }

@@ -22,6 +22,33 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   static const _defaultCenter = LatLng(37.7749, -122.4194);
 
   @override
+  void initState() {
+    super.initState();
+    // The map tab may start offstage (IndexedStack index > 0 on owner shell),
+    // meaning flutter_map has zero paint bounds and fetches no tiles. We also
+    // can't rely solely on the GPS stream because it may emit before the
+    // MapController is attached. Use getLastKnownPosition (OS cache, ~10 ms)
+    // to fast-path to the right location, then let the live stream take over.
+    _resolveInitialCenter();
+  }
+
+  Future<void> _resolveInitialCenter() async {
+    Position? cached;
+    try {
+      cached = await Geolocator.getLastKnownPosition();
+    } catch (_) {}
+    if (!mounted) return;
+    // After the first frame the MapController is guaranteed to be attached.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_isFollowing) return;
+      final pos = cached ?? ref.read(userLocationProvider).asData?.value;
+      if (pos != null) {
+        _mapController.move(LatLng(pos.latitude, pos.longitude), 14.0);
+      }
+    });
+  }
+
+  @override
   void dispose() {
     _mapController.dispose();
     super.dispose();

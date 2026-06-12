@@ -1,0 +1,31 @@
+class Review {
+  const Review({
+    required this.id,
+    required this.truckId,
+    required this.userId,
+    required this.userDisplayName,
+    required this.rating,
+    this.comment,
+    required this.createdAt,
+  });
+
+  final String id;
+  final String truckId;
+  final String userId;
+  final String userDisplayName;
+  final int rating;
+  final String? comment;
+  final DateTime createdAt;
+
+  factory Review.fromMap(Map<String, dynamic> map) {
+    return Review(
+      id: map['id'] as String,
+      truckId: map['truck_id'] as String,
+      userId: map['user_id'] as String,
+      userDisplayName: map['user_display_name'] as String,
+      rating: (map['rating'] as num).toInt(),
+      comment: map['comment'] as String?,
+      createdAt: DateTime.parse(map['created_at'] as String),
+    );
+  }
+}

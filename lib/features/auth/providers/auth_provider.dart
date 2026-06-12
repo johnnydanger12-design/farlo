@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/app_user.dart';
 import '../repositories/auth_repository.dart';
@@ -17,14 +18,18 @@ final authRepositoryProvider = Provider<AuthRepository>((ref) {
 class AuthNotifier extends AsyncNotifier<AppUser?> {
   @override
   Future<AppUser?> build() async {
-    return ref.read(authRepositoryProvider).fetchCurrentUser();
+    final user = await ref.read(authRepositoryProvider).fetchCurrentUser();
+    if (user != null) await _rcLogIn(user.id);
+    return user;
   }
 
   Future<void> signInWithEmail(String email, String password) async {
     state = const AsyncLoading();
-    state = await AsyncValue.guard(
-      () => ref.read(authRepositoryProvider).signInWithEmail(email, password),
-    );
+    state = await AsyncValue.guard(() async {
+      final user = await ref.read(authRepositoryProvider).signInWithEmail(email, password);
+      await _rcLogIn(user.id);
+      return user;
+    });
   }
 
   Future<void> signUpConsumer({
@@ -33,13 +38,15 @@ class AuthNotifier extends AsyncNotifier<AppUser?> {
     required String displayName,
   }) async {
     state = const AsyncLoading();
-    state = await AsyncValue.guard(
-      () => ref.read(authRepositoryProvider).signUpConsumer(
+    state = await AsyncValue.guard(() async {
+      final user = await ref.read(authRepositoryProvider).signUpConsumer(
             email: email,
             password: password,
             displayName: displayName,
-          ),
-    );
+          );
+      await _rcLogIn(user.id);
+      return user;
+    });
   }
 
   Future<void> signUpOwner({
@@ -49,19 +56,26 @@ class AuthNotifier extends AsyncNotifier<AppUser?> {
     required String truckName,
   }) async {
     state = const AsyncLoading();
-    state = await AsyncValue.guard(
-      () => ref.read(authRepositoryProvider).signUpOwner(
+    state = await AsyncValue.guard(() async {
+      final user = await ref.read(authRepositoryProvider).signUpOwner(
             email: email,
             password: password,
             displayName: displayName,
             truckName: truckName,
-          ),
-    );
+          );
+      await _rcLogIn(user.id);
+      return user;
+    });
   }
 
   Future<void> signOut() async {
     await ref.read(authRepositoryProvider).signOut();
+    try { await Purchases.logOut(); } catch (_) {}
     state = const AsyncData(null);
+  }
+
+  Future<void> _rcLogIn(String userId) async {
+    try { await Purchases.logIn(userId); } catch (_) {}
   }
 }
 

@@ -1,11 +1,18 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../core/constants/supabase_constants.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_text_field.dart';
+import '../../../services/storage_service.dart';
 import '../../food_trucks/providers/food_truck_provider.dart';
 
 class EditTruckScreen extends ConsumerStatefulWidget {
@@ -20,8 +27,18 @@ class _EditTruckScreenState extends ConsumerState<EditTruckScreen> {
   late final TextEditingController _nameCtrl;
   late final TextEditingController _cuisineCtrl;
   late final TextEditingController _descCtrl;
+
   bool _loading = false;
   bool _initialized = false;
+
+  // Existing URLs from DB
+  String? _existingLogoUrl;
+  List<String> _existingPhotoUrls = [];
+
+  // Newly picked local files (null = no change for that slot)
+  File? _newLogo;
+  // Up to 3 photo slots; null = keep existing
+  final List<File?> _newPhotos = [null, null, null];
 
   static const List<String> _cuisineOptions = [
     'American', 'Mexican', 'Asian', 'BBQ', 'Pizza', 'Burgers',
@@ -52,18 +69,74 @@ class _EditTruckScreenState extends ConsumerState<EditTruckScreen> {
     _nameCtrl.text = truck.name;
     _cuisineCtrl.text = truck.cuisineType;
     _descCtrl.text = truck.description ?? '';
+    _existingLogoUrl = truck.logoUrl;
+    _existingPhotoUrls = List<String>.from(truck.photoUrls);
     _initialized = true;
+  }
+
+  Future<void> _pickLogo() async {
+    final xfile = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 85);
+    if (xfile != null) setState(() => _newLogo = File(xfile.path));
+  }
+
+  Future<void> _pickPhoto(int index) async {
+    final xfile = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 80);
+    if (xfile != null) setState(() => _newPhotos[index] = File(xfile.path));
+  }
+
+  void _removePhoto(int index) {
+    setState(() {
+      if (index < _existingPhotoUrls.length) {
+        _existingPhotoUrls.removeAt(index);
+      }
+      _newPhotos[index] = null;
+    });
   }
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _loading = true);
+
     try {
-      await ref.read(ownerTruckProvider.notifier).updateProfile({
+      final user = Supabase.instance.client.auth.currentUser!;
+      final storage = storageServiceInstance;
+      final fields = <String, dynamic>{
         'name': _nameCtrl.text.trim(),
         'cuisine_type': _cuisineCtrl.text.trim(),
         'description': _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
-      });
+      };
+
+      // Upload logo if changed
+      if (_newLogo != null) {
+        final url = await storage.uploadImage(
+          SupabaseConstants.truckLogosBucket,
+          _newLogo!,
+          ownerId: user.id,
+        );
+        fields['logo_url'] = url;
+      }
+
+      // Build final photo_urls list: existing kept + new uploads
+      final photoUrls = List<String>.from(_existingPhotoUrls);
+      for (int i = 0; i < _newPhotos.length; i++) {
+        final file = _newPhotos[i];
+        if (file != null) {
+          final url = await storage.uploadImage(
+            SupabaseConstants.truckPhotosBucket,
+            file,
+            ownerId: user.id,
+          );
+          if (i < photoUrls.length) {
+            photoUrls[i] = url; // replace slot
+          } else {
+            photoUrls.add(url); // new slot
+          }
+        }
+      }
+      fields['photo_urls'] = photoUrls;
+
+      await ref.read(ownerTruckProvider.notifier).updateProfile(fields);
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -113,6 +186,17 @@ class _EditTruckScreenState extends ConsumerState<EditTruckScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Logo picker
+                Text('Logo', style: AppTextStyles.heading3),
+                const SizedBox(height: AppSpacing.sm),
+                _LogoPicker(
+                  existingUrl: _existingLogoUrl,
+                  newFile: _newLogo,
+                  onTap: _pickLogo,
+                ),
+                const SizedBox(height: AppSpacing.lg),
+
+                // Truck name
                 AppTextField(
                   controller: _nameCtrl,
                   label: 'Truck Name',
@@ -120,22 +204,36 @@ class _EditTruckScreenState extends ConsumerState<EditTruckScreen> {
                       (v == null || v.trim().isEmpty) ? 'Name is required' : null,
                 ),
                 const SizedBox(height: AppSpacing.md),
+
+                // Cuisine
                 _CuisineDropdown(
                   value: _cuisineCtrl.text.isEmpty ? 'Other' : _cuisineCtrl.text,
                   options: _cuisineOptions,
                   onChanged: (val) {
-                    if (val != null) {
-                      setState(() => _cuisineCtrl.text = val);
-                    }
+                    if (val != null) setState(() => _cuisineCtrl.text = val);
                   },
                 ),
                 const SizedBox(height: AppSpacing.md),
+
+                // Description
                 AppTextField(
                   controller: _descCtrl,
                   label: 'Description (optional)',
                   maxLines: 4,
                 ),
+                const SizedBox(height: AppSpacing.lg),
+
+                // Photos (up to 3)
+                Text('Photos (up to 3)', style: AppTextStyles.heading3),
+                const SizedBox(height: AppSpacing.sm),
+                _PhotoGrid(
+                  existingUrls: _existingPhotoUrls,
+                  newFiles: _newPhotos,
+                  onPick: _pickPhoto,
+                  onRemove: _removePhoto,
+                ),
                 const SizedBox(height: AppSpacing.xl),
+
                 AppButton(
                   label: 'Save Changes',
                   onPressed: _loading ? null : _save,
@@ -146,6 +244,150 @@ class _EditTruckScreenState extends ConsumerState<EditTruckScreen> {
           ),
         ),
       ),
+    );
+  }
+}
+
+// ── Sub-widgets ────────────────────────────────────────────────────────────────
+
+class _LogoPicker extends StatelessWidget {
+  const _LogoPicker({
+    required this.existingUrl,
+    required this.newFile,
+    required this.onTap,
+  });
+
+  final String? existingUrl;
+  final File? newFile;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final primary = Theme.of(context).colorScheme.primary;
+
+    Widget child;
+    if (newFile != null) {
+      child = ClipOval(child: Image.file(newFile!, fit: BoxFit.cover, width: 88, height: 88));
+    } else if (existingUrl != null) {
+      child = ClipOval(child: Image.network(existingUrl!, fit: BoxFit.cover, width: 88, height: 88,
+          errorBuilder: (_, _, _) => const Icon(Icons.lunch_dining, size: 40, color: Colors.white54)));
+    } else {
+      child = const Icon(Icons.lunch_dining, size: 40, color: Colors.white54);
+    }
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Stack(
+        children: [
+          Container(
+            width: 88,
+            height: 88,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: primary.withValues(alpha: 0.15),
+              border: Border.all(color: primary.withValues(alpha: 0.4), width: 2),
+            ),
+            child: Center(child: child),
+          ),
+          Positioned(
+            bottom: 0,
+            right: 0,
+            child: Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: primary,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2),
+              ),
+              child: const Icon(Icons.camera_alt, size: 14, color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PhotoGrid extends StatelessWidget {
+  const _PhotoGrid({
+    required this.existingUrls,
+    required this.newFiles,
+    required this.onPick,
+    required this.onRemove,
+  });
+
+  final List<String> existingUrls;
+  final List<File?> newFiles;
+  final void Function(int) onPick;
+  final void Function(int) onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final primary = Theme.of(context).colorScheme.primary;
+    // 3 fixed slots
+    return Row(
+      children: List.generate(3, (i) {
+        final newFile = newFiles[i];
+        final existingUrl = i < existingUrls.length ? existingUrls[i] : null;
+        final hasContent = newFile != null || existingUrl != null;
+
+        return Expanded(
+          child: Padding(
+            padding: EdgeInsets.only(right: i < 2 ? AppSpacing.sm : 0),
+            child: AspectRatio(
+              aspectRatio: 1,
+              child: GestureDetector(
+                onTap: () => onPick(i),
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    color: primary.withValues(alpha: 0.08),
+                    border: Border.all(
+                      color: hasContent ? primary.withValues(alpha: 0.4) : AppColors.divider,
+                    ),
+                  ),
+                  child: hasContent
+                      ? Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(11),
+                              child: newFile != null
+                                  ? Image.file(newFile, fit: BoxFit.cover)
+                                  : Image.network(existingUrl!, fit: BoxFit.cover,
+                                      errorBuilder: (_, _, _) => const SizedBox()),
+                            ),
+                            Positioned(
+                              top: 4,
+                              right: 4,
+                              child: GestureDetector(
+                                onTap: () => onRemove(i),
+                                child: Container(
+                                  padding: const EdgeInsets.all(3),
+                                  decoration: const BoxDecoration(
+                                    color: Colors.black54,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(Icons.close, size: 14, color: Colors.white),
+                                ),
+                              ),
+                            ),
+                          ],
+                        )
+                      : Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.add_photo_alternate_outlined, color: primary, size: 28),
+                            const SizedBox(height: 4),
+                            Text('Add', style: TextStyle(color: primary, fontSize: 12)),
+                          ],
+                        ),
+                ),
+              ),
+            ),
+          ),
+        );
+      }),
     );
   }
 }
