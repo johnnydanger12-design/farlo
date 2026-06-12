@@ -1,5 +1,9 @@
 # Secrets — never commit
 .env.json
+.mcp.json
+
+# Session docs
+HANDOFF.md
 
 # Miscellaneous
 *.class
