@@ -12,6 +12,7 @@ class MapRepository {
         .from(SupabaseConstants.foodTrucksTable)
         .select()
         .eq('is_active', true)
+        .eq('is_open', true)
         .not('latitude', 'is', null)
         .not('longitude', 'is', null);
     return (data as List).map((e) => FoodTruck.fromMap(e as Map<String, dynamic>)).toList();

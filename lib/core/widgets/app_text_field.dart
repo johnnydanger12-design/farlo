@@ -14,6 +14,7 @@ class AppTextField extends StatelessWidget {
     this.onFieldSubmitted,
     this.suffixIcon,
     this.enabled = true,
+    this.maxLines = 1,
   });
 
   final String label;
@@ -26,6 +27,7 @@ class AppTextField extends StatelessWidget {
   final void Function(String)? onFieldSubmitted;
   final Widget? suffixIcon;
   final bool enabled;
+  final int maxLines;
 
   @override
   Widget build(BuildContext context) {
@@ -37,6 +39,7 @@ class AppTextField extends StatelessWidget {
       textInputAction: textInputAction,
       onFieldSubmitted: onFieldSubmitted,
       enabled: enabled,
+      maxLines: obscureText ? 1 : maxLines,
       decoration: InputDecoration(
         labelText: label,
         hintText: hint,
@@ -54,7 +57,7 @@ class AppTextField extends StatelessWidget {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.primary, width: 2),
+          borderSide: BorderSide(color: Theme.of(context).colorScheme.primary, width: 2),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),

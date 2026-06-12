@@ -9,6 +9,10 @@ import 'features/account/screens/account_screen.dart';
 import 'features/map/screens/map_screen.dart';
 import 'features/favorites/screens/favorites_screen.dart';
 import 'features/owner_dashboard/screens/dashboard_screen.dart';
+import 'features/owner_dashboard/screens/edit_truck_screen.dart';
+import 'features/owner_dashboard/screens/manage_hours_screen.dart';
+import 'features/owner_dashboard/screens/manage_menu_screen.dart';
+import 'features/food_trucks/screens/truck_profile_screen.dart';
 import 'shells/consumer_shell.dart';
 import 'shells/owner_shell.dart';
 
@@ -49,7 +53,16 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (c, s, shell) => ConsumerShell(shell: shell),
         branches: [
           StatefulShellBranch(routes: [
-            GoRoute(path: '/map', builder: (c, s) => const MapScreen()),
+            GoRoute(
+              path: '/map',
+              builder: (c, s) => const MapScreen(),
+              routes: [
+                GoRoute(
+                  path: 'truck/:id',
+                  builder: (c, s) => TruckProfileScreen(truckId: s.pathParameters['id']!),
+                ),
+              ],
+            ),
           ]),
           StatefulShellBranch(routes: [
             GoRoute(path: '/favorites', builder: (c, s) => const FavoritesScreen()),
@@ -65,10 +78,36 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (c, s, shell) => OwnerShell(shell: shell),
         branches: [
           StatefulShellBranch(routes: [
-            GoRoute(path: '/dashboard', builder: (c, s) => const DashboardScreen()),
+            GoRoute(
+              path: '/dashboard',
+              builder: (c, s) => const DashboardScreen(),
+              routes: [
+                GoRoute(
+                  path: 'edit-truck',
+                  builder: (c, s) => const EditTruckScreen(),
+                ),
+                GoRoute(
+                  path: 'manage-hours',
+                  builder: (c, s) => const ManageHoursScreen(),
+                ),
+                GoRoute(
+                  path: 'manage-menu',
+                  builder: (c, s) => const ManageMenuScreen(),
+                ),
+              ],
+            ),
           ]),
           StatefulShellBranch(routes: [
-            GoRoute(path: '/owner-map', builder: (c, s) => const MapScreen()),
+            GoRoute(
+              path: '/owner-map',
+              builder: (c, s) => const MapScreen(),
+              routes: [
+                GoRoute(
+                  path: 'truck/:id',
+                  builder: (c, s) => TruckProfileScreen(truckId: s.pathParameters['id']!),
+                ),
+              ],
+            ),
           ]),
           StatefulShellBranch(routes: [
             GoRoute(path: '/owner-account', builder: (c, s) => const AccountScreen()),

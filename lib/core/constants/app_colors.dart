@@ -3,8 +3,9 @@ import 'package:flutter/material.dart';
 class AppColors {
   AppColors._();
 
-  static const primary = Color(0xFFE85D04);
+  static const primary = Color(0xFFE85D04);        // owner orange
   static const primaryDark = Color(0xFFC44A00);
+  static const consumerBlue = Color(0xFF2563EB);   // consumer blue
   static const secondary = Color(0xFF1A1A2E);
   static const background = Color(0xFFF9F9F9);
   static const surface = Colors.white;

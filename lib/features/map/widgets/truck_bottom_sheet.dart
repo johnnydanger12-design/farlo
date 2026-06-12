@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
@@ -115,7 +116,7 @@ class TruckBottomSheet extends StatelessWidget {
                       SizedBox(
                         width: double.infinity,
                         child: OutlinedButton(
-                          onPressed: null,
+                          onPressed: () => context.push('/map/truck/${truck.id}'),
                           child: const Text('View Full Profile'),
                         ),
                       ),
@@ -165,7 +166,7 @@ class _TruckAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bgColor = isOpen ? AppColors.primary : AppColors.textHint;
+    final bgColor = isOpen ? Theme.of(context).colorScheme.primary : AppColors.textHint;
     return Container(
       width: radius * 2,
       height: radius * 2,
@@ -227,7 +228,7 @@ class _TakeMeThereButton extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: AppColors.primary,
+          color: Theme.of(context).colorScheme.primary,
           borderRadius: BorderRadius.circular(20),
         ),
         child: const Icon(Icons.navigation_rounded, color: Colors.white, size: 18),

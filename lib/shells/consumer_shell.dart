@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../core/constants/app_colors.dart';
+import '../core/constants/app_theme.dart';
 
 class ConsumerShell extends StatelessWidget {
   const ConsumerShell({super.key, required this.shell});
@@ -9,33 +9,35 @@ class ConsumerShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: shell,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: shell.currentIndex,
-        onDestinationSelected: (index) => shell.goBranch(
-          index,
-          initialLocation: index == shell.currentIndex,
+    return Theme(
+      data: AppTheme.forConsumer(context),
+      child: Scaffold(
+        body: shell,
+        bottomNavigationBar: NavigationBar(
+          selectedIndex: shell.currentIndex,
+          onDestinationSelected: (index) => shell.goBranch(
+            index,
+            initialLocation: index == shell.currentIndex,
+          ),
+          backgroundColor: Colors.white,
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.map_outlined),
+              selectedIcon: Icon(Icons.map),
+              label: 'Map',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.favorite_border),
+              selectedIcon: Icon(Icons.favorite),
+              label: 'Favorites',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.person_outline),
+              selectedIcon: Icon(Icons.person),
+              label: 'Account',
+            ),
+          ],
         ),
-        backgroundColor: Colors.white,
-        indicatorColor: AppColors.primary.withValues(alpha: 0.12),
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.map_outlined),
-            selectedIcon: Icon(Icons.map, color: AppColors.primary),
-            label: 'Map',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.favorite_border),
-            selectedIcon: Icon(Icons.favorite, color: AppColors.primary),
-            label: 'Favorites',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person, color: AppColors.primary),
-            label: 'Account',
-          ),
-        ],
       ),
     );
   }

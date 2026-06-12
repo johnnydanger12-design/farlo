@@ -163,7 +163,7 @@ class _TruckPin extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: isOpen ? AppColors.primary : AppColors.textHint,
+        color: isOpen ? Theme.of(context).colorScheme.primary : AppColors.textHint,
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
@@ -200,17 +200,17 @@ class _RecenterButton extends StatelessWidget {
             ),
           ],
         ),
-        child: const Row(
+        child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.my_location, size: 18, color: AppColors.primary),
-            SizedBox(width: 8),
+            Icon(Icons.my_location, size: 18, color: Theme.of(context).colorScheme.primary),
+            const SizedBox(width: 8),
             Text(
               'Recenter',
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
-                color: AppColors.primary,
+                color: Theme.of(context).colorScheme.primary,
               ),
             ),
           ],

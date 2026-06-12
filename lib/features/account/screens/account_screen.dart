@@ -22,10 +22,10 @@ class AccountScreen extends ConsumerWidget {
         elevation: 0,
       ),
       body: userAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator(color: AppColors.primary)),
+        loading: () => Center(child: CircularProgressIndicator(color: Theme.of(context).colorScheme.primary)),
         error: (e, _) => Center(child: Text('Error: $e')),
         data: (user) {
-          if (user == null) return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+          if (user == null) return Center(child: CircularProgressIndicator(color: Theme.of(context).colorScheme.primary));
           return ListView(
             padding: const EdgeInsets.all(AppSpacing.md),
             children: [
@@ -105,10 +105,10 @@ class _ProfileTile extends StatelessWidget {
         children: [
           CircleAvatar(
             radius: 30,
-            backgroundColor: AppColors.primary.withValues(alpha: 0.12),
+            backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
             child: Text(
               name.isNotEmpty ? name[0].toUpperCase() : '?',
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w600, color: AppColors.primary),
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.w600, color: Theme.of(context).colorScheme.primary),
             ),
           ),
           const SizedBox(width: AppSpacing.md),
@@ -123,10 +123,10 @@ class _ProfileTile extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.1),
+                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(100),
                   ),
-                  child: Text(role, style: AppTextStyles.caption.copyWith(color: AppColors.primary)),
+                  child: Text(role, style: AppTextStyles.caption.copyWith(color: Theme.of(context).colorScheme.primary)),
                 ),
               ],
             ),
