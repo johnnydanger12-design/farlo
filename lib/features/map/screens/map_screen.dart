@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -26,6 +27,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   final _mapController = MapController();
   final _searchController = TextEditingController();
   final _searchFocusNode = FocusNode();
+  StreamSubscription<MapEvent>? _mapEventSub;
   bool _isFollowing = true;
   String _searchQuery = '';
   String _instantQuery = '';
@@ -33,7 +35,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   List<String> _recentSearches = [];
   bool _searchFocused = false;
 
-  static const _defaultCenter = LatLng(37.7749, -122.4194);
+  static const _defaultCenter = LatLng(34.375, -80.074);
 
   @override
   void initState() {
@@ -56,16 +58,22 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     if (!mounted) return;
     // After the first frame the MapController is guaranteed to be attached.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_isFollowing) return;
-      final pos = cached ?? ref.read(userLocationProvider).asData?.value;
-      if (pos != null) {
-        _mapController.move(LatLng(pos.latitude, pos.longitude), 14.0);
+      if (!mounted) return;
+      if (_isFollowing) {
+        final pos = cached ?? ref.read(userLocationProvider).asData?.value;
+        if (pos != null) {
+          _mapController.move(LatLng(pos.latitude, pos.longitude), 14.0);
+        }
       }
+      _mapEventSub = _mapController.mapEventStream.listen((_) {
+        if (mounted) setState(() {});
+      });
     });
   }
 
   @override
   void dispose() {
+    _mapEventSub?.cancel();
     _debounce?.cancel();
     _searchController.dispose();
     _searchFocusNode.removeListener(_onFocusChanged);
@@ -173,12 +181,67 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     }
   }
 
+  // Returns the screen-edge position for an off-screen truck, or null if on-screen.
+  Offset? _edgePosition(LatLng truckPos, Size stackSize) {
+    try {
+      final pt = _mapController.camera.latLngToScreenOffset(truckPos);
+      final tx = pt.dx;
+      final ty = pt.dy;
+      if (tx >= 0 && tx <= stackSize.width && ty >= 0 && ty <= stackSize.height) {
+        return null;
+      }
+      const half = 20.0;
+      const pad = 12.0;
+      final minX = pad + half;
+      final maxX = stackSize.width - pad - half;
+      final minY = pad + half;
+      final maxY = stackSize.height - pad - half;
+      final cx = stackSize.width / 2;
+      final cy = stackSize.height / 2;
+      final dx = tx - cx;
+      final dy = ty - cy;
+      if (dx == 0 && dy == 0) return null;
+      var t = double.infinity;
+      if (dx > 0) t = math.min(t, (maxX - cx) / dx);
+      if (dx < 0) t = math.min(t, (minX - cx) / dx);
+      if (dy > 0) t = math.min(t, (maxY - cy) / dy);
+      if (dy < 0) t = math.min(t, (minY - cy) / dy);
+      if (!t.isFinite || t <= 0) return null;
+      return Offset(
+        (cx + dx * t).clamp(minX, maxX),
+        (cy + dy * t).clamp(minY, maxY),
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  List<Widget> _buildEdgeIndicators(Size stackSize, List<FoodTruck> trucks, Set<String> favIds) {
+    return trucks
+        .where((t) => t.isOpen && favIds.contains(t.id))
+        .expand((truck) {
+          final pos = _edgePosition(LatLng(truck.latitude, truck.longitude), stackSize);
+          if (pos == null) return <Widget>[];
+          return <Widget>[
+            Positioned(
+              left: pos.dx - 20,
+              top: pos.dy - 20,
+              child: _OffScreenIndicator(
+                truck: truck,
+                onTap: () => _onTruckTapped(truck),
+              ),
+            ),
+          ];
+        })
+        .toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     final trucksAsync = ref.watch(activeTrucksProvider);
     final locationAsync = ref.watch(userLocationProvider);
     // Pre-load so the heart state is ready before any bottom sheet opens.
-    ref.watch(favoritedTruckIdsProvider);
+    final favIds = ref.watch(favoritedTruckIdsProvider).asData?.value ?? {};
     final searchAsync = ref.watch(truckSearchProvider(_searchQuery));
     final employeeTrucks = ref.watch(myEmployeeTrucksProvider).asData?.value ?? [];
 
@@ -217,7 +280,10 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     });
 
     return Scaffold(
-      body: Stack(
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final stackSize = Size(constraints.maxWidth, constraints.maxHeight);
+          return Stack(
         children: [
           FlutterMap(
             mapController: _mapController,
@@ -341,7 +407,55 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                     .toList(),
               ),
             ),
+          ..._buildEdgeIndicators(stackSize, activeTrucks, favIds),
         ],
+      );
+        },
+      ),
+    );
+  }
+}
+
+class _OffScreenIndicator extends StatelessWidget {
+  const _OffScreenIndicator({required this.truck, required this.onTap});
+  final FoodTruck truck;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final primary = Theme.of(context).colorScheme.primary;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(color: primary, width: 2.5),
+          color: primary,
+          boxShadow: [
+            BoxShadow(
+              color: primary.withValues(alpha: 0.45),
+              blurRadius: 10,
+              spreadRadius: 2,
+            ),
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.25),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: ClipOval(
+          child: truck.logoUrl != null
+              ? Image.network(
+                  truck.logoUrl!,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, _, _) =>
+                      const Icon(Icons.lunch_dining, color: Colors.white, size: 22),
+                )
+              : const Icon(Icons.lunch_dining, color: Colors.white, size: 22),
+        ),
       ),
     );
   }

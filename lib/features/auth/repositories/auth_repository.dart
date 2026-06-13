@@ -72,6 +72,16 @@ class AuthRepository {
     return _fetchProfile(uid);
   }
 
+  Future<void> changePassword({
+    required String email,
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    // Re-authenticate to verify the current password before allowing the change.
+    await _supabase.auth.signInWithPassword(email: email, password: currentPassword);
+    await _supabase.auth.updateUser(UserAttributes(password: newPassword));
+  }
+
   Future<void> signOut() async {
     await _supabase.auth.signOut();
   }

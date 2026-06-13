@@ -22,6 +22,12 @@ class FoodTruck {
     required this.isActive,
     this.operatingHours = const [],
     this.menuItems = const [],
+    this.socialInstagram,
+    this.socialTiktok,
+    this.socialFacebook,
+    this.socialTwitter,
+    this.socialYoutube,
+    this.websiteUrl,
   });
 
   final String id;
@@ -34,6 +40,12 @@ class FoodTruck {
   final String? menuPdfUrl;
   final String? menuImageUrl;
   final String? address;
+  final String? socialInstagram;
+  final String? socialTiktok;
+  final String? socialFacebook;
+  final String? socialTwitter;
+  final String? socialYoutube;
+  final String? websiteUrl;
   final double latitude;
   final double longitude;
   final DateTime? locationUpdatedAt;
@@ -83,6 +95,12 @@ class FoodTruck {
       isActive: map['is_active'] as bool? ?? false,
       operatingHours: hours,
       menuItems: items,
+      socialInstagram: map['social_instagram'] as String?,
+      socialTiktok: map['social_tiktok'] as String?,
+      socialFacebook: map['social_facebook'] as String?,
+      socialTwitter: map['social_twitter'] as String?,
+      socialYoutube: map['social_youtube'] as String?,
+      websiteUrl: map['website_url'] as String?,
     );
   }
 

@@ -66,7 +66,7 @@ class _EmployeesList extends ConsumerWidget {
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
                   child: Text(
-                    'Employees sign up with a consumer account using their invited email. They\'ll automatically get access to go live for your truck.',
+                    'If the employee already has an account they\'ll be added instantly. If not, they\'ll get access as soon as they sign up with that email.',
                     style: AppTextStyles.caption.copyWith(color: Theme.of(context).colorScheme.primary),
                   ),
                 ),
@@ -130,16 +130,23 @@ class _EmployeesList extends ConsumerWidget {
               if (email.isEmpty || !email.contains('@')) return;
               Navigator.pop(dialogContext);
               try {
-                await ref.read(truckEmployeesProvider(truckId).notifier).invite(email);
-                // Fire invite email — fails silently if RESEND_API_KEY not set
+                final alreadyUser = await ref.read(truckEmployeesProvider(truckId).notifier).invite(email);
                 Supabase.instance.client.functions.invoke(
                   'send-employee-invite',
-                  body: {'email': email, 'truckName': truckName, 'ownerName': ownerName},
+                  body: {
+                    'email': email,
+                    'truckName': truckName,
+                    'ownerName': ownerName,
+                    'isExistingUser': alreadyUser,
+                  },
                 ).ignore();
                 if (context.mounted) {
+                  final message = alreadyUser
+                      ? '$email has been added to your team.'
+                      : '$email invited — they\'ll get access when they sign up.';
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('$email added — ask them to sign up with this address.'),
+                      content: Text(message),
                       backgroundColor: AppColors.openGreen,
                     ),
                   );

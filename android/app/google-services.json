@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "469153137408",
+    "project_id": "good-truck-finder",
+    "storage_bucket": "good-truck-finder.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:469153137408:android:2bfc5c744faf7c5e68e9e5",
+        "android_client_info": {
+          "package_name": "com.example.goodTruckFinder"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA2EMaJfDkWqIkQ31zhJUWR_GItv6zCYwE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:469153137408:android:8183147264e9c75568e9e5",
+        "android_client_info": {
+          "package_name": "com.goodtruckfinder.good_truck_finder"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA2EMaJfDkWqIkQ31zhJUWR_GItv6zCYwE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

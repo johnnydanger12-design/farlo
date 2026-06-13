@@ -176,7 +176,7 @@ class _SubscriptionBodyState extends ConsumerState<_SubscriptionBody> {
 const _features = [
   (Icons.map_outlined, 'Live location on the consumer map'),
   (Icons.restaurant_menu_outlined, 'Full menu management'),
-  (Icons.schedule_outlined, 'Operating hours display'),
+  (Icons.people_outline, 'Employee team management'),
   (Icons.photo_library_outlined, 'Logo and photo gallery'),
   (Icons.star_outline, 'Reviews and ratings'),
   (Icons.analytics_outlined, 'Customer analytics (coming soon)'),

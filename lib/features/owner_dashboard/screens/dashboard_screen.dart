@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
@@ -6,7 +7,10 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../core/push_notification_service.dart';
+import '../../favorites/repositories/favorites_repository.dart';
 import '../../food_trucks/providers/food_truck_provider.dart';
+import '../../account/providers/notification_prefs_provider.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -35,22 +39,31 @@ class DashboardScreen extends ConsumerWidget {
                 truckName: truck.name,
                 isOpen: truck.isOpen,
                 locationUpdatedAt: truck.locationUpdatedAt,
-                onToggle: (val) => _handleToggle(context, ref, val),
+                onToggle: (val) => _handleToggle(context, ref, val, truck.name),
               ),
               const SizedBox(height: AppSpacing.xl),
-              Text('Manage', style: AppTextStyles.heading3),
-              const SizedBox(height: AppSpacing.md),
+              const _SectionHeader('Today'),
+              const SizedBox(height: AppSpacing.sm),
+              _DashboardTile(
+                icon: Icons.event_note_outlined,
+                label: 'Booking Requests',
+                subtitle: 'View and respond to private event requests',
+                onTap: () => context.go('/dashboard/bookings'),
+              ),
+              _DashboardTile(
+                icon: Icons.campaign_outlined,
+                label: 'Send Announcement',
+                subtitle: 'Notify your followers with an update',
+                onTap: () => _showAnnouncementSheet(context, truck.id, truck.name),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              const _SectionHeader('Manage'),
+              const SizedBox(height: AppSpacing.sm),
               _DashboardTile(
                 icon: Icons.edit_outlined,
                 label: 'Edit Truck Profile',
                 subtitle: 'Name, cuisine, description',
                 onTap: () => context.go('/dashboard/edit-truck'),
-              ),
-              _DashboardTile(
-                icon: Icons.schedule_outlined,
-                label: 'Operating Hours',
-                subtitle: 'Set your weekly schedule',
-                onTap: () => context.go('/dashboard/manage-hours'),
               ),
               _DashboardTile(
                 icon: Icons.restaurant_menu_outlined,
@@ -59,16 +72,19 @@ class DashboardScreen extends ConsumerWidget {
                 onTap: () => context.go('/dashboard/manage-menu'),
               ),
               _DashboardTile(
-                icon: Icons.star_outline,
-                label: 'Subscription',
-                subtitle: 'Manage your plan',
-                onTap: () => context.go('/dashboard/subscription'),
-              ),
-              _DashboardTile(
                 icon: Icons.people_outline,
                 label: 'Employees',
                 subtitle: 'Manage who can go live for your truck',
                 onTap: () => context.go('/dashboard/employees'),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              const _SectionHeader('Plan'),
+              const SizedBox(height: AppSpacing.sm),
+              _DashboardTile(
+                icon: Icons.star_outline,
+                label: 'Subscription',
+                subtitle: 'Manage your plan',
+                onTap: () => context.go('/dashboard/subscription'),
               ),
             ],
           );
@@ -77,7 +93,7 @@ class DashboardScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _handleToggle(BuildContext context, WidgetRef ref, bool isOpen) async {
+  Future<void> _handleToggle(BuildContext context, WidgetRef ref, bool isOpen, String truckName) async {
     if (!isOpen) {
       await ref.read(ownerTruckProvider.notifier).setOpenStatus(false);
       return;
@@ -131,6 +147,14 @@ class DashboardScreen extends ConsumerWidget {
       }
       await ref.read(ownerTruckProvider.notifier).updateLocation(pos.latitude, pos.longitude, address: address);
       await ref.read(ownerTruckProvider.notifier).setOpenStatus(true);
+
+      final prefs = ref.read(notificationPrefsProvider).asData?.value;
+      if (prefs?.pushEnabled ?? true) {
+        if (prefs?.openAlert ?? true) {
+          PushNotificationService.sendTruckOpenAlert(truckName);
+        }
+      }
+
       if (context.mounted) {
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(
@@ -149,6 +173,15 @@ class DashboardScreen extends ConsumerWidget {
         );
       }
     }
+  }
+
+  void _showAnnouncementSheet(BuildContext context, String truckId, String truckName) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _AnnouncementSheet(truckId: truckId, truckName: truckName),
+    );
   }
 }
 
@@ -235,6 +268,19 @@ class _StatusCard extends StatelessWidget {
   }
 }
 
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader(this.title);
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4),
+      child: Text(title.toUpperCase(), style: AppTextStyles.caption),
+    );
+  }
+}
+
 class _DashboardTile extends StatelessWidget {
   const _DashboardTile({
     required this.icon,
@@ -271,6 +317,172 @@ class _DashboardTile extends StatelessWidget {
         trailing: const Icon(Icons.chevron_right, color: AppColors.textHint),
         onTap: onTap,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+}
+
+class _AnnouncementSheet extends StatefulWidget {
+  const _AnnouncementSheet({required this.truckId, required this.truckName});
+  final String truckId;
+  final String truckName;
+
+  @override
+  State<_AnnouncementSheet> createState() => _AnnouncementSheetState();
+}
+
+class _AnnouncementSheetState extends State<_AnnouncementSheet> {
+  final _titleCtrl = TextEditingController();
+  final _messageCtrl = TextEditingController();
+  bool _loading = false;
+
+  static const int _maxTitle = 60;
+  static const int _maxMessage = 160;
+
+  late final Future<int> _followerCountFuture =
+      FavoritesRepository(Supabase.instance.client).fetchFollowerCount(widget.truckId);
+
+  @override
+  void dispose() {
+    _titleCtrl.dispose();
+    _messageCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _send() async {
+    final title = _titleCtrl.text.trim();
+    final message = _messageCtrl.text.trim();
+    if (title.isEmpty || message.isEmpty) return;
+
+    setState(() => _loading = true);
+    try {
+      final sent = await PushNotificationService.sendTruckAnnouncement(
+        truckId: widget.truckId,
+        title: title,
+        message: message,
+      );
+      if (!mounted) return;
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(sent == 0
+              ? 'No followers with notifications enabled.'
+              : 'Sent to $sent follower${sent == 1 ? '' : 's'}.'),
+          backgroundColor: sent > 0 ? AppColors.openGreen : null,
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to send: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isLight = Theme.of(context).brightness == Brightness.light;
+    final bottomPadding = MediaQuery.of(context).viewInsets.bottom;
+    final titleLen = _titleCtrl.text.length;
+    final messageLen = _messageCtrl.text.length;
+    final canSend = titleLen > 0 && messageLen > 0 && !_loading;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: isLight ? Colors.white : Theme.of(context).colorScheme.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      padding: EdgeInsets.fromLTRB(
+        AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.lg + bottomPadding,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(
+              width: 36, height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.textHint,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Row(
+            children: [
+              Expanded(
+                child: Text('Send Announcement', style: AppTextStyles.heading3),
+              ),
+              FutureBuilder<int>(
+                future: _followerCountFuture,
+                builder: (context, snap) {
+                  final count = snap.data ?? 0;
+                  return Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(100),
+                    ),
+                    child: Text(
+                      '$count follower${count == 1 ? '' : 's'}',
+                      style: AppTextStyles.caption.copyWith(
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Followers with notifications on will receive this.',
+            style: AppTextStyles.caption,
+          ),
+          const SizedBox(height: AppSpacing.md),
+          TextField(
+            controller: _titleCtrl,
+            maxLength: _maxTitle,
+            textCapitalization: TextCapitalization.sentences,
+            decoration: const InputDecoration(
+              labelText: 'Title',
+              hintText: 'e.g. New Menu Item!',
+              counterText: '',
+            ),
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          TextField(
+            controller: _messageCtrl,
+            maxLength: _maxMessage,
+            maxLines: 3,
+            textCapitalization: TextCapitalization.sentences,
+            decoration: InputDecoration(
+              labelText: 'Message',
+              hintText: 'e.g. We just added a new spicy brisket sandwich to our menu!',
+              alignLabelWithHint: true,
+              counterText: '$messageLen / $_maxMessage',
+            ),
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: canSend ? _send : null,
+              child: _loading
+                  ? const SizedBox(
+                      width: 18, height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Text('Send'),
+            ),
+          ),
+        ],
       ),
     );
   }

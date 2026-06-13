@@ -27,10 +27,11 @@ class TruckEmployeesNotifier extends AsyncNotifier<List<TruckEmployee>> {
     return ref.read(employeesRepositoryProvider).fetchEmployees(_truckId);
   }
 
-  Future<void> invite(String email) async {
-    await ref.read(employeesRepositoryProvider).inviteEmployee(_truckId, email);
+  Future<bool> invite(String email) async {
+    final alreadyUser = await ref.read(employeesRepositoryProvider).inviteEmployee(_truckId, email);
     ref.invalidateSelf();
     await future;
+    return alreadyUser;
   }
 
   Future<void> remove(String employeeId) async {

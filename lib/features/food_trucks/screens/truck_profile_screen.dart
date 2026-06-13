@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
@@ -7,13 +9,13 @@ import '../../../core/widgets/star_rating_widget.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../map/models/food_truck.dart';
-import '../../food_trucks/models/operating_hours.dart';
 import '../../food_trucks/models/menu_item.dart';
 import '../providers/food_truck_provider.dart';
 import '../../favorites/providers/favorites_provider.dart';
 import '../../reviews/models/review.dart';
 import '../../reviews/providers/reviews_provider.dart';
 import '../../reviews/widgets/review_card.dart';
+import '../../bookings/widgets/book_truck_sheet.dart';
 import '../../reviews/widgets/write_review_sheet.dart';
 
 class TruckProfileScreen extends ConsumerWidget {
@@ -81,6 +83,21 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
   void dispose() {
     _pageController.dispose();
     super.dispose();
+  }
+
+  Future<void> _openBookingSheet() async {
+    final truck = widget.truck;
+    final result = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => BookTruckSheet(truckId: truck.id, truckName: truck.name),
+    );
+    if (result == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Request sent! The owner will be in touch.')),
+      );
+    }
   }
 
   Future<void> _openReviewSheet(Review? existing) async {
@@ -195,6 +212,17 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
                       ],
                     ),
                   ),
+                  if (isAuthenticated) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    OutlinedButton.icon(
+                      onPressed: () => _openBookingSheet(),
+                      icon: const Icon(Icons.event_outlined, size: 18),
+                      label: const Text('Request Private Event'),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(44),
+                      ),
+                    ),
+                  ],
                   if (truck.description != null && truck.description!.isNotEmpty) ...[
                     const SizedBox(height: AppSpacing.md),
                     const Divider(),
@@ -208,17 +236,6 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
 
           const _SectionSpacer(),
 
-
-          // ── Operating hours ──────────────────────────────────────────────
-          if (truck.operatingHours.isNotEmpty) ...[
-            SliverToBoxAdapter(
-              child: _Section(
-                title: 'Hours',
-                child: _HoursTable(hours: truck.operatingHours),
-              ),
-            ),
-            const _SectionSpacer(),
-          ],
 
           // ── Menu ─────────────────────────────────────────────────────────
           if (truck.menuItems.isNotEmpty) ...[
@@ -243,6 +260,19 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
                 ),
               ),
             ),
+
+          // ── Social media ─────────────────────────────────────────────────
+          if (truck.socialInstagram != null ||
+              truck.socialTiktok != null ||
+              truck.socialFacebook != null ||
+              truck.socialTwitter != null ||
+              truck.socialYoutube != null ||
+              truck.websiteUrl != null) ...[
+            const _SectionSpacer(),
+            SliverToBoxAdapter(
+              child: _SocialSection(truck: truck),
+            ),
+          ],
 
           const _SectionSpacer(),
 
@@ -356,6 +386,110 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
 }
 
 // ── Sub-widgets ────────────────────────────────────────────────────────────────
+
+class _SocialSection extends StatelessWidget {
+  const _SocialSection({required this.truck});
+  final FoodTruck truck;
+
+  static const _platforms = [
+    (field: 'instagram', icon: FontAwesomeIcons.instagram,  color: Color(0xFFE1306C)),
+    (field: 'tiktok',    icon: FontAwesomeIcons.tiktok,     color: Color(0xFF010101)),
+    (field: 'facebook',  icon: FontAwesomeIcons.facebook,   color: Color(0xFF1877F2)),
+    (field: 'twitter',   icon: FontAwesomeIcons.xTwitter,   color: Color(0xFF000000)),
+    (field: 'youtube',   icon: FontAwesomeIcons.youtube,    color: Color(0xFFFF0000)),
+  ];
+
+  String? _handleFor(String field) => switch (field) {
+    'instagram' => truck.socialInstagram,
+    'tiktok'    => truck.socialTiktok,
+    'facebook'  => truck.socialFacebook,
+    'twitter'   => truck.socialTwitter,
+    'youtube'   => truck.socialYoutube,
+    _           => null,
+  };
+
+  String _urlFor(String field, String handle) => switch (field) {
+    'instagram' => 'https://instagram.com/$handle',
+    'tiktok'    => 'https://tiktok.com/@$handle',
+    'facebook'  => 'https://facebook.com/$handle',
+    'twitter'   => 'https://x.com/$handle',
+    'youtube'   => 'https://youtube.com/@$handle',
+    _           => handle,
+  };
+
+  Future<void> _launch(String url) async {
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final platformButtons = _platforms
+        .map((p) {
+          final handle = _handleFor(p.field);
+          if (handle == null) return null;
+          final iconColor = (p.field == 'twitter' || p.field == 'tiktok') && isDark
+              ? Colors.white
+              : p.color;
+          return _SocialButton(
+            icon: p.icon,
+            color: iconColor,
+            onTap: () => _launch(_urlFor(p.field, handle)),
+          );
+        })
+        .whereType<Widget>()
+        .toList();
+
+    if (truck.websiteUrl != null) {
+      platformButtons.add(_SocialButton(
+        icon: FontAwesomeIcons.globe,
+        color: Theme.of(context).colorScheme.primary,
+        onTap: () => _launch(truck.websiteUrl!),
+      ));
+    }
+
+    return Container(
+      color: Theme.of(context).colorScheme.surface,
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Follow Us', style: AppTextStyles.heading3),
+          const SizedBox(height: AppSpacing.md),
+          Wrap(spacing: AppSpacing.md, runSpacing: AppSpacing.md, children: platformButtons),
+        ],
+      ),
+    );
+  }
+}
+
+class _SocialButton extends StatelessWidget {
+  const _SocialButton({required this.icon, required this.color, required this.onTap});
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 52,
+        height: 52,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: color.withValues(alpha: 0.1),
+          border: Border.all(color: color.withValues(alpha: 0.3)),
+        ),
+        child: Center(
+          child: FaIcon(icon, color: color, size: 22),
+        ),
+      ),
+    );
+  }
+}
 
 class _PhotoCarousel extends StatelessWidget {
   const _PhotoCarousel({
@@ -532,50 +666,6 @@ class _SectionSpacer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const SliverToBoxAdapter(child: SizedBox(height: 8));
-  }
-}
-
-class _HoursTable extends StatelessWidget {
-  const _HoursTable({required this.hours});
-  final List<OperatingHours> hours;
-
-  @override
-  Widget build(BuildContext context) {
-    final today = DateTime.now().weekday % 7;
-
-    return Column(
-      children: hours.map((h) {
-        final isToday = h.dayOfWeek == today;
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 5),
-          child: Row(
-            children: [
-              SizedBox(
-                width: 96,
-                child: Text(
-                  h.dayName,
-                  style: AppTextStyles.label.copyWith(
-                    fontWeight: isToday ? FontWeight.w700 : FontWeight.w500,
-                    color: isToday ? Theme.of(context).colorScheme.primary : null,
-                  ),
-                ),
-              ),
-              Expanded(
-                child: Text(
-                  h.hoursDisplay,
-                  style: AppTextStyles.bodySmall.copyWith(
-                    color: h.isClosed
-                        ? AppColors.textHint
-                        : (isToday ? Theme.of(context).colorScheme.primary : AppColors.textSecondary),
-                    fontWeight: isToday ? FontWeight.w600 : FontWeight.w400,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      }).toList(),
-    );
   }
 }
 

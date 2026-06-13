@@ -27,6 +27,12 @@ class _EditTruckScreenState extends ConsumerState<EditTruckScreen> {
   late final TextEditingController _nameCtrl;
   late final TextEditingController _cuisineCtrl;
   late final TextEditingController _descCtrl;
+  late final TextEditingController _instagramCtrl;
+  late final TextEditingController _tiktokCtrl;
+  late final TextEditingController _facebookCtrl;
+  late final TextEditingController _twitterCtrl;
+  late final TextEditingController _youtubeCtrl;
+  late final TextEditingController _websiteCtrl;
 
   bool _loading = false;
   bool _initialized = false;
@@ -52,6 +58,12 @@ class _EditTruckScreenState extends ConsumerState<EditTruckScreen> {
     _nameCtrl = TextEditingController();
     _cuisineCtrl = TextEditingController();
     _descCtrl = TextEditingController();
+    _instagramCtrl = TextEditingController();
+    _tiktokCtrl = TextEditingController();
+    _facebookCtrl = TextEditingController();
+    _twitterCtrl = TextEditingController();
+    _youtubeCtrl = TextEditingController();
+    _websiteCtrl = TextEditingController();
   }
 
   @override
@@ -59,6 +71,12 @@ class _EditTruckScreenState extends ConsumerState<EditTruckScreen> {
     _nameCtrl.dispose();
     _cuisineCtrl.dispose();
     _descCtrl.dispose();
+    _instagramCtrl.dispose();
+    _tiktokCtrl.dispose();
+    _facebookCtrl.dispose();
+    _twitterCtrl.dispose();
+    _youtubeCtrl.dispose();
+    _websiteCtrl.dispose();
     super.dispose();
   }
 
@@ -71,6 +89,12 @@ class _EditTruckScreenState extends ConsumerState<EditTruckScreen> {
     _descCtrl.text = truck.description ?? '';
     _existingLogoUrl = truck.logoUrl;
     _existingPhotoUrls = List<String>.from(truck.photoUrls);
+    _instagramCtrl.text = truck.socialInstagram ?? '';
+    _tiktokCtrl.text = truck.socialTiktok ?? '';
+    _facebookCtrl.text = truck.socialFacebook ?? '';
+    _twitterCtrl.text = truck.socialTwitter ?? '';
+    _youtubeCtrl.text = truck.socialYoutube ?? '';
+    _websiteCtrl.text = truck.websiteUrl ?? '';
     _initialized = true;
   }
 
@@ -100,10 +124,21 @@ class _EditTruckScreenState extends ConsumerState<EditTruckScreen> {
     try {
       final user = Supabase.instance.client.auth.currentUser!;
       final storage = storageServiceInstance;
+      String? handle(TextEditingController c) {
+        final v = c.text.trim().replaceAll(RegExp(r'^@'), '');
+        return v.isEmpty ? null : v;
+      }
+
       final fields = <String, dynamic>{
         'name': _nameCtrl.text.trim(),
         'cuisine_type': _cuisineCtrl.text.trim(),
         'description': _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
+        'social_instagram': handle(_instagramCtrl),
+        'social_tiktok': handle(_tiktokCtrl),
+        'social_facebook': handle(_facebookCtrl),
+        'social_twitter': handle(_twitterCtrl),
+        'social_youtube': handle(_youtubeCtrl),
+        'website_url': _websiteCtrl.text.trim().isEmpty ? null : _websiteCtrl.text.trim(),
       };
 
       // Upload logo if changed
@@ -228,6 +263,29 @@ class _EditTruckScreenState extends ConsumerState<EditTruckScreen> {
                   newFiles: _newPhotos,
                   onPick: _pickPhoto,
                   onRemove: _removePhoto,
+                ),
+                const SizedBox(height: AppSpacing.lg),
+
+                // Social media
+                Text('Social Media', style: AppTextStyles.heading3),
+                const SizedBox(height: 6),
+                Text('Enter your username without @', style: AppTextStyles.caption),
+                const SizedBox(height: AppSpacing.sm),
+                _SocialField(controller: _instagramCtrl, label: 'Instagram', hint: 'yourhandle'),
+                const SizedBox(height: AppSpacing.sm),
+                _SocialField(controller: _tiktokCtrl, label: 'TikTok', hint: 'yourhandle'),
+                const SizedBox(height: AppSpacing.sm),
+                _SocialField(controller: _facebookCtrl, label: 'Facebook', hint: 'yourpage'),
+                const SizedBox(height: AppSpacing.sm),
+                _SocialField(controller: _twitterCtrl, label: 'Twitter / X', hint: 'yourhandle'),
+                const SizedBox(height: AppSpacing.sm),
+                _SocialField(controller: _youtubeCtrl, label: 'YouTube', hint: 'yourchannel'),
+                const SizedBox(height: AppSpacing.sm),
+                AppTextField(
+                  controller: _websiteCtrl,
+                  label: 'Website',
+                  hint: 'https://yoursite.com',
+                  keyboardType: TextInputType.url,
                 ),
                 const SizedBox(height: AppSpacing.xl),
 
@@ -431,6 +489,40 @@ class _CuisineDropdown extends StatelessWidget {
           .map((o) => DropdownMenuItem(value: o, child: Text(o)))
           .toList(),
       onChanged: onChanged,
+    );
+  }
+}
+
+class _SocialField extends StatelessWidget {
+  const _SocialField({
+    required this.controller,
+    required this.label,
+    required this.hint,
+  });
+
+  final TextEditingController controller;
+  final String label;
+  final String hint;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextFormField(
+      controller: controller,
+      keyboardType: TextInputType.url,
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: hint,
+        prefixText: '@',
+        filled: true,
+        fillColor: Theme.of(context).colorScheme.surface,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Theme.of(context).colorScheme.outline)),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Theme.of(context).colorScheme.outline)),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Theme.of(context).colorScheme.primary, width: 2)),
+      ),
     );
   }
 }

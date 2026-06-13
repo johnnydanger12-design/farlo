@@ -1,11 +1,14 @@
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/providers/theme_provider.dart';
 import '../../auth/providers/auth_provider.dart';
+import '../providers/notification_prefs_provider.dart';
 
 class AccountScreen extends ConsumerWidget {
   const AccountScreen({super.key});
@@ -39,7 +42,7 @@ class AccountScreen extends ConsumerWidget {
               _SettingsTile(
                 icon: Icons.notifications_outlined,
                 label: 'Notifications',
-                onTap: () {},
+                onTap: () => _showNotificationsDialog(context, user.isOwner),
               ),
               _SettingsTile(
                 icon: Icons.description_outlined,
@@ -54,6 +57,11 @@ class AccountScreen extends ConsumerWidget {
               const SizedBox(height: AppSpacing.lg),
               const _SectionHeader('Account'),
               _SettingsTile(
+                icon: Icons.lock_outline,
+                label: 'Change Password',
+                onTap: () => _showChangePasswordDialog(context, ref),
+              ),
+              _SettingsTile(
                 icon: Icons.logout,
                 label: 'Sign Out',
                 textColor: AppColors.error,
@@ -64,6 +72,53 @@ class AccountScreen extends ConsumerWidget {
         },
       ),
     );
+  }
+
+  Future<void> _showNotificationsDialog(BuildContext context, bool isOwner) async {
+    final settings = await FirebaseMessaging.instance.getNotificationSettings();
+    final systemGranted =
+        settings.authorizationStatus == AuthorizationStatus.authorized ||
+        settings.authorizationStatus == AuthorizationStatus.provisional;
+    if (!context.mounted) return;
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) =>
+          _NotificationsDialog(systemGranted: systemGranted, isOwner: isOwner),
+    );
+  }
+
+  Future<void> _showChangePasswordDialog(BuildContext context, WidgetRef ref) async {
+    final currentCtrl = TextEditingController();
+    final newCtrl = TextEditingController();
+    final confirmCtrl = TextEditingController();
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => _ChangePasswordDialog(
+        currentCtrl: currentCtrl,
+        newCtrl: newCtrl,
+        confirmCtrl: confirmCtrl,
+        onSubmit: () async {
+          final current = currentCtrl.text.trim();
+          final newPass = newCtrl.text.trim();
+          final confirm = confirmCtrl.text.trim();
+
+          if (current.isEmpty || newPass.isEmpty || confirm.isEmpty) return 'All fields are required.';
+          if (newPass.length < 6) return 'New password must be at least 6 characters.';
+          if (newPass != confirm) return 'Passwords do not match.';
+
+          await ref.read(authProvider.notifier).changePassword(
+            currentPassword: current,
+            newPassword: newPass,
+          );
+          return null;
+        },
+      ),
+    );
+
+    currentCtrl.dispose();
+    newCtrl.dispose();
+    confirmCtrl.dispose();
   }
 
   Future<void> _signOut(BuildContext context, WidgetRef ref) async {
@@ -285,6 +340,230 @@ class _SettingsTile extends StatelessWidget {
         trailing: const Icon(Icons.chevron_right, color: AppColors.textHint),
         onTap: onTap,
       ),
+    );
+  }
+}
+
+class _NotificationsDialog extends ConsumerWidget {
+  const _NotificationsDialog({required this.systemGranted, required this.isOwner});
+  final bool systemGranted;
+  final bool isOwner;
+
+  void _confirmDisablePush(BuildContext context, WidgetRef ref) {
+    final isLight = Theme.of(context).brightness == Brightness.light;
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isLight ? Colors.white : null,
+        title: const Text('Turn off notifications?'),
+        content: const Text(
+          'You won\'t receive alerts for new booking requests. You could miss a customer inquiry.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              ref.read(notificationPrefsProvider.notifier).setPushEnabled(false);
+            },
+            child: const Text('Turn off', style: TextStyle(color: AppColors.error)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isLight = Theme.of(context).brightness == Brightness.light;
+    final prefs = ref.watch(notificationPrefsProvider);
+    final pushEnabled = prefs.asData?.value.pushEnabled ?? true;
+    final openAlert = prefs.asData?.value.openAlert ?? true;
+
+    return AlertDialog(
+      backgroundColor: isLight ? Colors.white : null,
+      title: const Text('Notifications', textAlign: TextAlign.center),
+      contentPadding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (!systemGranted)
+            Container(
+              margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+              padding: const EdgeInsets.all(AppSpacing.sm),
+              decoration: BoxDecoration(
+                color: AppColors.error.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.warning_amber_rounded, color: AppColors.error, size: 16),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Notifications are off in System Settings.',
+                      style: AppTextStyles.caption.copyWith(color: AppColors.error),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text('Push Notifications', style: AppTextStyles.label),
+            subtitle: Text('Booking updates and alerts', style: AppTextStyles.caption),
+            value: pushEnabled,
+            onChanged: systemGranted
+                ? (v) {
+                    if (!v && isOwner) {
+                      _confirmDisablePush(context, ref);
+                    } else {
+                      ref.read(notificationPrefsProvider.notifier).setPushEnabled(v);
+                    }
+                  }
+                : null,
+          ),
+          if (isOwner)
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text('Going Live Alert', style: AppTextStyles.label),
+              subtitle: Text('Notify me when my truck goes live', style: AppTextStyles.caption),
+              value: openAlert && pushEnabled,
+              onChanged: pushEnabled
+                  ? (v) => ref.read(notificationPrefsProvider.notifier).setOpenAlert(v)
+                  : null,
+            ),
+        ],
+      ),
+      actionsAlignment: MainAxisAlignment.spaceBetween,
+      actions: [
+        if (!systemGranted)
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await openAppSettings();
+            },
+            child: const Text('Open Settings'),
+          ),
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Done'),
+        ),
+      ],
+    );
+  }
+}
+
+class _ChangePasswordDialog extends StatefulWidget {
+  const _ChangePasswordDialog({
+    required this.currentCtrl,
+    required this.newCtrl,
+    required this.confirmCtrl,
+    required this.onSubmit,
+  });
+
+  final TextEditingController currentCtrl;
+  final TextEditingController newCtrl;
+  final TextEditingController confirmCtrl;
+  // Returns an error string on validation/auth failure, null on success.
+  final Future<String?> Function() onSubmit;
+
+  @override
+  State<_ChangePasswordDialog> createState() => _ChangePasswordDialogState();
+}
+
+class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
+  bool _loading = false;
+  bool _obscureCurrent = true;
+  bool _obscureNew = true;
+  bool _obscureConfirm = true;
+  String? _error;
+
+  Future<void> _submit() async {
+    setState(() { _loading = true; _error = null; });
+    try {
+      final error = await widget.onSubmit();
+      if (!mounted) return;
+      if (error != null) {
+        setState(() => _error = error);
+      } else {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Password updated successfully')),
+        );
+      }
+    } catch (e) {
+      if (mounted) setState(() => _error = 'Incorrect current password.');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isLight = Theme.of(context).brightness == Brightness.light;
+    return AlertDialog(
+      backgroundColor: isLight ? Colors.white : null,
+      title: const Text('Change Password'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: widget.currentCtrl,
+            obscureText: _obscureCurrent,
+            decoration: InputDecoration(
+              labelText: 'Current password',
+              suffixIcon: IconButton(
+                icon: Icon(_obscureCurrent ? Icons.visibility_outlined : Icons.visibility_off_outlined),
+                onPressed: () => setState(() => _obscureCurrent = !_obscureCurrent),
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          TextField(
+            controller: widget.newCtrl,
+            obscureText: _obscureNew,
+            decoration: InputDecoration(
+              labelText: 'New password',
+              suffixIcon: IconButton(
+                icon: Icon(_obscureNew ? Icons.visibility_outlined : Icons.visibility_off_outlined),
+                onPressed: () => setState(() => _obscureNew = !_obscureNew),
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          TextField(
+            controller: widget.confirmCtrl,
+            obscureText: _obscureConfirm,
+            decoration: InputDecoration(
+              labelText: 'Confirm new password',
+              suffixIcon: IconButton(
+                icon: Icon(_obscureConfirm ? Icons.visibility_outlined : Icons.visibility_off_outlined),
+                onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm),
+              ),
+            ),
+          ),
+          if (_error != null) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Text(_error!, style: AppTextStyles.caption.copyWith(color: AppColors.error)),
+          ],
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: _loading ? null : () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: _loading ? null : _submit,
+          child: _loading
+              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+              : const Text('Update'),
+        ),
+      ],
     );
   }
 }

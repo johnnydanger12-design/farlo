@@ -14,6 +14,7 @@ import 'features/owner_dashboard/screens/manage_hours_screen.dart';
 import 'features/owner_dashboard/screens/manage_menu_screen.dart';
 import 'features/owner_dashboard/screens/subscription_screen.dart';
 import 'features/employees/screens/employees_screen.dart';
+import 'features/bookings/screens/booking_requests_screen.dart';
 import 'features/food_trucks/screens/truck_profile_screen.dart';
 import 'shells/consumer_shell.dart';
 import 'shells/owner_shell.dart';
@@ -108,6 +109,10 @@ final routerProvider = Provider<GoRouter>((ref) {
                 GoRoute(
                   path: 'employees',
                   builder: (c, s) => const EmployeesScreen(),
+                ),
+                GoRoute(
+                  path: 'bookings',
+                  builder: (c, s) => const BookingRequestsScreen(),
                 ),
               ],
             ),

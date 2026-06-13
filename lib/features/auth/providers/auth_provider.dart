@@ -72,6 +72,19 @@ class AuthNotifier extends AsyncNotifier<AppUser?> {
     });
   }
 
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final user = state.asData?.value;
+    if (user == null) throw Exception('Not signed in');
+    await ref.read(authRepositoryProvider).changePassword(
+      email: user.email,
+      currentPassword: currentPassword,
+      newPassword: newPassword,
+    );
+  }
+
   Future<void> signOut() async {
     await ref.read(authRepositoryProvider).signOut();
     if (rcConfigured) try { await Purchases.logOut(); } catch (_) {}

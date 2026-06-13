@@ -12,7 +12,7 @@ class EmployeesRepository {
   Future<List<TruckEmployee>> fetchEmployees(String truckId) async {
     final data = await _supabase
         .from(SupabaseConstants.truckEmployeesTable)
-        .select('*')
+        .select('*, profiles(display_name)')
         .eq('truck_id', truckId)
         .neq('status', 'removed')
         .order('invited_at');
@@ -21,13 +21,15 @@ class EmployeesRepository {
         .toList();
   }
 
-  // Owner: invite employee by email
-  Future<void> inviteEmployee(String truckId, String email) async {
-    await _supabase.from(SupabaseConstants.truckEmployeesTable).insert({
-      'truck_id': truckId,
-      'invited_email': email.trim().toLowerCase(),
-      'status': 'pending',
+  // Owner: invite employee by email.
+  // Returns true if they already had an account (added as active immediately),
+  // false if pending until they sign up.
+  Future<bool> inviteEmployee(String truckId, String email) async {
+    final result = await _supabase.rpc('invite_employee_by_email', params: {
+      'p_truck_id': truckId,
+      'p_email': email.trim().toLowerCase(),
     });
+    return (result as Map<String, dynamic>)['already_user'] as bool;
   }
 
   // Owner: remove employee
