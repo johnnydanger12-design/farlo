@@ -467,7 +467,7 @@ class _SocialSection extends StatelessWidget {
 
 class _SocialButton extends StatelessWidget {
   const _SocialButton({required this.icon, required this.color, required this.onTap});
-  final IconData icon;
+  final FaIconData icon;
   final Color color;
   final VoidCallback onTap;
 
