@@ -9,16 +9,32 @@ import '../models/booking_request.dart';
 import '../providers/bookings_provider.dart';
 
 const _durations = [
-  '1 hour',
-  '1.5 hours',
-  '2 hours',
-  '2.5 hours',
-  '3 hours',
-  '4 hours',
-  '5 hours',
-  '6 hours',
-  '8 hours',
+  '1 hour', '1.5 hours', '2 hours', '2.5 hours', '3 hours',
+  '4 hours', '5 hours', '6 hours', '8 hours',
 ];
+
+String _formatDate(DateTime dt) {
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
+}
+
+String _fmtTime(TimeOfDay t) {
+  final h = t.hourOfPeriod == 0 ? 12 : t.hourOfPeriod;
+  final m = t.minute.toString().padLeft(2, '0');
+  return '$h:$m ${t.period == DayPeriod.am ? 'AM' : 'PM'}';
+}
+
+class _ScheduleResult {
+  const _ScheduleResult({required this.date, required this.time, required this.duration});
+  final DateTime date;
+  final TimeOfDay time;
+  final String duration;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Main booking sheet
+// ─────────────────────────────────────────────────────────────────────────────
 
 class BookTruckSheet extends ConsumerStatefulWidget {
   const BookTruckSheet({super.key, required this.truckId, required this.truckName});
@@ -65,68 +81,47 @@ class _BookTruckSheetState extends ConsumerState<BookTruckSheet> {
     super.dispose();
   }
 
-  Future<void> _pickDate() async {
-    final now = DateTime.now();
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _eventDate ?? now.add(const Duration(days: 7)),
-      firstDate: now,
-      lastDate: now.add(const Duration(days: 365 * 2)),
-    );
-    if (picked != null) setState(() => _eventDate = picked);
+  String get _scheduleLabel {
+    if (_eventDate == null) return 'Date, start time & duration *';
+    final parts = [
+      _formatDate(_eventDate!),
+      if (_eventTime != null) _fmtTime(_eventTime!),
+      ?_duration,
+    ];
+    return parts.join('  •  ');
   }
 
-  Future<void> _pickTime() async {
-    final picked = await showTimePicker(
+  Future<void> _pickSchedule() async {
+    final result = await showModalBottomSheet<_ScheduleResult>(
       context: context,
-      initialTime: _eventTime ?? const TimeOfDay(hour: 12, minute: 0),
-    );
-    if (picked != null) setState(() => _eventTime = picked);
-  }
-
-  Future<void> _pickDuration() async {
-    final picked = await showDialog<String>(
-      context: context,
-      builder: (ctx) => SimpleDialog(
-        title: const Text('Duration'),
-        children: _durations
-            .map((d) => SimpleDialogOption(
-                  onPressed: () => Navigator.pop(ctx, d),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: Row(
-                      children: [
-                        Expanded(child: Text(d, style: AppTextStyles.label)),
-                        if (_duration == d)
-                          Icon(Icons.check, size: 18, color: Theme.of(ctx).colorScheme.primary),
-                      ],
-                    ),
-                  ),
-                ))
-            .toList(),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _SchedulePickerSheet(
+        initialDate: _eventDate,
+        initialTime: _eventTime,
+        initialDuration: _duration,
       ),
     );
-    if (picked != null) setState(() => _duration = picked);
-  }
-
-  String _formatDate(DateTime dt) {
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
-  }
-
-  String _formatTime(TimeOfDay t) {
-    final h = t.hourOfPeriod == 0 ? 12 : t.hourOfPeriod;
-    final m = t.minute.toString().padLeft(2, '0');
-    final period = t.period == DayPeriod.am ? 'AM' : 'PM';
-    return '$h:$m $period';
+    if (result != null) {
+      setState(() {
+        _eventDate = result.date;
+        _eventTime = result.time;
+        _duration = result.duration;
+      });
+    }
   }
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_eventDate == null) { _showError('Please select an event date.'); return; }
-    if (_eventTime == null) { _showError('Please select a start time.'); return; }
-    if (_duration == null) { _showError('Please select a duration.'); return; }
+    if (_eventDate == null || _eventTime == null || _duration == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please complete the event schedule.'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
 
     final user = ref.read(authProvider).asData?.value;
     if (user == null) return;
@@ -140,7 +135,7 @@ class _BookTruckSheetState extends ConsumerState<BookTruckSheet> {
         contactEmail: _emailCtrl.text.trim(),
         contactPhone: _phoneCtrl.text.trim().isEmpty ? null : _phoneCtrl.text.trim(),
         eventDate: _eventDate!,
-        eventTime: _formatTime(_eventTime!),
+        eventTime: _fmtTime(_eventTime!),
         duration: _duration,
         guestCount: int.tryParse(_guestCtrl.text.trim()),
         eventLocation: _locationCtrl.text.trim(),
@@ -151,20 +146,18 @@ class _BookTruckSheetState extends ConsumerState<BookTruckSheet> {
     } catch (e) {
       if (mounted) {
         setState(() => _submitting = false);
-        _showError('Something went wrong. Please try again.');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Something went wrong. Please try again.'), backgroundColor: AppColors.error),
+        );
       }
     }
-  }
-
-  void _showError(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), backgroundColor: AppColors.error),
-    );
   }
 
   @override
   Widget build(BuildContext context) {
     final isLight = Theme.of(context).brightness == Brightness.light;
+    final scheduleSet = _eventDate != null && _eventTime != null && _duration != null;
+
     return SafeArea(
       top: true,
       bottom: false,
@@ -177,12 +170,10 @@ class _BookTruckSheetState extends ConsumerState<BookTruckSheet> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Drag handle
             Padding(
               padding: const EdgeInsets.only(top: 12, bottom: 4),
               child: Container(
-                width: 40,
-                height: 4,
+                width: 40, height: 4,
                 decoration: BoxDecoration(
                   color: Theme.of(context).colorScheme.outlineVariant,
                   borderRadius: BorderRadius.circular(2),
@@ -203,10 +194,7 @@ class _BookTruckSheetState extends ConsumerState<BookTruckSheet> {
                       ],
                     ),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.pop(context),
-                  ),
+                  IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
                 ],
               ),
             ),
@@ -245,35 +233,12 @@ class _BookTruckSheetState extends ConsumerState<BookTruckSheet> {
                       ),
                       const SizedBox(height: AppSpacing.lg),
                       _sectionLabel('Event Details'),
-                      // Date — full width
+                      // Combined schedule picker
                       _PickerTile(
-                        icon: Icons.calendar_today_outlined,
-                        label: _eventDate != null ? _formatDate(_eventDate!) : 'Event date *',
-                        hasValue: _eventDate != null,
-                        onTap: _pickDate,
-                      ),
-                      const SizedBox(height: AppSpacing.sm),
-                      // Start time + Duration side by side
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _PickerTile(
-                              icon: Icons.access_time_outlined,
-                              label: _eventTime != null ? _formatTime(_eventTime!) : 'Start time *',
-                              hasValue: _eventTime != null,
-                              onTap: _pickTime,
-                            ),
-                          ),
-                          const SizedBox(width: AppSpacing.sm),
-                          Expanded(
-                            child: _PickerTile(
-                              icon: Icons.hourglass_bottom_outlined,
-                              label: _duration ?? 'Duration *',
-                              hasValue: _duration != null,
-                              onTap: _pickDuration,
-                            ),
-                          ),
-                        ],
+                        icon: Icons.event_outlined,
+                        label: _scheduleLabel,
+                        hasValue: scheduleSet,
+                        onTap: _pickSchedule,
                       ),
                       const SizedBox(height: AppSpacing.sm),
                       _field(
@@ -293,17 +258,11 @@ class _BookTruckSheetState extends ConsumerState<BookTruckSheet> {
                       DropdownButtonFormField<String>(
                         initialValue: _eventType,
                         decoration: const InputDecoration(labelText: 'Event type'),
-                        items: eventTypes
-                            .map((t) => DropdownMenuItem(value: t, child: Text(t)))
-                            .toList(),
+                        items: eventTypes.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
                         onChanged: (v) { if (v != null) setState(() => _eventType = v); },
                       ),
                       const SizedBox(height: AppSpacing.sm),
-                      _field(
-                        controller: _notesCtrl,
-                        label: 'Additional details (optional)',
-                        maxLines: 3,
-                      ),
+                      _field(controller: _notesCtrl, label: 'Additional details (optional)', maxLines: 3),
                       const SizedBox(height: AppSpacing.lg),
                       FilledButton(
                         onPressed: _submitting ? null : _submit,
@@ -312,15 +271,8 @@ class _BookTruckSheetState extends ConsumerState<BookTruckSheet> {
                           backgroundColor: Theme.of(context).colorScheme.primary,
                         ),
                         child: _submitting
-                            ? const SizedBox(
-                                width: 22,
-                                height: 22,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                              )
-                            : const Text(
-                                'Send Request',
-                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                              ),
+                            ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                            : const Text('Send Request', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                       ),
                       const SizedBox(height: AppSpacing.sm),
                       Text(
@@ -362,6 +314,184 @@ class _BookTruckSheetState extends ConsumerState<BookTruckSheet> {
       );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Combined schedule picker sheet
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _SchedulePickerSheet extends StatefulWidget {
+  const _SchedulePickerSheet({this.initialDate, this.initialTime, this.initialDuration});
+  final DateTime? initialDate;
+  final TimeOfDay? initialTime;
+  final String? initialDuration;
+
+  @override
+  State<_SchedulePickerSheet> createState() => _SchedulePickerSheetState();
+}
+
+class _SchedulePickerSheetState extends State<_SchedulePickerSheet> {
+  late DateTime _date;
+  late TimeOfDay _time;
+  String? _duration;
+
+  @override
+  void initState() {
+    super.initState();
+    _date = widget.initialDate ?? DateTime.now().add(const Duration(days: 7));
+    _time = widget.initialTime ?? const TimeOfDay(hour: 12, minute: 0);
+    _duration = widget.initialDuration;
+  }
+
+  Future<void> _pickTime() async {
+    final picked = await showTimePicker(context: context, initialTime: _time);
+    if (picked != null) setState(() => _time = picked);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isLight = Theme.of(context).brightness == Brightness.light;
+    final primary = Theme.of(context).colorScheme.primary;
+    final canConfirm = _duration != null;
+
+    return SafeArea(
+      top: true,
+      bottom: false,
+      child: Container(
+        decoration: BoxDecoration(
+          color: isLight ? Colors.white : Theme.of(context).colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Drag handle
+            Padding(
+              padding: const EdgeInsets.only(top: 12, bottom: 4),
+              child: Container(
+                width: 40, height: 4,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.outlineVariant,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            // Header
+            Padding(
+              padding: const EdgeInsets.fromLTRB(AppSpacing.lg, 4, 8, 0),
+              child: Row(
+                children: [
+                  Text('Schedule Event', style: AppTextStyles.heading3),
+                  const Spacer(),
+                  IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
+                ],
+              ),
+            ),
+            const Divider(height: 12),
+            // Scrollable body
+            Flexible(
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Calendar
+                    CalendarDatePicker(
+                      initialDate: _date,
+                      firstDate: DateTime.now(),
+                      lastDate: DateTime.now().add(const Duration(days: 365 * 2)),
+                      onDateChanged: (d) => setState(() => _date = d),
+                    ),
+                    const Divider(height: 1),
+                    // Start time row
+                    InkWell(
+                      onTap: _pickTime,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: 16),
+                        child: Row(
+                          children: [
+                            Icon(Icons.access_time_outlined, size: 18, color: primary),
+                            const SizedBox(width: 10),
+                            Text('Start time', style: AppTextStyles.label),
+                            const Spacer(),
+                            Text(_fmtTime(_time),
+                                style: AppTextStyles.label.copyWith(color: primary)),
+                            const SizedBox(width: 4),
+                            Icon(Icons.chevron_right, size: 18, color: primary),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const Divider(height: 1),
+                    // Duration chips
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(AppSpacing.lg, 14, AppSpacing.lg, 8),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.hourglass_bottom_outlined, size: 18, color: primary),
+                              const SizedBox(width: 10),
+                              Text('Duration', style: AppTextStyles.label),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: _durations.map((d) {
+                              final selected = _duration == d;
+                              return ChoiceChip(
+                                label: Text(d),
+                                selected: selected,
+                                onSelected: (_) => setState(() => _duration = d),
+                                selectedColor: primary.withValues(alpha: 0.15),
+                                labelStyle: TextStyle(
+                                  fontSize: 13,
+                                  color: selected ? primary : null,
+                                  fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+                                ),
+                                side: BorderSide(
+                                  color: selected ? primary : Theme.of(context).colorScheme.outline.withValues(alpha: 0.4),
+                                ),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                              );
+                            }).toList(),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                ),
+              ),
+            ),
+            // Done button — sticky at bottom
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                AppSpacing.lg, 8, AppSpacing.lg,
+                AppSpacing.lg + MediaQuery.of(context).viewPadding.bottom,
+              ),
+              child: FilledButton(
+                onPressed: canConfirm
+                    ? () => Navigator.pop(context, _ScheduleResult(date: _date, time: _time, duration: _duration!))
+                    : null,
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(52),
+                  backgroundColor: primary,
+                ),
+                child: const Text('Done', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Shared picker tile
+// ─────────────────────────────────────────────────────────────────────────────
+
 class _PickerTile extends StatelessWidget {
   const _PickerTile({
     required this.icon,
@@ -385,22 +515,15 @@ class _PickerTile extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
         decoration: BoxDecoration(
-          border: Border.all(
-            color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.5),
-          ),
+          border: Border.all(color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.5)),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Row(
           children: [
             Icon(icon, size: 16, color: color),
             const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                label,
-                style: TextStyle(fontSize: 14, color: color),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
+            Expanded(child: Text(label, style: TextStyle(fontSize: 14, color: color))),
+            Icon(Icons.chevron_right, size: 16, color: color),
           ],
         ),
       ),
