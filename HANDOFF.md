@@ -1,11 +1,11 @@
 # HANDOFF.md — Good Truck Finder
-_Last updated: Owner booking inbox + push notifications (Firebase FCM) session. Read time: ~2 min._
+_Last updated: Booking form + Dynamic Island + offline notifications session. Read time: ~2 min._
 
 ---
 
 ## Interrupted Task
 
-Nothing mid-flight. All changes complete, `flutter analyze` is clean.
+Nothing mid-flight. All changes committed and pushed to GitHub.
 
 ---
 
@@ -15,44 +15,37 @@ Nothing mid-flight. All changes complete, `flutter analyze` is clean.
 
 | Feature | Status |
 |---|---|
-| Employee invite — instant if account exists, pending if not | ✓ DB RPC + dynamic email |
-| Employee display name in owner list | ✓ FK → profiles, joined via PostgREST |
-| Operating hours — removed entirely | ✓ Profile screen + dashboard tile + subscription feature list |
-| Change password — consumer + owner accounts | ✓ Re-auth then updateUser |
-| Edge indicators for off-screen favorited trucks | ✓ Life360-style, `latLngToScreenOffset` + MapEvent stream |
-| Default map center when location denied | ✓ 34.375, -80.074 |
-| Request Private Event booking form | ✓ DB table + sheet + button on truck profile |
-| Owner booking requests inbox | ✓ `/dashboard/bookings` — list, status badges, detail sheet, accept/decline |
-| Push notifications — booking created | ✓ FCM → owner when consumer submits request |
-| Push notifications — status changed | ✓ FCM → consumer when owner accepts/declines |
+| GitHub push unblocked | ✓ History rewritten, old PAT removed, new PAT active |
+| `font_awesome_flutter` v11 | ✓ Upgraded from 10.x; `FaIconData` type used in `_SocialButton` |
+| Going-offline alert (owner) | ✓ `truck_closed` action in edge fn v4; `sendTruckClosedAlert` in service |
+| `truck_open` bug fixed | ✓ Was silently failing — `user_id` was missing from request body |
+| Notification pref label | ✓ "Going Live Alert" → "Live Status Alerts / goes live or offline" |
+| Booking form — duration | ✓ DB column added; combined schedule picker replaces 3 separate popups |
+| Booking form — required fields | ✓ name, email, location, guest count, date, start time, duration all required |
+| Booking form — Dynamic Island | ✓ Real fix: `viewPadding.top` captured before modal, passed explicitly |
+| Edge fn `send-booking-notification` | ✓ v4 — truck_open + truck_closed + booking actions |
 
 ---
 
 ## Architecture
 
-Feature-based Flutter under `lib/features/<name>/` — each feature owns models, providers, repositories, screens/widgets. `lib/features/bookings/` has models, providers, repositories, screens, and widgets. Supabase is the only backend; RLS is enforced on every table. Two `SECURITY DEFINER` functions (`auth_user_owns_truck`, `auth_user_is_employee`) break cross-table RLS recursion — do not drop them. GoRouter 17.x handles all navigation via shell routes; `authProvider` is read (not watched) in the router redirect to avoid double redirects. Firebase Messaging handles push on both platforms; tokens stored in `push_tokens` table (one per user per platform, upserted on login).
+Feature-based Flutter under `lib/features/<name>/` — each owns models, providers, repositories, screens/widgets. Supabase is the only backend; RLS enforced via two `SECURITY DEFINER` functions (`auth_user_owns_truck`, `auth_user_is_employee`) that break cross-table recursion. GoRouter 17.x handles nav via shell routes; `authProvider` is `ref.read` (not watched) in router redirect to avoid double-redirects. Firebase Messaging handles push on both platforms; tokens in `push_tokens` (one per user per platform). Notification prefs in `notification_preferences` — no row means all defaults true. Edge functions check prefs before sending. Social media handles stored without `@`; URLs built in code.
 
 ---
 
 ## Recent Decisions (non-obvious)
 
-**Employee invite — RPC not direct insert.** `invite_employee_by_email(p_truck_id, p_email)` is a `SECURITY DEFINER` Postgres function that checks `profiles` by email, inserts as `active` (with `user_id`) if found or `pending` if not, and returns `{ already_user, display_name }`. The Flutter repo calls this RPC and returns a `bool` so the screen can show the right snackbar and send the right email variant.
+**Dynamic Island fix requires explicit padding, not SafeArea.** Flutter's `showModalBottomSheet` internally calls `MediaQuery.removePadding(removeTop: true)` on the route, which strips `padding.top` from every descendant's MediaQuery. This means `SafeArea(top: true)` inside a modal bottom sheet ALWAYS adds 0 padding regardless of device. The fix: capture `MediaQuery.of(context).viewPadding.top` from the scaffold context *before* calling `showModalBottomSheet`, then pass it as a constructor parameter (`topPadding`) to the sheet widget. Added to drag handle padding directly: `EdgeInsets.only(top: topPadding + 12)`. Same fix applied to `_SchedulePickerSheet`.
 
-**Employee FK changed from `auth.users` → `profiles`.** PostgREST only auto-joins on explicit FKs. The old FK to `auth.users` prevented the `profiles(display_name)` join. Dropped and re-added pointing to `profiles.id` — functionally the same UUID, no data loss. `ON DELETE SET NULL` so a deleted profile demotes the row rather than cascading.
+**Combined schedule picker — one modal, not three.** Date, start time, and duration were three separate popups. Replaced with `_SchedulePickerSheet`: an embedded `CalendarDatePicker` widget + tappable start time row (opens system time picker) + `ChoiceChip` duration selector, all in one bottom sheet. Done button disabled until duration is selected. Date defaults to 7 days out, time defaults to 12:00 PM. Returns a `_ScheduleResult` record.
 
-**Edge indicators only for favorited + open trucks.** Showing every open truck off-screen would be cluttered. Filtered to `t.isOpen && favIds.contains(t.id)`. The `favIds` set comes from the already-watched `favoritedTruckIdsProvider` — no extra query. A `StreamSubscription<MapEvent>` on `_mapController.mapEventStream` drives `setState` so indicators update every frame during pan/zoom. `LayoutBuilder` provides the actual Stack dimensions (excluding bottom nav bar) so edge clamping is accurate.
+**`font_awesome_flutter` v11 breaks `IconData` inheritance.** Flutter made `IconData` a `final` class in a recent version. `font_awesome_flutter` 10.x extended it — compile error. v11 introduces `FaIconData` as its own type, which `FaIcon` accepts. Any widget that stored `IconData icon` to pass to `FaIcon` must change to `FaIconData icon`.
 
-**Change password re-authenticates first.** Supabase `updateUser` works on any live session. We call `signInWithPassword` first with the current password to verify it before allowing the change — otherwise any signed-in session could change the password silently.
+**`sendTruckOpenAlert` was silently a no-op.** The Dart method called the edge function without `user_id` in the body. The edge function requires `user_id` to look up prefs and tokens — without it, it returned `{sent: false, reason: 'no_user_id'}` with no exception thrown. Fixed: both `sendTruckOpenAlert` and new `sendTruckClosedAlert` now pass `auth.currentUser?.id` in the body.
 
-**Push notifications are fire-and-forget.** `BookingsRepository._invokeNotification` spawns an unawaited async closure so a slow/failing FCM call never blocks the DB write or the UI. Notification failure is logged to debugPrint only — no user-facing error.
+**History rewrite to remove leaked PAT.** Commit `34698d3` had Supabase PAT in `.mcp.json`. Since nothing had been pushed to GitHub yet (push was blocked by secret scanning), `git filter-branch --index-filter 'git rm --cached --ignore-unmatch .mcp.json'` rewrote all 11 commits cleanly. Backup refs cleaned up, PAT rotated in Supabase dashboard. Push now works normally.
 
-**`send-booking-notification` edge function uses raw FCM HTTP v1 API with RS256 JWT.** No `firebase-admin` npm package — the function generates a short-lived OAuth access token from the service account JSON (`FIREBASE_SERVICE_ACCOUNT_JSON` secret) using `crypto.subtle`, then calls `https://fcm.googleapis.com/v1/projects/{project_id}/messages:send` directly. This avoids npm cold-start overhead. If `FIREBASE_SERVICE_ACCOUNT_JSON` is not set, the function returns `{ sent: false, reason: 'not_configured' }` and logs a warning — no crash.
-
-**`push_tokens` primary key is `(user_id, platform)`.** One token per user per platform — upserted via `PushNotificationService._storeToken` on startup and on `onTokenRefresh`. Service role key (in the edge function) can read across all users; RLS only allows users to write their own row.
-
-**`aps-environment: development` in entitlements.** Suitable for TestFlight and direct device installs. Change to `production` before App Store submission.
-
-**Null-aware map entry syntax (Dart 3.7).** `'key': ?nullableValue` omits the entry if value is null. `?'key': value` checks if the KEY is null (not useful when key is a string literal — analyzer warns). The `if (x != null) 'key': x` pattern triggers `use_null_aware_elements` lint in this project.
+**`duration` column is nullable in DB.** Old booking requests won't have a duration. The column is `text` nullable. In-app validation enforces it for new requests; `BookingRequest.fromMap` maps it to `String?`.
 
 ---
 
@@ -60,21 +53,26 @@ Feature-based Flutter under `lib/features/<name>/` — each feature owns models,
 
 | Trap | What Happened | Don't Repeat |
 |---|---|---|
-| `latLngToScreenPoint` on MapCamera | Doesn't exist | Correct method: `latLngToScreenOffset` (returns `Offset`) |
-| `?'key': value` null-aware map entry | Analyzer error: key can't be null | Use `'key': ?value` instead |
-| `DropdownButtonFormField.value` | Deprecated Flutter 3.33+ | Use `initialValue` |
-| `FamilyAsyncNotifier` superclass | Not valid in Riverpod 3.3.2 | Pass arg via constructor; extend plain `AsyncNotifier<T>` |
-| `Navigator.pop(context)` in shell dialog | Hits branch Navigator → black screen | Always use `dialogContext` from builder param |
-| Watching `authProvider` in `routerProvider` | Recreates GoRouter on every auth change | Use `ref.read` in redirect only |
-| `StateProvider` / `valueOrNull` | Removed in Riverpod 3.x | `NotifierProvider` + `Notifier`; use `asData?.value` |
-| `RadioListTile.groupValue` / `onChanged` | Deprecated Flutter 3.32 | Use `RadioGroup` or manual `ListTile` + checkmark |
-| `const BoxDecoration(color: Theme.of(context)...)` | Compile error | Drop `const` from `BoxDecoration`; keep `const` inside for `BorderRadius` only |
-| DB trigger `on_auth_user_created` | Created duplicate profile rows | Dropped — do not re-add. Use `upsert` for profiles |
-| Email confirmation ON | Signup creates no session → redirect loop | Must stay OFF in Supabase Auth settings |
-| RLS infinite recursion on `food_trucks` ↔ `truck_employees` | Cross-table policy cycle | Always use `SECURITY DEFINER` functions for cross-table RLS |
-| `catchError` on `FunctionResponse` future | Must return `FunctionResponse` | Use unawaited async closure with try/catch instead |
-| `ColorScheme.background` | Deprecated Flutter 3.18+ | Use `ColorScheme.surface` |
-| `AppTextStyles.bodyMedium` | Doesn't exist | Available styles: `heading1/2/3`, `body`, `bodySmall`, `label`, `caption`, `buttonText` |
+| `SafeArea(top: true)` in modal | Flutter strips `padding.top` from modal MediaQuery — SafeArea adds 0pt | Capture `viewPadding.top` from scaffold context BEFORE the modal and pass explicitly |
+| `FaIcon` accepts `FaIconData` not `IconData` in v11 | Type error at compile time | Any field passed to `FaIcon` must be typed `FaIconData` |
+| `sendTruckOpenAlert` missing `user_id` | Silent no-op — edge fn returned `sent: false` with no exception | Always include `user_id` from `auth.currentUser?.id` in truck alert calls |
+| `git filter-branch` with unstaged changes | Fails: "Cannot rewrite branches: You have unstaged changes" | `git stash` first, then filter-branch, then `git stash pop` |
+| Nested modals strip padding twice | `_SchedulePickerSheet` shown from inside `BookTruckSheet` (also a modal) — same `removeTop` applies | Pass `topPadding` through the chain: caller → `BookTruckSheet` → `_SchedulePickerSheet` |
+
+From previous sessions (still valid):
+| Trap | Don't Repeat |
+|---|---|
+| `latLngToScreenPoint` on MapCamera | Use `latLngToScreenOffset` |
+| `?'key': value` null-aware map entry | Use `'key': ?value` |
+| `DropdownButtonFormField.value` | Use `initialValue` |
+| `FamilyAsyncNotifier` | Not valid — extend plain `AsyncNotifier<T>` |
+| `Navigator.pop(context)` in shell dialog | Use `dialogContext` from builder param |
+| Watching `authProvider` in `routerProvider` | Use `ref.read` only |
+| `StateProvider` / `valueOrNull` | Removed in Riverpod 3.x — use `NotifierProvider`, `asData?.value` |
+| DB trigger `on_auth_user_created` | Dropped — do not re-add. Use `upsert` for profiles |
+| Email confirmation ON | Signup creates no session → redirect loop. Must stay OFF |
+| RLS recursion on `food_trucks` ↔ `truck_employees` | Use `SECURITY DEFINER` functions |
+| SPM + space in path | `%20` double-encoded to `%2520` → pubspec.yaml not found; SPM globally disabled |
 
 ---
 
@@ -82,21 +80,15 @@ Feature-based Flutter under `lib/features/<name>/` — each feature owns models,
 
 | File | Change |
 |---|---|
-| **NEW** `lib/features/bookings/screens/booking_requests_screen.dart` | Owner inbox — list grouped pending/past, status badges, detail sheet, accept/decline |
-| `lib/features/bookings/repositories/bookings_repository.dart` | Added `fetchOwnerRequests`, `updateRequestStatus`; `submitRequest` now returns booking ID + fires notification; `_invokeNotification` helper |
-| `lib/features/bookings/providers/bookings_provider.dart` | Added `OwnerBookingRequestsNotifier` + `ownerBookingRequestsProvider` with optimistic status update |
-| `lib/router.dart` | Added `/dashboard/bookings` route |
-| `lib/features/owner_dashboard/screens/dashboard_screen.dart` | Added Booking Requests tile |
-| `lib/main.dart` | Added `Firebase.initializeApp()` + `PushNotificationService.initialize()` |
-| **NEW** `lib/core/push_notification_service.dart` | Requests permission, stores/refreshes FCM token in `push_tokens` |
-| **NEW** `lib/firebase_options.dart` | Generated by `flutterfire configure` — real iOS + Android Firebase app IDs |
-| **NEW** `ios/Runner/Runner.entitlements` | `aps-environment: development` |
-| `ios/Runner.xcodeproj/project.pbxproj` | `CODE_SIGN_ENTITLEMENTS` set for Debug/Profile/Release; `GoogleService-Info.plist` added by flutterfire |
-| `android/app/google-services.json` | Generated by `flutterfire configure` |
-| `pubspec.yaml` | Added `firebase_core: ^3.9.0`, `firebase_messaging: ^15.2.5` |
-| **NEW** `supabase/functions/send-booking-notification/index.ts` | FCM HTTP v1 via RS256 JWT from service account |
-| **Supabase migration** `create_push_tokens` | `push_tokens` table + RLS |
-| **Supabase Edge Function** `send-booking-notification` v1 | Deployed — `FIREBASE_SERVICE_ACCOUNT_JSON` secret set |
+| `pubspec.yaml` / `pubspec.lock` | `font_awesome_flutter` bumped to `^11.0.0` |
+| `lib/features/food_trucks/screens/truck_profile_screen.dart` | Capture `viewPadding.top` before booking modal; pass as `topPadding` |
+| `lib/features/account/screens/account_screen.dart` | Notification toggle label: "Going Live Alert" → "Live Status Alerts" |
+| `lib/core/push_notification_service.dart` | Fixed `sendTruckOpenAlert` (added `user_id`); added `sendTruckClosedAlert` |
+| `lib/features/owner_dashboard/screens/dashboard_screen.dart` | Call `sendTruckClosedAlert` when toggling truck offline (with pref check) |
+| `lib/features/bookings/models/booking_request.dart` | Added `duration` field (`String?`) |
+| `lib/features/bookings/repositories/bookings_repository.dart` | Added `duration` param; inserts to DB column |
+| `lib/features/bookings/widgets/book_truck_sheet.dart` | Full rewrite: combined schedule picker, `topPadding` param, required fields |
+| `supabase/functions/send-booking-notification/index.ts` | v4 — added `truck_closed`; fixed `truck_open` to require `user_id` |
 
 ---
 
@@ -104,26 +96,25 @@ Feature-based Flutter under `lib/features/<name>/` — each feature owns models,
 
 | Issue | Severity | Notes |
 |---|---|---|
-| Foreground push banners (iOS) | Low | `setForegroundNotificationPresentationOptions` is set — should show banners. Untested without real device. |
-| Invite email from `onboarding@resend.dev` | Medium (prod) | Resend test address — only delivers to Resend account owner. Verify `goodtruckfinder.com` in Resend + update edge function `from:` |
-| `REVENUECAT_WEBHOOK_SECRET` not set in Supabase | High (subscriptions) | Webhook accepts all requests until configured |
-| CartoDB tiles require attribution in production | Medium | Must credit © CARTO + © OpenStreetMap in App Store build |
+| Push notifications untested on real device | High | Simulator has no APNs. All FCM code is correct but unverified end-to-end |
+| `REVENUECAT_WEBHOOK_SECRET` not set | High (subscriptions) | Webhook accepts all requests until configured |
+| No rate limiting on announcements | Medium | Owner can spam followers. Add cooldown (e.g., 1/hour) before App Store |
+| Invite email from `onboarding@resend.dev` | Medium (prod) | Test only — verify `goodtruckfinder.com` in Resend |
 | `aps-environment: development` in entitlements | Medium (prod) | Change to `production` before App Store submission |
+| `websiteUrl` no validation | Low | `canLaunchUrl` silently fails on bad input |
+| Follower count in announcement sheet has no loading state | Low | Shows `0 followers` while loading instead of a spinner |
 | No shimmer/skeleton loading | Low | Phase 6 |
-| No delete account flow | Low | Phase 6 — App Store required |
-| No menu PDF/image upload UI | Medium | Columns exist, no picker |
-| Recent searches not scoped to user | Low | SharedPreferences key `recent_searches` is device-global |
-| RevenueCat purchase untestable on simulator | Expected | Requires real device + sandbox Apple ID |
+| No delete account flow | Low | **App Store required** — edge function + `auth.admin.deleteUser` + cascade |
 
 ---
 
 ## Next Steps (priority order)
 
-1. **App icon + splash** — `flutter_launcher_icons` + `flutter_native_splash`. High visual impact for demos.
-2. **RevenueCat production setup** — App Store Connect product (`com.goodtruckfinder.owner.monthly`), RC dashboard entitlement `premium`, Apple API key → `.env.json`. Wire `REVENUECAT_WEBHOOK_SECRET` in Supabase Edge Function secrets + RC webhook URL.
-3. **Resend production domain** — Verify `goodtruckfinder.com` in Resend, update edge function `from:` field (`send-employee-invite`), redeploy.
-4. **Delete account flow** — Required by App Store. Supabase `auth.admin.deleteUser` via edge function + cascade delete profile/trucks/tokens.
-5. **Menu PDF/image upload UI** — Columns exist in DB, no picker UI. Add to Edit Truck screen.
+1. **Test push on real device** — `flutter run --dart-define-from-file=.env.json` on physical iPhone. Verify going-live, going-offline, booking, and follower announcement all arrive.
+2. **App icon + splash** — `flutter_launcher_icons` + `flutter_native_splash`. High visual impact for demos.
+3. **RevenueCat production setup** — App Store Connect product `com.goodtruckfinder.owner.monthly`, RC entitlement `premium`, Apple API key in `.env.json`, `REVENUECAT_WEBHOOK_SECRET` in Supabase secrets.
+4. **Delete account flow** — Required by App Store. Edge function + `auth.admin.deleteUser` + cascade delete profile/trucks/tokens/prefs.
+5. **Announcement rate limiting** — Add `last_announcement_at` to `food_trucks`; check in `send-truck-announcement` edge fn before sending.
 
 ---
 
@@ -131,22 +122,21 @@ Feature-based Flutter under `lib/features/<name>/` — each feature owns models,
 
 - **Run**: `flutter run --dart-define-from-file=.env.json` — plain `flutter run` hits an assert
 - **`.env.json`** (gitignored, project root) — keys: `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `REVENUECAT_APPLE_KEY`, `REVENUECAT_GOOGLE_KEY`
+- **SPM disabled globally**: `flutter config --no-enable-swift-package-manager` — do not re-enable; space in project path breaks it
+- **CocoaPods**: `ios/Podfile` and `ios/Podfile.lock` are committed. After `flutter clean`, run `flutter run` (it runs pod install automatically)
 - **Supabase project**: `weflrxyerxpsafcdetya` — `https://weflrxyerxpsafcdetya.supabase.co`
 - **Email confirmation**: must be OFF (Supabase → Auth → Providers → Email)
 - **DB trigger**: `on_auth_user_created` is dropped — do not re-add
-- **RLS functions**: `auth_user_owns_truck(uuid)` + `auth_user_is_employee(uuid)` are SECURITY DEFINER — required to prevent recursion, do not drop
-- **`invite_employee_by_email(uuid, text)`**: SECURITY DEFINER RPC — checks profiles, inserts active or pending, returns jsonb `{ already_user, display_name }`
-- **Flutter**: 3.44.1 stable, darwin-arm64. Xcode 26.5, Android SDK 36.1.0
-- **Riverpod**: 3.3.2 — no `valueOrNull`, no `StateProvider`, no `FamilyAsyncNotifier`
+- **RLS functions**: `auth_user_owns_truck(uuid)` + `auth_user_is_employee(uuid)` are SECURITY DEFINER — required, do not drop
+- **`notification_preferences`**: no row = all prefs default true
+- **Social media**: handles stored without `@`; URLs constructed in `_SocialSection._urlFor()`
+- **Firebase**: `Firebase.apps.isEmpty` guard in `main.dart`; push init is unawaited post-runApp
+- **Simulator**: push notifications do not work (no APNs). Test all FCM features on real device only
+- **Flutter**: 3.44.1 stable, darwin-arm64. Xcode 26.5
+- **Riverpod**: 3.3.2 — no `valueOrNull`, no `StateProvider`, no `FamilyAsyncNotifier`; use `asData?.value`
 - **go_router**: 17.3.0 — dialog `Navigator.pop` must use `dialogContext` not widget context
-- **purchases_flutter**: 10.2.3 — `PurchaseParams.package(pkg)` is the correct purchase API
-- **RC entitlement ID**: `premium` — must match RevenueCat dashboard exactly
-- **shared_preferences**: 2.3.2 — theme mode key: `theme_mode_<userId>`, recent searches: `recent_searches` (device-global)
-- **Dark tiles**: CartoDB Dark Matter — free for dev, requires attribution for production
-- **flutter_map**: 8.3.0 — coordinate conversion: `camera.latLngToScreenOffset(LatLng)` returns `Offset` (NOT `latLngToScreenPoint`)
-- **Dart 3.7 null-aware map entries**: `'key': ?nullableValue` omits the entry if null. `?'key': value` checks the key (wrong for string literals).
-- **Firebase**: project `good-truck-finder`. `firebase_options.dart` generated by `flutterfire configure`. `FIREBASE_SERVICE_ACCOUNT_JSON` set in Supabase → Edge Functions → `send-booking-notification` → Secrets. Firebase CLI: `firebase login` then `$HOME/.pub-cache/bin/flutterfire configure`.
-- **iOS push entitlements**: `ios/Runner/Runner.entitlements` — `aps-environment: development`. Change to `production` for App Store.
-- **Resend**: invite email from `onboarding@resend.dev` (test only). `RESEND_API_KEY` set in Supabase → Edge Functions → `send-employee-invite` → Secrets
-- **GitHub**: `https://github.com/johnnydanger12-design/good-truck-finder.git`
+- **font_awesome_flutter**: 11.0.0 — use `FaIcon(icon)` with `FaIconData` type (NOT Flutter's `IconData`). Dark mode: flip black icons (TT/X) to white
+- **Dynamic Island**: Do NOT use `SafeArea(top: true)` inside modals — Flutter strips `padding.top`. Capture `MediaQuery.of(context).viewPadding.top` from scaffold context before `showModalBottomSheet` and pass as a constructor param
+- **Edge functions**: `send-booking-notification` v4, `send-truck-announcement` v1 — both deployed and active. `FIREBASE_SERVICE_ACCOUNT_JSON` secret is set
+- **GitHub**: `https://github.com/johnnydanger12-design/good-truck-finder.git` — push is working (history was rewritten to remove leaked PAT)
 - **Plan file**: `/Users/johnny/.claude/plans/project-planning-good-truck-compiled-pony.md`
