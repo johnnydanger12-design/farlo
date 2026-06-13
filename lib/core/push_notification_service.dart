@@ -26,13 +26,28 @@ class PushNotificationService {
   }
 
   static Future<void> sendTruckOpenAlert(String truckName) async {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null) return;
     try {
       await Supabase.instance.client.functions.invoke(
         'send-booking-notification',
-        body: {'action': 'truck_open', 'truck_name': truckName},
+        body: {'action': 'truck_open', 'truck_name': truckName, 'user_id': userId},
       );
     } catch (e) {
       debugPrint('Failed to send truck open alert: $e');
+    }
+  }
+
+  static Future<void> sendTruckClosedAlert(String truckName) async {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null) return;
+    try {
+      await Supabase.instance.client.functions.invoke(
+        'send-booking-notification',
+        body: {'action': 'truck_closed', 'truck_name': truckName, 'user_id': userId},
+      );
+    } catch (e) {
+      debugPrint('Failed to send truck closed alert: $e');
     }
   }
 

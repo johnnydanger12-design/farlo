@@ -150,6 +150,20 @@ Deno.serve(async (req: Request) => {
     if (!allowed) {
       return new Response(JSON.stringify({ sent: false, reason }), { status: 200 });
     }
+  } else if (action === 'truck_closed') {
+    const userId = body.user_id;
+    const truckName = body.truck_name ?? 'Your truck';
+    if (!userId) {
+      return new Response(JSON.stringify({ sent: false, reason: 'no_user_id' }), { status: 200 });
+    }
+    targetUserId = userId;
+    title = "You're Offline";
+    notifBody = `${truckName} is now offline and hidden from the map.`;
+
+    const { allowed, reason } = await checkPrefs(userId, true);
+    if (!allowed) {
+      return new Response(JSON.stringify({ sent: false, reason }), { status: 200 });
+    }
   } else {
     // booking_created / booking_status_changed
     const bookingId = body.booking_id;

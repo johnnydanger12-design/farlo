@@ -96,6 +96,12 @@ class DashboardScreen extends ConsumerWidget {
   Future<void> _handleToggle(BuildContext context, WidgetRef ref, bool isOpen, String truckName) async {
     if (!isOpen) {
       await ref.read(ownerTruckProvider.notifier).setOpenStatus(false);
+      final prefs = ref.read(notificationPrefsProvider).asData?.value;
+      if (prefs?.pushEnabled ?? true) {
+        if (prefs?.openAlert ?? true) {
+          PushNotificationService.sendTruckClosedAlert(truckName);
+        }
+      }
       return;
     }
 
