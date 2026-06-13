@@ -429,8 +429,8 @@ class _NotificationsDialog extends ConsumerWidget {
           if (isOwner)
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
-              title: Text('Going Live Alert', style: AppTextStyles.label),
-              subtitle: Text('Notify me when my truck goes live', style: AppTextStyles.caption),
+              title: Text('Live Status Alerts', style: AppTextStyles.label),
+              subtitle: Text('Notify me when my truck goes live or offline', style: AppTextStyles.caption),
               value: openAlert && pushEnabled,
               onChanged: pushEnabled
                   ? (v) => ref.read(notificationPrefsProvider.notifier).setOpenAlert(v)
