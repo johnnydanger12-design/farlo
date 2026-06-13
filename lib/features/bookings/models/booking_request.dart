@@ -8,6 +8,7 @@ class BookingRequest {
     this.contactPhone,
     required this.eventDate,
     required this.eventTime,
+    this.duration,
     this.guestCount,
     required this.eventLocation,
     required this.eventType,
@@ -24,6 +25,7 @@ class BookingRequest {
   final String? contactPhone;
   final DateTime eventDate;
   final String eventTime;
+  final String? duration;
   final int? guestCount;
   final String eventLocation;
   final String eventType;
@@ -41,6 +43,7 @@ class BookingRequest {
       contactPhone: map['contact_phone'] as String?,
       eventDate: DateTime.parse(map['event_date'] as String),
       eventTime: map['event_time'] as String,
+      duration: map['duration'] as String?,
       guestCount: map['guest_count'] as int?,
       eventLocation: map['event_location'] as String,
       eventType: map['event_type'] as String,

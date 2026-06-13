@@ -8,6 +8,18 @@ import '../../auth/providers/auth_provider.dart';
 import '../models/booking_request.dart';
 import '../providers/bookings_provider.dart';
 
+const _durations = [
+  '1 hour',
+  '1.5 hours',
+  '2 hours',
+  '2.5 hours',
+  '3 hours',
+  '4 hours',
+  '5 hours',
+  '6 hours',
+  '8 hours',
+];
+
 class BookTruckSheet extends ConsumerStatefulWidget {
   const BookTruckSheet({super.key, required this.truckId, required this.truckName});
   final String truckId;
@@ -28,6 +40,7 @@ class _BookTruckSheetState extends ConsumerState<BookTruckSheet> {
 
   DateTime? _eventDate;
   TimeOfDay? _eventTime;
+  String? _duration;
   String _eventType = eventTypes.first;
   bool _submitting = false;
 
@@ -71,6 +84,31 @@ class _BookTruckSheetState extends ConsumerState<BookTruckSheet> {
     if (picked != null) setState(() => _eventTime = picked);
   }
 
+  Future<void> _pickDuration() async {
+    final picked = await showDialog<String>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('Duration'),
+        children: _durations
+            .map((d) => SimpleDialogOption(
+                  onPressed: () => Navigator.pop(ctx, d),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                      children: [
+                        Expanded(child: Text(d, style: AppTextStyles.label)),
+                        if (_duration == d)
+                          Icon(Icons.check, size: 18, color: Theme.of(ctx).colorScheme.primary),
+                      ],
+                    ),
+                  ),
+                ))
+            .toList(),
+      ),
+    );
+    if (picked != null) setState(() => _duration = picked);
+  }
+
   String _formatDate(DateTime dt) {
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
                     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -86,14 +124,9 @@ class _BookTruckSheetState extends ConsumerState<BookTruckSheet> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_eventDate == null) {
-      _showError('Please select an event date.');
-      return;
-    }
-    if (_eventTime == null) {
-      _showError('Please select an event time.');
-      return;
-    }
+    if (_eventDate == null) { _showError('Please select an event date.'); return; }
+    if (_eventTime == null) { _showError('Please select a start time.'); return; }
+    if (_duration == null) { _showError('Please select a duration.'); return; }
 
     final user = ref.read(authProvider).asData?.value;
     if (user == null) return;
@@ -108,14 +141,13 @@ class _BookTruckSheetState extends ConsumerState<BookTruckSheet> {
         contactPhone: _phoneCtrl.text.trim().isEmpty ? null : _phoneCtrl.text.trim(),
         eventDate: _eventDate!,
         eventTime: _formatTime(_eventTime!),
+        duration: _duration,
         guestCount: int.tryParse(_guestCtrl.text.trim()),
         eventLocation: _locationCtrl.text.trim(),
         eventType: _eventType,
         notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
       );
-      if (mounted) {
-        Navigator.pop(context, true);
-      }
+      if (mounted) Navigator.pop(context, true);
     } catch (e) {
       if (mounted) {
         setState(() => _submitting = false);
@@ -133,164 +165,176 @@ class _BookTruckSheetState extends ConsumerState<BookTruckSheet> {
   @override
   Widget build(BuildContext context) {
     final isLight = Theme.of(context).brightness == Brightness.light;
-    return Container(
-      decoration: BoxDecoration(
-        color: isLight ? Colors.white : Theme.of(context).colorScheme.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Drag handle
-          Padding(
-            padding: const EdgeInsets.only(top: 12, bottom: 4),
-            child: Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.outlineVariant,
-                borderRadius: BorderRadius.circular(2),
+    return SafeArea(
+      top: true,
+      bottom: false,
+      child: Container(
+        decoration: BoxDecoration(
+          color: isLight ? Colors.white : Theme.of(context).colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Drag handle
+            Padding(
+              padding: const EdgeInsets.only(top: 12, bottom: 4),
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.outlineVariant,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, 0),
-            child: Row(
-              children: [
-                Expanded(
+            Padding(
+              padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, 0),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Request Private Event', style: AppTextStyles.heading3),
+                        const SizedBox(height: 2),
+                        Text(widget.truckName, style: AppTextStyles.caption),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 16),
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.xl),
+                child: Form(
+                  key: _formKey,
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Text('Request Private Event', style: AppTextStyles.heading3),
-                      const SizedBox(height: 2),
-                      Text(widget.truckName, style: AppTextStyles.caption),
+                      _sectionLabel('Contact Info'),
+                      _field(
+                        controller: _nameCtrl,
+                        label: 'Your name *',
+                        validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      _field(
+                        controller: _emailCtrl,
+                        label: 'Email address *',
+                        keyboardType: TextInputType.emailAddress,
+                        validator: (v) {
+                          if (v == null || v.trim().isEmpty) return 'Required';
+                          if (!v.contains('@')) return 'Enter a valid email';
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      _field(
+                        controller: _phoneCtrl,
+                        label: 'Phone number (optional)',
+                        keyboardType: TextInputType.phone,
+                        inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[\d\s\-\(\)\+]'))],
+                      ),
+                      const SizedBox(height: AppSpacing.lg),
+                      _sectionLabel('Event Details'),
+                      // Date — full width
+                      _PickerTile(
+                        icon: Icons.calendar_today_outlined,
+                        label: _eventDate != null ? _formatDate(_eventDate!) : 'Event date *',
+                        hasValue: _eventDate != null,
+                        onTap: _pickDate,
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      // Start time + Duration side by side
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _PickerTile(
+                              icon: Icons.access_time_outlined,
+                              label: _eventTime != null ? _formatTime(_eventTime!) : 'Start time *',
+                              hasValue: _eventTime != null,
+                              onTap: _pickTime,
+                            ),
+                          ),
+                          const SizedBox(width: AppSpacing.sm),
+                          Expanded(
+                            child: _PickerTile(
+                              icon: Icons.hourglass_bottom_outlined,
+                              label: _duration ?? 'Duration *',
+                              hasValue: _duration != null,
+                              onTap: _pickDuration,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      _field(
+                        controller: _locationCtrl,
+                        label: 'Event location / address *',
+                        validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      _field(
+                        controller: _guestCtrl,
+                        label: 'Estimated guest count *',
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                        validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      DropdownButtonFormField<String>(
+                        initialValue: _eventType,
+                        decoration: const InputDecoration(labelText: 'Event type'),
+                        items: eventTypes
+                            .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+                            .toList(),
+                        onChanged: (v) { if (v != null) setState(() => _eventType = v); },
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      _field(
+                        controller: _notesCtrl,
+                        label: 'Additional details (optional)',
+                        maxLines: 3,
+                      ),
+                      const SizedBox(height: AppSpacing.lg),
+                      FilledButton(
+                        onPressed: _submitting ? null : _submit,
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size.fromHeight(52),
+                          backgroundColor: Theme.of(context).colorScheme.primary,
+                        ),
+                        child: _submitting
+                            ? const SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                              )
+                            : const Text(
+                                'Send Request',
+                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                              ),
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      Text(
+                        'The truck owner will review your request and reach out to confirm.',
+                        style: AppTextStyles.caption,
+                        textAlign: TextAlign.center,
+                      ),
                     ],
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: () => Navigator.pop(context),
-                ),
-              ],
-            ),
-          ),
-          const Divider(height: 16),
-          Flexible(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.xl),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _sectionLabel('Contact Info'),
-                    _field(
-                      controller: _nameCtrl,
-                      label: 'Your name',
-                      validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    _field(
-                      controller: _emailCtrl,
-                      label: 'Email address',
-                      keyboardType: TextInputType.emailAddress,
-                      validator: (v) {
-                        if (v == null || v.trim().isEmpty) return 'Required';
-                        if (!v.contains('@')) return 'Enter a valid email';
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    _field(
-                      controller: _phoneCtrl,
-                      label: 'Phone number (optional)',
-                      keyboardType: TextInputType.phone,
-                      inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[\d\s\-\(\)\+]'))],
-                    ),
-                    const SizedBox(height: AppSpacing.lg),
-                    _sectionLabel('Event Details'),
-                    // Date + Time row
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _PickerTile(
-                            icon: Icons.calendar_today_outlined,
-                            label: _eventDate != null ? _formatDate(_eventDate!) : 'Event date',
-                            hasValue: _eventDate != null,
-                            onTap: _pickDate,
-                          ),
-                        ),
-                        const SizedBox(width: AppSpacing.sm),
-                        Expanded(
-                          child: _PickerTile(
-                            icon: Icons.access_time_outlined,
-                            label: _eventTime != null ? _formatTime(_eventTime!) : 'Start time',
-                            hasValue: _eventTime != null,
-                            onTap: _pickTime,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    _field(
-                      controller: _locationCtrl,
-                      label: 'Event location / address',
-                      validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    _field(
-                      controller: _guestCtrl,
-                      label: 'Estimated guest count (optional)',
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    // Event type dropdown
-                    DropdownButtonFormField<String>(
-                      initialValue: _eventType,
-                      decoration: const InputDecoration(labelText: 'Event type'),
-                      items: eventTypes
-                          .map((t) => DropdownMenuItem(value: t, child: Text(t)))
-                          .toList(),
-                      onChanged: (v) { if (v != null) setState(() => _eventType = v); },
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    _field(
-                      controller: _notesCtrl,
-                      label: 'Additional details (optional)',
-                      maxLines: 3,
-                    ),
-                    const SizedBox(height: AppSpacing.lg),
-                    FilledButton(
-                      onPressed: _submitting ? null : _submit,
-                      style: FilledButton.styleFrom(
-                        minimumSize: const Size.fromHeight(52),
-                        backgroundColor: Theme.of(context).colorScheme.primary,
-                      ),
-                      child: _submitting
-                          ? const SizedBox(
-                              width: 22,
-                              height: 22,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                            )
-                          : const Text(
-                              'Send Request',
-                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                            ),
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    Text(
-                      'The truck owner will review your request and reach out to confirm.',
-                      style: AppTextStyles.caption,
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
