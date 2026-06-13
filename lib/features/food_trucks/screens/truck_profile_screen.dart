@@ -87,11 +87,13 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
 
   Future<void> _openBookingSheet() async {
     final truck = widget.truck;
+    // Capture top padding here — Flutter strips it from MediaQuery inside modals.
+    final topPadding = MediaQuery.of(context).viewPadding.top;
     final result = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => BookTruckSheet(truckId: truck.id, truckName: truck.name),
+      builder: (_) => BookTruckSheet(truckId: truck.id, truckName: truck.name, topPadding: topPadding),
     );
     if (result == true && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(

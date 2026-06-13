@@ -37,9 +37,10 @@ class _ScheduleResult {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class BookTruckSheet extends ConsumerStatefulWidget {
-  const BookTruckSheet({super.key, required this.truckId, required this.truckName});
+  const BookTruckSheet({super.key, required this.truckId, required this.truckName, this.topPadding = 0});
   final String truckId;
   final String truckName;
+  final double topPadding;
 
   @override
   ConsumerState<BookTruckSheet> createState() => _BookTruckSheetState();
@@ -100,6 +101,7 @@ class _BookTruckSheetState extends ConsumerState<BookTruckSheet> {
         initialDate: _eventDate,
         initialTime: _eventTime,
         initialDuration: _duration,
+        topPadding: widget.topPadding,
       ),
     );
     if (result != null) {
@@ -158,28 +160,25 @@ class _BookTruckSheetState extends ConsumerState<BookTruckSheet> {
     final isLight = Theme.of(context).brightness == Brightness.light;
     final scheduleSet = _eventDate != null && _eventTime != null && _duration != null;
 
-    return SafeArea(
-      top: true,
-      bottom: false,
-      child: Container(
-        decoration: BoxDecoration(
-          color: isLight ? Colors.white : Theme.of(context).colorScheme.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.only(top: 12, bottom: 4),
-              child: Container(
-                width: 40, height: 4,
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.outlineVariant,
-                  borderRadius: BorderRadius.circular(2),
-                ),
+    return Container(
+      decoration: BoxDecoration(
+        color: isLight ? Colors.white : Theme.of(context).colorScheme.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: EdgeInsets.only(top: widget.topPadding + 12, bottom: 4),
+            child: Container(
+              width: 40, height: 4,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.outlineVariant,
+                borderRadius: BorderRadius.circular(2),
               ),
             ),
+          ),
             Padding(
               padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, 0),
               child: Row(
@@ -287,7 +286,6 @@ class _BookTruckSheetState extends ConsumerState<BookTruckSheet> {
             ),
           ],
         ),
-      ),
     );
   }
 
@@ -319,10 +317,11 @@ class _BookTruckSheetState extends ConsumerState<BookTruckSheet> {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _SchedulePickerSheet extends StatefulWidget {
-  const _SchedulePickerSheet({this.initialDate, this.initialTime, this.initialDuration});
+  const _SchedulePickerSheet({this.initialDate, this.initialTime, this.initialDuration, this.topPadding = 0});
   final DateTime? initialDate;
   final TimeOfDay? initialTime;
   final String? initialDuration;
+  final double topPadding;
 
   @override
   State<_SchedulePickerSheet> createState() => _SchedulePickerSheetState();
@@ -352,20 +351,17 @@ class _SchedulePickerSheetState extends State<_SchedulePickerSheet> {
     final primary = Theme.of(context).colorScheme.primary;
     final canConfirm = _duration != null;
 
-    return SafeArea(
-      top: true,
-      bottom: false,
-      child: Container(
-        decoration: BoxDecoration(
-          color: isLight ? Colors.white : Theme.of(context).colorScheme.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Drag handle
-            Padding(
-              padding: const EdgeInsets.only(top: 12, bottom: 4),
+    return Container(
+      decoration: BoxDecoration(
+        color: isLight ? Colors.white : Theme.of(context).colorScheme.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Drag handle
+          Padding(
+            padding: EdgeInsets.only(top: widget.topPadding + 12, bottom: 4),
               child: Container(
                 width: 40, height: 4,
                 decoration: BoxDecoration(
@@ -483,7 +479,6 @@ class _SchedulePickerSheetState extends State<_SchedulePickerSheet> {
             ),
           ],
         ),
-      ),
     );
   }
 }
