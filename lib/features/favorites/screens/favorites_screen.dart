@@ -16,11 +16,8 @@ class FavoritesScreen extends ConsumerWidget {
     final asyncFavorites = ref.watch(favoritesListProvider);
 
     return Scaffold(
-      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Favorites'),
-        backgroundColor: AppColors.surface,
-        foregroundColor: AppColors.textPrimary,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
       ),
@@ -93,7 +90,7 @@ class _FavoriteTile extends ConsumerWidget {
       child: Container(
         padding: const EdgeInsets.all(AppSpacing.md),
         decoration: BoxDecoration(
-          color: AppColors.surface,
+          color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
@@ -181,7 +178,7 @@ class _FavoriteTile extends ConsumerWidget {
                   ),
                 const SizedBox(height: AppSpacing.sm),
                 GestureDetector(
-                  onTap: () => ref.read(favoritedTruckIdsProvider.notifier).toggle(entry.truckId),
+                  onTap: () => ref.read(favoritedTruckIdsProvider.notifier).remove(entry.truckId),
                   child: const Icon(Icons.favorite_rounded, color: Colors.red, size: 22),
                 ),
               ],

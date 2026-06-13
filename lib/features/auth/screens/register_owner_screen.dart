@@ -65,10 +65,7 @@ class _RegisterOwnerScreenState extends ConsumerState<RegisterOwnerScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.background,
-        surfaceTintColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
@@ -161,6 +158,7 @@ class _RegisterOwnerScreenState extends ConsumerState<RegisterOwnerScreen> {
                   label: 'Create Owner Account',
                   onPressed: _submit,
                   isLoading: _isLoading,
+                  backgroundColor: AppColors.primary,
                 ),
                 const SizedBox(height: AppSpacing.lg),
                 Row(

@@ -17,9 +17,14 @@ import '../../reviews/widgets/review_card.dart';
 import '../../reviews/widgets/write_review_sheet.dart';
 
 class TruckProfileScreen extends ConsumerWidget {
-  const TruckProfileScreen({super.key, required this.truckId});
+  const TruckProfileScreen({
+    super.key,
+    required this.truckId,
+    this.scrollToReviews = false,
+  });
 
   final String truckId;
+  final bool scrollToReviews;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -27,21 +32,21 @@ class TruckProfileScreen extends ConsumerWidget {
 
     return asyncTruck.when(
       loading: () => const Scaffold(
-        backgroundColor: AppColors.background,
         body: Center(child: CircularProgressIndicator()),
       ),
       error: (e, _) => Scaffold(
         appBar: AppBar(backgroundColor: Colors.transparent),
         body: ErrorView(message: e.toString(), onRetry: () => ref.invalidate(foodTruckProvider(truckId))),
       ),
-      data: (truck) => _TruckProfileContent(truck: truck),
+      data: (truck) => _TruckProfileContent(truck: truck, scrollToReviews: scrollToReviews),
     );
   }
 }
 
 class _TruckProfileContent extends ConsumerStatefulWidget {
-  const _TruckProfileContent({required this.truck});
+  const _TruckProfileContent({required this.truck, this.scrollToReviews = false});
   final FoodTruck truck;
+  final bool scrollToReviews;
 
   @override
   ConsumerState<_TruckProfileContent> createState() => _TruckProfileContentState();
@@ -49,7 +54,28 @@ class _TruckProfileContent extends ConsumerStatefulWidget {
 
 class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
   final _pageController = PageController();
+  final _reviewsKey = GlobalKey();
   int _currentPhoto = 0;
+  int? _filterRating;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.scrollToReviews) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToReviews());
+    }
+  }
+
+  void _scrollToReviews() {
+    final ctx = _reviewsKey.currentContext;
+    if (ctx != null) {
+      Scrollable.ensureVisible(
+        ctx,
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
 
   @override
   void dispose() {
@@ -61,7 +87,7 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
     final result = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: AppColors.surface,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -90,7 +116,6 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
     final isAuthenticated = user != null;
 
     return Scaffold(
-      backgroundColor: AppColors.background,
       body: CustomScrollView(
         slivers: [
           // ── Hero header ─────────────────────────────────────────────────
@@ -131,7 +156,7 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
           // ── Truck identity ───────────────────────────────────────────────
           SliverToBoxAdapter(
             child: Container(
-              color: AppColors.surface,
+              color: Theme.of(context).colorScheme.surface,
               padding: const EdgeInsets.all(AppSpacing.lg),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -155,21 +180,24 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
                     ],
                   ),
                   const SizedBox(height: AppSpacing.sm),
-                  Row(
-                    children: [
-                      StarRatingWidget(rating: truck.averageRating, size: 16, showValue: false),
-                      const SizedBox(width: 6),
-                      Text(
-                        truck.reviewCount > 0
-                            ? '${truck.averageRating.toStringAsFixed(1)} · ${truck.reviewCount} review${truck.reviewCount == 1 ? '' : 's'}'
-                            : 'No reviews yet',
-                        style: AppTextStyles.caption,
-                      ),
-                    ],
+                  GestureDetector(
+                    onTap: _scrollToReviews,
+                    child: Row(
+                      children: [
+                        StarRatingWidget(rating: truck.averageRating, size: 16, showValue: false),
+                        const SizedBox(width: 6),
+                        Text(
+                          truck.reviewCount > 0
+                              ? '${truck.averageRating.toStringAsFixed(1)} · ${truck.reviewCount} review${truck.reviewCount == 1 ? '' : 's'}'
+                              : 'No reviews yet',
+                          style: AppTextStyles.caption,
+                        ),
+                      ],
+                    ),
                   ),
                   if (truck.description != null && truck.description!.isNotEmpty) ...[
                     const SizedBox(height: AppSpacing.md),
-                    const Divider(color: AppColors.divider),
+                    const Divider(),
                     const SizedBox(height: AppSpacing.md),
                     Text(truck.description!, style: AppTextStyles.body),
                   ],
@@ -180,32 +208,6 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
 
           const _SectionSpacer(),
 
-          // ── Photo dots (if multiple photos) ─────────────────────────────
-          if (hasPhotos && truck.photoUrls.length > 1)
-            SliverToBoxAdapter(
-              child: Container(
-                color: AppColors.surface,
-                padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(truck.photoUrls.length, (i) {
-                    final active = i == _currentPhoto;
-                    return AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      margin: const EdgeInsets.symmetric(horizontal: 3),
-                      width: active ? 18 : 6,
-                      height: 6,
-                      decoration: BoxDecoration(
-                        color: active ? Theme.of(context).colorScheme.primary : AppColors.divider,
-                        borderRadius: BorderRadius.circular(3),
-                      ),
-                    );
-                  }),
-                ),
-              ),
-            ),
-
-          if (hasPhotos && truck.photoUrls.length > 1) const _SectionSpacer(),
 
           // ── Operating hours ──────────────────────────────────────────────
           if (truck.operatingHours.isNotEmpty) ...[
@@ -247,7 +249,8 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
           // ── Reviews ──────────────────────────────────────────────────────
           SliverToBoxAdapter(
             child: Container(
-              color: AppColors.surface,
+              key: _reviewsKey,
+              color: Theme.of(context).colorScheme.surface,
               padding: const EdgeInsets.all(AppSpacing.lg),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -256,20 +259,21 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text('Reviews', style: AppTextStyles.heading3),
-                      // Show "Edit" if user already reviewed, "Write" if not
                       asyncMyReview.when(
-                        data: (myReview) => TextButton(
-                          onPressed: isAuthenticated
-                              ? () => _openReviewSheet(myReview)
-                              : () => _showLoginPrompt(context),
-                          child: Text(
-                            myReview != null ? 'Edit Review' : 'Write a Review',
-                            style: TextStyle(
-                              color: Theme.of(context).colorScheme.primary,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
+                        data: (myReview) => myReview == null
+                            ? TextButton(
+                                onPressed: isAuthenticated
+                                    ? () => _openReviewSheet(null)
+                                    : () => _showLoginPrompt(context),
+                                child: Text(
+                                  'Write a Review',
+                                  style: TextStyle(
+                                    color: Theme.of(context).colorScheme.primary,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              )
+                            : const SizedBox.shrink(),
                         loading: () => const SizedBox.shrink(),
                         error: (_, _) => const SizedBox.shrink(),
                       ),
@@ -288,18 +292,38 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
                           ),
                         );
                       }
+                      final filtered = _filterRating == null
+                          ? reviews
+                          : reviews.where((r) => r.rating == _filterRating).toList();
                       return Column(
-                        children: reviews.map((r) {
-                          final isOwn = r.userId == user?.id;
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                            child: ReviewCard(
-                              review: r,
-                              isOwn: isOwn,
-                              onDelete: isOwn ? () => _deleteReview(r.id) : null,
-                            ),
-                          );
-                        }).toList(),
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _ReviewFilter(
+                            selected: _filterRating,
+                            onSelected: (v) => setState(() => _filterRating = v),
+                          ),
+                          const SizedBox(height: AppSpacing.md),
+                          if (filtered.isEmpty)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
+                              child: Center(
+                                child: Text('No ${_filterRating!}-star reviews yet', style: AppTextStyles.bodySmall),
+                              ),
+                            )
+                          else
+                            ...filtered.map((r) {
+                              final isOwn = r.userId == user?.id;
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                                child: ReviewCard(
+                                  review: r,
+                                  isOwn: isOwn,
+                                  onEdit: isOwn ? () => _openReviewSheet(r) : null,
+                                  onDelete: isOwn ? () => _deleteReview(r.id) : null,
+                                ),
+                              );
+                            }),
+                        ],
                       );
                     },
                   ),
@@ -348,15 +372,41 @@ class _PhotoCarousel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return PageView.builder(
-      controller: controller,
-      itemCount: urls.length,
-      onPageChanged: onPageChanged,
-      itemBuilder: (_, i) => Image.network(
-        urls[i],
-        fit: BoxFit.cover,
-        errorBuilder: (_, _, _) => _LogoHero(logoUrl: null),
-      ),
+    return Stack(
+      children: [
+        PageView.builder(
+          controller: controller,
+          itemCount: urls.length,
+          onPageChanged: onPageChanged,
+          itemBuilder: (_, i) => Image.network(
+            urls[i],
+            fit: BoxFit.cover,
+            errorBuilder: (_, _, _) => _LogoHero(logoUrl: null),
+          ),
+        ),
+        if (urls.length > 1)
+          Positioned(
+            bottom: 12,
+            left: 0,
+            right: 0,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(urls.length, (i) {
+                final active = i == currentIndex;
+                return AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  margin: const EdgeInsets.symmetric(horizontal: 3),
+                  width: active ? 18 : 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: active ? 1.0 : 0.5),
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                );
+              }),
+            ),
+          ),
+      ],
     );
   }
 }
@@ -462,7 +512,7 @@ class _Section extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: AppColors.surface,
+      color: Theme.of(context).colorScheme.surface,
       padding: const EdgeInsets.all(AppSpacing.lg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -506,7 +556,7 @@ class _HoursTable extends StatelessWidget {
                   h.dayName,
                   style: AppTextStyles.label.copyWith(
                     fontWeight: isToday ? FontWeight.w700 : FontWeight.w500,
-                    color: isToday ? Theme.of(context).colorScheme.primary : AppColors.textPrimary,
+                    color: isToday ? Theme.of(context).colorScheme.primary : null,
                   ),
                 ),
               ),
@@ -562,6 +612,81 @@ class _MenuList extends StatelessWidget {
           ],
         );
       }).toList(),
+    );
+  }
+}
+
+class _ReviewFilter extends StatelessWidget {
+  const _ReviewFilter({required this.selected, required this.onSelected});
+
+  final int? selected;
+  final void Function(int?) onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final primary = Theme.of(context).colorScheme.primary;
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          _FilterChip(
+            label: 'All',
+            active: selected == null,
+            onTap: () => onSelected(null),
+            primary: primary,
+          ),
+          ...List.generate(5, (i) {
+            final star = 5 - i;
+            return _FilterChip(
+              label: '$star ★',
+              active: selected == star,
+              onTap: () => onSelected(selected == star ? null : star),
+              primary: primary,
+            );
+          }),
+        ],
+      ),
+    );
+  }
+}
+
+class _FilterChip extends StatelessWidget {
+  const _FilterChip({
+    required this.label,
+    required this.active,
+    required this.onTap,
+    required this.primary,
+  });
+
+  final String label;
+  final bool active;
+  final VoidCallback onTap;
+  final Color primary;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        margin: const EdgeInsets.only(right: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        decoration: BoxDecoration(
+          color: active ? primary : Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: active ? primary : Theme.of(context).colorScheme.outline,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: active ? Colors.white : AppColors.textSecondary,
+          ),
+        ),
+      ),
     );
   }
 }

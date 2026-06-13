@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
@@ -15,11 +16,8 @@ class DashboardScreen extends ConsumerWidget {
     final asyncTruck = ref.watch(ownerTruckProvider);
 
     return Scaffold(
-      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('My Truck'),
-        backgroundColor: AppColors.surface,
-        foregroundColor: AppColors.textPrimary,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
       ),
@@ -66,6 +64,12 @@ class DashboardScreen extends ConsumerWidget {
                 subtitle: 'Manage your plan',
                 onTap: () => context.go('/dashboard/subscription'),
               ),
+              _DashboardTile(
+                icon: Icons.people_outline,
+                label: 'Employees',
+                subtitle: 'Manage who can go live for your truck',
+                onTap: () => context.go('/dashboard/employees'),
+              ),
             ],
           );
         },
@@ -104,7 +108,28 @@ class DashboardScreen extends ConsumerWidget {
       final pos = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
       );
-      await ref.read(ownerTruckProvider.notifier).updateLocation(pos.latitude, pos.longitude);
+      String? address;
+      try {
+        final marks = await placemarkFromCoordinates(pos.latitude, pos.longitude);
+        if (marks.isNotEmpty) {
+          final p = marks.first;
+          final street = [
+            if (p.subThoroughfare?.isNotEmpty ?? false) p.subThoroughfare!,
+            if (p.thoroughfare?.isNotEmpty ?? false) p.thoroughfare!,
+          ].join(' ');
+          final city = p.locality ?? '';
+          if (street.isNotEmpty && city.isNotEmpty) {
+            address = '$street, $city';
+          } else if (city.isNotEmpty) {
+            address = city;
+          } else if (street.isNotEmpty) {
+            address = street;
+          }
+        }
+      } catch (e) {
+        debugPrint('Geocoding failed: $e');
+      }
+      await ref.read(ownerTruckProvider.notifier).updateLocation(pos.latitude, pos.longitude, address: address);
       await ref.read(ownerTruckProvider.notifier).setOpenStatus(true);
       if (context.mounted) {
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
@@ -154,7 +179,7 @@ class _StatusCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -228,7 +253,7 @@ class _DashboardTile extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: AppSpacing.sm),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
       ),
       child: ListTile(

@@ -19,7 +19,6 @@ class ConsumerShell extends StatelessWidget {
             index,
             initialLocation: index == shell.currentIndex,
           ),
-          backgroundColor: Colors.white,
           destinations: const [
             NavigationDestination(
               icon: Icon(Icons.map_outlined),

@@ -1,9 +1,16 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/app_text_styles.dart';
+import '../../employees/providers/employees_provider.dart';
+import '../../employees/widgets/employee_go_live_card.dart';
+import '../../favorites/providers/favorites_provider.dart';
 import '../models/food_truck.dart';
 import '../providers/map_provider.dart';
 import '../widgets/truck_bottom_sheet.dart';
@@ -17,7 +24,14 @@ class MapScreen extends ConsumerStatefulWidget {
 
 class _MapScreenState extends ConsumerState<MapScreen> {
   final _mapController = MapController();
+  final _searchController = TextEditingController();
+  final _searchFocusNode = FocusNode();
   bool _isFollowing = true;
+  String _searchQuery = '';
+  String _instantQuery = '';
+  Timer? _debounce;
+  List<String> _recentSearches = [];
+  bool _searchFocused = false;
 
   static const _defaultCenter = LatLng(37.7749, -122.4194);
 
@@ -30,6 +44,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     // MapController is attached. Use getLastKnownPosition (OS cache, ~10 ms)
     // to fast-path to the right location, then let the live stream take over.
     _resolveInitialCenter();
+    _loadRecentSearches();
+    _searchFocusNode.addListener(_onFocusChanged);
   }
 
   Future<void> _resolveInitialCenter() async {
@@ -50,8 +66,83 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   @override
   void dispose() {
+    _debounce?.cancel();
+    _searchController.dispose();
+    _searchFocusNode.removeListener(_onFocusChanged);
+    _searchFocusNode.dispose();
     _mapController.dispose();
     super.dispose();
+  }
+
+  void _onFocusChanged() {
+    setState(() => _searchFocused = _searchFocusNode.hasFocus);
+  }
+
+  List<FoodTruck> _sortByDistance(List<FoodTruck> trucks, Position? pos) {
+    if (pos == null) return trucks;
+    return trucks.toList()
+      ..sort((a, b) {
+        final da = Geolocator.distanceBetween(pos.latitude, pos.longitude, a.latitude, a.longitude);
+        final db = Geolocator.distanceBetween(pos.latitude, pos.longitude, b.latitude, b.longitude);
+        return da.compareTo(db);
+      });
+  }
+
+  Future<void> _loadRecentSearches() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() => _recentSearches = prefs.getStringList('recent_searches') ?? []);
+    }
+  }
+
+  Future<void> _saveSearch(String query) async {
+    final q = query.trim();
+    if (q.isEmpty) return;
+    final updated = [q, ..._recentSearches.where((s) => s != q)].take(5).toList();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('recent_searches', updated);
+    if (mounted) setState(() => _recentSearches = updated);
+  }
+
+  Future<void> _removeRecent(String query) async {
+    final updated = _recentSearches.where((s) => s != query).toList();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('recent_searches', updated);
+    setState(() => _recentSearches = updated);
+  }
+
+  void _applyRecent(String query) {
+    _searchController.text = query;
+    _searchController.selection = TextSelection.collapsed(offset: query.length);
+    _debounce?.cancel();
+    setState(() => _searchQuery = query);
+  }
+
+  void _onSearchChanged(String value) {
+    final trimmed = value.trim();
+    setState(() => _instantQuery = trimmed);
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 350), () {
+      if (mounted) setState(() => _searchQuery = trimmed);
+    });
+  }
+
+  void _clearSearch() {
+    _debounce?.cancel();
+    _searchController.clear();
+    _searchFocusNode.unfocus();
+    setState(() {
+      _searchQuery = '';
+      _instantQuery = '';
+    });
+  }
+
+  void _onSearchResultTapped(FoodTruck truck) {
+    _saveSearch(_instantQuery.isNotEmpty ? _instantQuery : _searchQuery);
+    _clearSearch();
+    setState(() => _isFollowing = false);
+    _mapController.move(LatLng(truck.latitude, truck.longitude), 16.0);
+    _onTruckTapped(truck);
   }
 
   void _onTruckTapped(FoodTruck truck) {
@@ -86,7 +177,31 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   Widget build(BuildContext context) {
     final trucksAsync = ref.watch(activeTrucksProvider);
     final locationAsync = ref.watch(userLocationProvider);
+    // Pre-load so the heart state is ready before any bottom sheet opens.
+    ref.watch(favoritedTruckIdsProvider);
+    final searchAsync = ref.watch(truckSearchProvider(_searchQuery));
+    final employeeTrucks = ref.watch(myEmployeeTrucksProvider).asData?.value ?? [];
+
+    // Client-side suggestions from already-loaded trucks — shown instantly
+    // while the debounce is still in flight (_instantQuery != _searchQuery).
+    final activeTrucks = trucksAsync.asData?.value ?? [];
     final userPos = locationAsync.asData?.value;
+    final q = _instantQuery.toLowerCase();
+    final filtered = _instantQuery.isEmpty
+        ? <FoodTruck>[]
+        : activeTrucks
+            .where((t) =>
+                t.name.toLowerCase().contains(q) ||
+                t.cuisineType.toLowerCase().contains(q))
+            .toList();
+    final localSuggestions = _sortByDistance(filtered, userPos).take(5).toList();
+
+    // Use server results once the debounce has caught up; local data before.
+    // Both paths sorted by distance so the nearest match surfaces first.
+    final dropdownValue = (_searchQuery == _instantQuery && _instantQuery.isNotEmpty)
+        ? searchAsync.whenData((trucks) => _sortByDistance(trucks, userPos))
+        : AsyncData<List<FoodTruck>>(localSuggestions);
+    final topPad = MediaQuery.of(context).padding.top;
 
     // Follow user position whenever _isFollowing is true.
     ref.listen<AsyncValue<Position?>>(userLocationProvider, (_, next) {
@@ -119,7 +234,10 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             ),
             children: [
               TileLayer(
-                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                urlTemplate: Theme.of(context).brightness == Brightness.dark
+                    ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'
+                    : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                subdomains: const ['a', 'b', 'c', 'd'],
                 userAgentPackageName: 'com.goodtruckfinder.app',
               ),
               if (userPos != null)
@@ -144,7 +262,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                             height: 44,
                             child: GestureDetector(
                               onTap: () => _onTruckTapped(truck),
-                              child: _TruckPin(isOpen: truck.isOpen),
+                              child: _TruckPin(isOpen: truck.isOpen, logoUrl: truck.logoUrl),
                             ),
                           ),
                         )
@@ -152,6 +270,38 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                     [],
               ),
             ],
+          ),
+          // Floating search bar + results
+          Positioned(
+            top: topPad + 12,
+            left: 16,
+            right: 16,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _SearchBar(
+                  controller: _searchController,
+                  focusNode: _searchFocusNode,
+                  onChanged: _onSearchChanged,
+                  onClear: _clearSearch,
+                ),
+                if (_instantQuery.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  _SearchResults(
+                    searchAsync: dropdownValue,
+                    onTap: _onSearchResultTapped,
+                    userPos: userPos,
+                  ),
+                ] else if (_searchFocused && _recentSearches.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  _RecentSearches(
+                    recents: _recentSearches,
+                    onTap: _applyRecent,
+                    onRemove: _removeRecent,
+                  ),
+                ],
+              ],
+            ),
           ),
           // Recenter button — only visible when user has panned away.
           if (!_isFollowing)
@@ -161,19 +311,35 @@ class _MapScreenState extends ConsumerState<MapScreen> {
               right: 0,
               child: Center(child: _RecenterButton(onTap: _recenter)),
             ),
-          if (trucksAsync.isLoading)
-            const Positioned(
-              top: 56,
+          if (trucksAsync.isLoading && _searchQuery.isEmpty)
+            Positioned(
+              top: topPad + 72,
               left: 0,
               right: 0,
-              child: Center(child: _MapChip(label: 'Loading trucks…')),
+              child: const Center(child: _MapChip(label: 'Loading trucks…')),
             ),
-          if (trucksAsync.asData?.value.isEmpty ?? false)
-            const Positioned(
-              top: 56,
+          if ((trucksAsync.asData?.value.isEmpty ?? false) && _searchQuery.isEmpty)
+            Positioned(
+              top: topPad + 72,
               left: 0,
               right: 0,
-              child: Center(child: _MapChip(label: 'No active trucks in this area')),
+              child: const Center(child: _MapChip(label: 'No active trucks in this area')),
+            ),
+          // Employee go-live cards — pinned at bottom for assigned trucks
+          if (employeeTrucks.isNotEmpty)
+            Positioned(
+              bottom: 16,
+              left: 0,
+              right: 0,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: employeeTrucks
+                    .map((t) => Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: EmployeeGoLiveCard(truckId: t.id, truckName: t.name),
+                        ))
+                    .toList(),
+              ),
             ),
         ],
       ),
@@ -182,25 +348,49 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 }
 
 class _TruckPin extends StatelessWidget {
-  const _TruckPin({required this.isOpen});
+  const _TruckPin({required this.isOpen, this.logoUrl});
 
   final bool isOpen;
+  final String? logoUrl;
 
   @override
   Widget build(BuildContext context) {
+    final accentColor = isOpen ? Theme.of(context).colorScheme.primary : AppColors.textHint;
     return Container(
       decoration: BoxDecoration(
-        color: isOpen ? Theme.of(context).colorScheme.primary : AppColors.textHint,
         shape: BoxShape.circle,
+        border: Border.all(color: accentColor, width: 2.5),
+        color: accentColor,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.2),
-            blurRadius: 4,
+            color: Colors.black.withValues(alpha: 0.25),
+            blurRadius: 6,
             offset: const Offset(0, 2),
           ),
         ],
       ),
-      child: const Icon(Icons.lunch_dining, color: Colors.white, size: 24),
+      child: ClipOval(
+        child: logoUrl != null
+            ? Image.network(
+                logoUrl!,
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => _PinFallback(accentColor: accentColor),
+              )
+            : _PinFallback(accentColor: accentColor),
+      ),
+    );
+  }
+}
+
+class _PinFallback extends StatelessWidget {
+  const _PinFallback({required this.accentColor});
+  final Color accentColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: accentColor,
+      child: const Center(child: Icon(Icons.lunch_dining, color: Colors.white, size: 24)),
     );
   }
 }
@@ -257,7 +447,7 @@ class _MapChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
@@ -269,6 +459,297 @@ class _MapChip extends StatelessWidget {
       child: Text(
         label,
         style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+      ),
+    );
+  }
+}
+
+class _SearchBar extends StatelessWidget {
+  const _SearchBar({
+    required this.controller,
+    required this.focusNode,
+    required this.onChanged,
+    required this.onClear,
+  });
+
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final ValueChanged<String> onChanged;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 48,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.15),
+            blurRadius: 12,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          const SizedBox(width: 14),
+          const Icon(Icons.search, color: AppColors.textHint, size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child: TextField(
+              controller: controller,
+              focusNode: focusNode,
+              onChanged: onChanged,
+              style: const TextStyle(fontSize: 15),
+              decoration: const InputDecoration(
+                hintText: 'Search by name or cuisine…',
+                hintStyle: TextStyle(color: AppColors.textHint, fontSize: 15),
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: EdgeInsets.zero,
+              ),
+              textInputAction: TextInputAction.search,
+            ),
+          ),
+          if (controller.text.isNotEmpty) ...[
+            GestureDetector(
+              onTap: onClear,
+              child: const Icon(Icons.close, color: AppColors.textHint, size: 18),
+            ),
+            const SizedBox(width: 14),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _SearchResults extends StatelessWidget {
+  const _SearchResults({required this.searchAsync, required this.onTap, this.userPos});
+
+  final AsyncValue<List<FoodTruck>> searchAsync;
+  final ValueChanged<FoodTruck> onTap;
+  final Position? userPos;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(maxHeight: 300),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.12),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: searchAsync.when(
+          loading: () => const Padding(
+            padding: EdgeInsets.all(20),
+            child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))),
+          ),
+          error: (_, _) => const Padding(
+            padding: EdgeInsets.all(16),
+            child: Text('Search failed', style: TextStyle(color: AppColors.textHint)),
+          ),
+          data: (trucks) {
+            if (trucks.isEmpty) {
+              return const Padding(
+                padding: EdgeInsets.all(16),
+                child: Text('No trucks found', style: TextStyle(color: AppColors.textHint, fontSize: 14)),
+              );
+            }
+            return ListView.separated(
+              shrinkWrap: true,
+              padding: EdgeInsets.zero,
+              itemCount: trucks.length,
+              separatorBuilder: (_, _) => const Divider(height: 1),
+              itemBuilder: (_, i) {
+                final truck = trucks[i];
+                return InkWell(
+                  onTap: () => onTap(truck),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: truck.isOpen
+                                ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.15)
+                                : AppColors.divider,
+                          ),
+                          child: ClipOval(
+                            child: truck.logoUrl != null
+                                ? Image.network(truck.logoUrl!, fit: BoxFit.cover,
+                                    errorBuilder: (_, _, _) => const Icon(Icons.lunch_dining, size: 20, color: AppColors.textHint))
+                                : const Icon(Icons.lunch_dining, size: 20, color: AppColors.textHint),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(truck.name, style: AppTextStyles.label),
+                              Row(
+                                children: [
+                                  Text(truck.cuisineType, style: AppTextStyles.caption),
+                                  if (userPos != null) ...[
+                                    const SizedBox(width: 6),
+                                    _DistanceChip(
+                                      meters: Geolocator.distanceBetween(
+                                        userPos!.latitude, userPos!.longitude,
+                                        truck.latitude, truck.longitude,
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: (truck.isOpen ? AppColors.openGreen : AppColors.textHint).withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            truck.isOpen ? 'Open' : 'Closed',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: truck.isOpen ? AppColors.openGreen : AppColors.textHint,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _DistanceChip extends StatelessWidget {
+  const _DistanceChip({required this.meters});
+
+  final double meters;
+
+  @override
+  Widget build(BuildContext context) {
+    final miles = meters / 1609.344;
+    final label = miles < 0.1 ? 'Nearby' : '${miles.toStringAsFixed(1)} mi';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3), width: 0.5),
+        boxShadow: const [
+          BoxShadow(color: Color(0x22000000), offset: Offset(0, 1), blurRadius: 1, spreadRadius: -1),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.near_me, size: 10, color: Theme.of(context).colorScheme.onSurfaceVariant),
+          const SizedBox(width: 3),
+          Text(label, style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w500)),
+        ],
+      ),
+    );
+  }
+}
+
+class _RecentSearches extends StatelessWidget {
+  const _RecentSearches({
+    required this.recents,
+    required this.onTap,
+    required this.onRemove,
+  });
+
+  final List<String> recents;
+  final ValueChanged<String> onTap;
+  final ValueChanged<String> onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.12),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+              child: Row(
+                children: [
+                  const Icon(Icons.history, size: 14, color: AppColors.textHint),
+                  const SizedBox(width: 6),
+                  const Text(
+                    'Recent searches',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textHint,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1, color: AppColors.divider),
+            ...recents.map(
+              (q) => InkWell(
+                onTap: () => onTap(q),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.search, size: 16, color: AppColors.textHint),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(q, style: const TextStyle(fontSize: 14)),
+                      ),
+                      GestureDetector(
+                        onTap: () => onRemove(q),
+                        behavior: HitTestBehavior.opaque,
+                        child: const Icon(Icons.close, size: 16, color: AppColors.textHint),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 4),
+          ],
+        ),
       ),
     );
   }

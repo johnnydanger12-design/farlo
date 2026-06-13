@@ -17,4 +17,16 @@ class MapRepository {
         .not('longitude', 'is', null);
     return (data as List).map((e) => FoodTruck.fromMap(e as Map<String, dynamic>)).toList();
   }
+
+  Future<List<FoodTruck>> searchTrucks(String query) async {
+    final q = query.trim();
+    if (q.isEmpty) return [];
+    final data = await _supabase
+        .from(SupabaseConstants.foodTrucksTable)
+        .select()
+        .eq('is_active', true)
+        .or('name.ilike.%$q%,cuisine_type.ilike.%$q%')
+        .limit(10);
+    return (data as List).map((e) => FoodTruck.fromMap(e as Map<String, dynamic>)).toList();
+  }
 }

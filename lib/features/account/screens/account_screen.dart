@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/constants/app_spacing.dart';
+import '../../../core/providers/theme_provider.dart';
 import '../../auth/providers/auth_provider.dart';
 
 class AccountScreen extends ConsumerWidget {
@@ -14,10 +15,8 @@ class AccountScreen extends ConsumerWidget {
     final userAsync = ref.watch(authProvider);
 
     return Scaffold(
-      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Account', style: AppTextStyles.heading3),
-        backgroundColor: Colors.white,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
       ),
@@ -36,6 +35,7 @@ class AccountScreen extends ConsumerWidget {
               ),
               const SizedBox(height: AppSpacing.lg),
               const _SectionHeader('App'),
+              const _AppearanceTile(),
               _SettingsTile(
                 icon: Icons.notifications_outlined,
                 label: 'Notifications',
@@ -70,7 +70,9 @@ class AccountScreen extends ConsumerWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Sign out?'),
+        backgroundColor: Theme.of(context).brightness == Brightness.light ? Colors.white : null,
+        title: const Text('Sign out?', textAlign: TextAlign.center),
+        actionsAlignment: MainAxisAlignment.center,
         actions: [
           TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
           TextButton(
@@ -98,7 +100,7 @@ class _ProfileTile extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
@@ -150,6 +152,113 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
+class _AppearanceTile extends ConsumerWidget {
+  const _AppearanceTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final mode = ref.watch(themeModeProvider).asData?.value ?? ThemeMode.system;
+    final modeLabel = switch (mode) {
+      ThemeMode.dark => 'Dark',
+      ThemeMode.light => 'Light',
+      _ => 'System',
+    };
+    final modeIcon = switch (mode) {
+      ThemeMode.dark => Icons.dark_mode_outlined,
+      ThemeMode.light => Icons.light_mode_outlined,
+      _ => Icons.brightness_auto_outlined,
+    };
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 2),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: ListTile(
+        leading: Icon(modeIcon, color: AppColors.textSecondary),
+        title: Text('Appearance', style: AppTextStyles.label),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(modeLabel, style: AppTextStyles.bodySmall),
+            const SizedBox(width: 4),
+            const Icon(Icons.chevron_right, color: AppColors.textHint),
+          ],
+        ),
+        onTap: () => _showPicker(context, ref, mode),
+      ),
+    );
+  }
+
+  void _showPicker(BuildContext context, WidgetRef ref, ThemeMode current) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: Theme.of(context).brightness == Brightness.light ? Colors.white : null,
+        title: const Text('Appearance', textAlign: TextAlign.center),
+        contentPadding: const EdgeInsets.fromLTRB(8, 12, 8, 0),
+        actionsPadding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _ModeOption(
+              label: 'System',
+              icon: Icons.brightness_auto_outlined,
+              selected: current == ThemeMode.system,
+              onTap: () { ref.read(themeModeProvider.notifier).set(ThemeMode.system); Navigator.pop(dialogContext); },
+            ),
+            _ModeOption(
+              label: 'Light',
+              icon: Icons.light_mode_outlined,
+              selected: current == ThemeMode.light,
+              onTap: () { ref.read(themeModeProvider.notifier).set(ThemeMode.light); Navigator.pop(dialogContext); },
+            ),
+            _ModeOption(
+              label: 'Dark',
+              icon: Icons.dark_mode_outlined,
+              selected: current == ThemeMode.dark,
+              onTap: () { ref.read(themeModeProvider.notifier).set(ThemeMode.dark); Navigator.pop(dialogContext); },
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ModeOption extends StatelessWidget {
+  const _ModeOption({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = selected ? Theme.of(context).colorScheme.primary : AppColors.textSecondary;
+    return ListTile(
+      leading: Icon(icon, size: 20, color: color),
+      title: Text(label, style: AppTextStyles.label.copyWith(color: selected ? Theme.of(context).colorScheme.primary : null)),
+      trailing: selected ? Icon(Icons.check, size: 18, color: color) : const SizedBox(width: 18),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+      onTap: onTap,
+    );
+  }
+}
+
 class _SettingsTile extends StatelessWidget {
   const _SettingsTile({
     required this.icon,
@@ -167,7 +276,7 @@ class _SettingsTile extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 2),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
       ),
       child: ListTile(

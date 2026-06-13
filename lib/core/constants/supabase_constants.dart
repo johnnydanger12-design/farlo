@@ -9,6 +9,7 @@ class SupabaseConstants {
   static const reviewsTable = 'reviews';
   static const favoritesTable = 'favorites';
   static const subscriptionsTable = 'subscriptions';
+  static const truckEmployeesTable = 'truck_employees';
 
   // Storage buckets
   static const truckLogosBucket = 'truck-logos';

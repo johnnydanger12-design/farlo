@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../repositories/favorites_repository.dart';
 import '../models/favorite_entry.dart';
+import '../../auth/providers/auth_provider.dart';
 
 final favoritesRepositoryProvider = Provider<FavoritesRepository>((ref) {
   return FavoritesRepository(Supabase.instance.client);
@@ -9,6 +10,8 @@ final favoritesRepositoryProvider = Provider<FavoritesRepository>((ref) {
 
 // Full list of favorited trucks with joined FoodTruck data, for FavoritesScreen.
 final favoritesListProvider = FutureProvider<List<FavoriteEntry>>((ref) {
+  final user = ref.watch(authProvider).asData?.value;
+  if (user == null) return Future.value([]);
   return ref.read(favoritesRepositoryProvider).fetchForUser();
 });
 
@@ -16,7 +19,9 @@ final favoritesListProvider = FutureProvider<List<FavoriteEntry>>((ref) {
 // Backed by an AsyncNotifier so we can do optimistic toggles.
 class FavoritedTruckIdsNotifier extends AsyncNotifier<Set<String>> {
   @override
-  Future<Set<String>> build() {
+  Future<Set<String>> build() async {
+    final user = ref.watch(authProvider).asData?.value;
+    if (user == null) return {};
     return ref.read(favoritesRepositoryProvider).fetchFavoritedTruckIds();
   }
 
@@ -41,6 +46,21 @@ class FavoritedTruckIdsNotifier extends AsyncNotifier<Set<String>> {
       ref.invalidate(truckFollowerCountProvider(truckId));
     } catch (_) {
       // Revert on failure
+      state = AsyncData(current);
+      rethrow;
+    }
+  }
+
+  // Used by FavoritesScreen where we always know the item IS favorited.
+  // Avoids the race condition in toggle() where the state may still be loading.
+  Future<void> remove(String truckId) async {
+    final current = state.asData?.value ?? {};
+    state = AsyncData(Set<String>.from(current)..remove(truckId));
+    try {
+      await ref.read(favoritesRepositoryProvider).remove(truckId);
+      ref.invalidate(favoritesListProvider);
+      ref.invalidate(truckFollowerCountProvider(truckId));
+    } catch (_) {
       state = AsyncData(current);
       rethrow;
     }

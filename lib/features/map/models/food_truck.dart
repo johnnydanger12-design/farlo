@@ -12,6 +12,7 @@ class FoodTruck {
     this.photoUrls = const [],
     this.menuPdfUrl,
     this.menuImageUrl,
+    this.address,
     required this.latitude,
     required this.longitude,
     this.locationUpdatedAt,
@@ -32,6 +33,7 @@ class FoodTruck {
   final List<String> photoUrls;
   final String? menuPdfUrl;
   final String? menuImageUrl;
+  final String? address;
   final double latitude;
   final double longitude;
   final DateTime? locationUpdatedAt;
@@ -69,6 +71,7 @@ class FoodTruck {
       photoUrls: (map['photo_urls'] as List?)?.cast<String>() ?? const [],
       menuPdfUrl: map['menu_pdf_url'] as String?,
       menuImageUrl: map['menu_image_url'] as String?,
+      address: map['address'] as String?,
       latitude: (map['latitude'] as num).toDouble(),
       longitude: (map['longitude'] as num).toDouble(),
       locationUpdatedAt: map['location_updated_at'] != null
@@ -89,6 +92,7 @@ class FoodTruck {
     String? description,
     String? logoUrl,
     List<String>? photoUrls,
+    String? address,
     bool? isOpen,
     double? latitude,
     double? longitude,
@@ -106,6 +110,7 @@ class FoodTruck {
       photoUrls: photoUrls ?? this.photoUrls,
       menuPdfUrl: menuPdfUrl,
       menuImageUrl: menuImageUrl,
+      address: address ?? this.address,
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
       locationUpdatedAt: locationUpdatedAt ?? this.locationUpdatedAt,

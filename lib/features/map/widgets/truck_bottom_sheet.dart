@@ -20,6 +20,25 @@ class TruckBottomSheet extends ConsumerWidget {
   static const double _avatarRadius = 30.0;
   static const double _avatarLeft = AppSpacing.md;
 
+  static void _showPhoto(BuildContext context, String url) {
+    showDialog<void>(
+      context: context,
+      barrierColor: Colors.black87,
+      barrierDismissible: true,
+      builder: (dialogContext) => GestureDetector(
+        onTap: () => Navigator.pop(dialogContext),
+        behavior: HitTestBehavior.opaque,
+        child: SafeArea(
+          child: InteractiveViewer(
+            child: Center(
+              child: Image.network(url, fit: BoxFit.contain),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(authProvider).asData?.value;
@@ -34,9 +53,9 @@ class TruckBottomSheet extends ConsumerWidget {
           // ── Card ────────────────────────────────────────────────────────
           Container(
             margin: const EdgeInsets.only(top: _avatarRadius),
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.all(Radius.circular(20)),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface,
+              borderRadius: const BorderRadius.all(Radius.circular(20)),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -45,7 +64,7 @@ class TruckBottomSheet extends ConsumerWidget {
                 // Drag handle
                 Center(
                   child: Container(
-                    margin: const EdgeInsets.only(top: 10, bottom: 10),
+                    margin: const EdgeInsets.only(top: 10, bottom: 16),
                     width: 40,
                     height: 4,
                     decoration: BoxDecoration(
@@ -58,10 +77,8 @@ class TruckBottomSheet extends ConsumerWidget {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
                   child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Placeholder width clears the protruding avatar
-                      const SizedBox(width: _avatarRadius * 2 + AppSpacing.md),
                       Expanded(
                         child: Text(
                           truck.name,
@@ -71,17 +88,22 @@ class TruckBottomSheet extends ConsumerWidget {
                         ),
                       ),
                       const SizedBox(width: AppSpacing.sm),
-                      // Heart button (only when signed in)
-                      if (isAuthenticated)
-                        _HeartButton(
-                          truckId: truck.id,
-                          isFav: isFav,
-                          onTap: () => ref.read(favoritedTruckIdsProvider.notifier).toggle(truck.id),
-                        ),
-                      if (isAuthenticated) const SizedBox(width: AppSpacing.sm),
-                      _TakeMeThereButton(
-                        latitude: truck.latitude,
-                        longitude: truck.longitude,
+                      // Right column: buttons only
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (isAuthenticated)
+                            _HeartButton(
+                              truckId: truck.id,
+                              isFav: isFav,
+                              onTap: () => ref.read(favoritedTruckIdsProvider.notifier).toggle(truck.id),
+                            ),
+                          if (isAuthenticated) const SizedBox(width: AppSpacing.sm),
+                          _TakeMeThereButton(
+                            latitude: truck.latitude,
+                            longitude: truck.longitude,
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -90,30 +112,47 @@ class TruckBottomSheet extends ConsumerWidget {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(
                     AppSpacing.md,
+                    AppSpacing.xs,
                     AppSpacing.md,
                     AppSpacing.md,
-                    AppSpacing.lg,
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(truck.cuisineType, style: AppTextStyles.bodySmall),
-                      const SizedBox(height: AppSpacing.sm),
                       Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          StarRatingWidget(
-                            rating: truck.averageRating,
-                            size: 16,
-                            showValue: false,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            truck.reviewCount > 0
-                                ? '${truck.averageRating.toStringAsFixed(1)} (${truck.reviewCount})'
-                                : 'No reviews yet',
-                            style: AppTextStyles.caption,
-                          ),
+                          Text(truck.cuisineType, style: AppTextStyles.bodySmall),
+                          if (truck.address != null && truck.address!.isNotEmpty)
+                            Text(
+                              truck.address!,
+                              style: AppTextStyles.caption,
+                              textAlign: TextAlign.end,
+                            ),
                         ],
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      GestureDetector(
+                        onTap: () {
+                          final prefix = (user?.isOwner ?? false) ? '/owner-map' : '/map';
+                          context.push('$prefix/truck/${truck.id}', extra: true);
+                        },
+                        child: Row(
+                          children: [
+                            StarRatingWidget(
+                              rating: truck.averageRating,
+                              size: 16,
+                              showValue: false,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              truck.reviewCount > 0
+                                  ? '${truck.averageRating.toStringAsFixed(1)} (${truck.reviewCount})'
+                                  : 'No reviews yet',
+                              style: AppTextStyles.caption,
+                            ),
+                          ],
+                        ),
                       ),
                       if (truck.description != null && truck.description!.isNotEmpty) ...[
                         const SizedBox(height: AppSpacing.sm),
@@ -124,11 +163,38 @@ class TruckBottomSheet extends ConsumerWidget {
                           overflow: TextOverflow.ellipsis,
                         ),
                       ],
-                      const SizedBox(height: AppSpacing.md),
+                      if (truck.photoUrls.isNotEmpty) ...[
+                        const SizedBox(height: AppSpacing.sm),
+                        SizedBox(
+                          height: 72,
+                          child: ListView.separated(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: truck.photoUrls.length,
+                            separatorBuilder: (_, _) => const SizedBox(width: 6),
+                            itemBuilder: (context, i) => GestureDetector(
+                              onTap: () => _showPhoto(context, truck.photoUrls[i]),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.network(
+                                  truck.photoUrls[i],
+                                  width: 96,
+                                  height: 72,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: AppSpacing.sm),
                       SizedBox(
                         width: double.infinity,
                         child: OutlinedButton(
-                          onPressed: () => context.push('/map/truck/${truck.id}'),
+                          onPressed: () {
+                            final prefix = (user?.isOwner ?? false) ? '/owner-map' : '/map';
+                            context.push('$prefix/truck/${truck.id}');
+                          },
                           child: const Text('View Full Profile'),
                         ),
                       ),
@@ -139,24 +205,31 @@ class TruckBottomSheet extends ConsumerWidget {
             ),
           ),
 
-          // ── Avatar + open badge ─────────────────────────────────────────
+          // ── Avatar + status text in one line ───────────────────────────
           Positioned(
             top: 0,
             left: _avatarLeft,
-            child: SizedBox(
-              width: _avatarRadius * 2,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _TruckAvatar(
-                    logoUrl: truck.logoUrl,
-                    isOpen: truck.isOpen,
-                    radius: _avatarRadius,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                _TruckAvatar(
+                  logoUrl: truck.logoUrl,
+                  isOpen: truck.isOpen,
+                  radius: _avatarRadius,
+                ),
+                const SizedBox(width: 6),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 3),
+                  child: Text(
+                    truck.isOpen ? 'Open Now' : 'Closed',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: truck.isOpen ? AppColors.openGreen : AppColors.textHint,
+                    ),
                   ),
-                  const SizedBox(height: 4),
-                  _OpenBadge(isOpen: truck.isOpen),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ],
@@ -203,30 +276,47 @@ class _TruckAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bgColor = isOpen ? Theme.of(context).colorScheme.primary : AppColors.textHint;
-    return Container(
-      width: radius * 2,
-      height: radius * 2,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: bgColor,
-        border: Border.all(color: Colors.white, width: 3),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.2),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: logoUrl != null
-          ? ClipOval(
-              child: Image.network(
-                logoUrl!,
-                fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => _TruckIcon(radius: radius),
+    return Stack(
+      children: [
+        Container(
+          width: radius * 2,
+          height: radius * 2,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: bgColor,
+            border: Border.all(color: Theme.of(context).colorScheme.surface, width: 3),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.2),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
               ),
-            )
-          : _TruckIcon(radius: radius),
+            ],
+          ),
+          child: logoUrl != null
+              ? ClipOval(
+                  child: Image.network(
+                    logoUrl!,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, _, _) => _TruckIcon(radius: radius),
+                  ),
+                )
+              : _TruckIcon(radius: radius),
+        ),
+        Positioned(
+          bottom: 2,
+          right: 2,
+          child: Container(
+            width: 14,
+            height: 14,
+            decoration: BoxDecoration(
+              color: isOpen ? AppColors.openGreen : AppColors.textHint,
+              shape: BoxShape.circle,
+              border: Border.all(color: Theme.of(context).colorScheme.surface, width: 2),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -273,32 +363,3 @@ class _TakeMeThereButton extends StatelessWidget {
   }
 }
 
-class _OpenBadge extends StatelessWidget {
-  const _OpenBadge({required this.isOpen});
-
-  final bool isOpen;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = isOpen ? AppColors.openGreen : AppColors.textHint;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 7,
-          height: 7,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        ),
-        const SizedBox(width: 5),
-        Text(
-          isOpen ? 'Open' : 'Closed',
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: color,
-          ),
-        ),
-      ],
-    );
-  }
-}

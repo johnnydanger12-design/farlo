@@ -52,19 +52,20 @@ class OwnerTruckNotifier extends AsyncNotifier<FoodTruck?> {
     }
   }
 
-  Future<void> updateLocation(double lat, double lng) async {
+  Future<void> updateLocation(double lat, double lng, {String? address}) async {
     final truck = state.asData?.value;
     if (truck == null) return;
     state = AsyncData(
       truck.copyWith(
         latitude: lat,
         longitude: lng,
+        address: address,
         locationUpdatedAt: DateTime.now(),
       ),
     );
     await ref
         .read(foodTruckRepositoryProvider)
-        .updateLocation(truck.id, lat, lng);
+        .updateLocation(truck.id, lat, lng, address: address);
   }
 
   Future<void> updateProfile(Map<String, dynamic> fields) async {

@@ -49,10 +49,10 @@ class FavoritesRepository {
   }
 
   Future<int> fetchFollowerCount(String truckId) async {
-    final data = await _supabase
-        .from(SupabaseConstants.favoritesTable)
-        .select('id')
-        .eq('truck_id', truckId);
-    return (data as List).length;
+    final result = await _supabase.rpc(
+      'get_truck_follower_count',
+      params: {'p_truck_id': truckId},
+    );
+    return (result as int?) ?? 0;
   }
 }

@@ -8,16 +8,18 @@ class AppButton extends StatelessWidget {
     required this.onPressed,
     this.isLoading = false,
     this.isOutlined = false,
+    this.backgroundColor,
   });
 
   final String label;
   final VoidCallback? onPressed;
   final bool isLoading;
   final bool isOutlined;
+  final Color? backgroundColor;
 
   @override
   Widget build(BuildContext context) {
-    final primary = Theme.of(context).colorScheme.primary;
+    final primary = backgroundColor ?? Theme.of(context).colorScheme.primary;
 
     if (isOutlined) {
       return OutlinedButton(

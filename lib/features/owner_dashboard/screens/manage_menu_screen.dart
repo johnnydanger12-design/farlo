@@ -17,11 +17,8 @@ class ManageMenuScreen extends ConsumerWidget {
     final asyncTruck = ref.watch(ownerTruckProvider);
 
     return Scaffold(
-      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Menu'),
-        backgroundColor: AppColors.surface,
-        foregroundColor: AppColors.textPrimary,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
         leading: IconButton(
@@ -159,7 +156,7 @@ class _MenuItemTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
       ),
       child: ListTile(
@@ -266,9 +263,9 @@ class _MenuItemSheetState extends State<_MenuItemSheet> {
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: Container(
-        decoration: const BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         ),
         padding: const EdgeInsets.all(AppSpacing.lg),
         child: Form(
@@ -282,7 +279,7 @@ class _MenuItemSheetState extends State<_MenuItemSheet> {
                   width: 40, height: 4,
                   margin: const EdgeInsets.only(bottom: AppSpacing.md),
                   decoration: BoxDecoration(
-                    color: AppColors.divider,
+                    color: Theme.of(context).colorScheme.outlineVariant,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -351,14 +348,14 @@ class _MenuItemSheetState extends State<_MenuItemSheet> {
   InputDecoration _inputDecoration(String label, BuildContext context) => InputDecoration(
     labelText: label,
     filled: true,
-    fillColor: AppColors.background,
+    fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
     border: OutlineInputBorder(
       borderRadius: BorderRadius.circular(12),
-      borderSide: const BorderSide(color: AppColors.divider),
+      borderSide: BorderSide(color: Theme.of(context).colorScheme.outline),
     ),
     enabledBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(12),
-      borderSide: const BorderSide(color: AppColors.divider),
+      borderSide: BorderSide(color: Theme.of(context).colorScheme.outline),
     ),
     focusedBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(12),

@@ -56,7 +56,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(AppSpacing.lg),
@@ -66,7 +65,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: AppSpacing.xxl),
-                const Text('Welcome back', style: AppTextStyles.heading1),
+                const Text('Welcome', style: AppTextStyles.heading1),
                 const SizedBox(height: AppSpacing.sm),
                 const Text(
                   'Sign in to find food trucks near you.',
@@ -105,6 +104,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   label: 'Sign In',
                   onPressed: _submit,
                   isLoading: _isLoading,
+                  backgroundColor: AppColors.primary,
                 ),
                 const SizedBox(height: AppSpacing.lg),
                 Row(

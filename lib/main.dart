@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app_shell.dart';
+import 'core/rc_config.dart';
 
 const _supabaseUrl = String.fromEnvironment('SUPABASE_URL');
 const _supabasePublishableKey = String.fromEnvironment('SUPABASE_PUBLISHABLE_KEY');
@@ -26,6 +27,7 @@ Future<void> main() async {
   final rcKey = Platform.isIOS ? _rcAppleKey : _rcGoogleKey;
   if (rcKey.isNotEmpty) {
     await Purchases.configure(PurchasesConfiguration(rcKey));
+    rcConfigured = true;
   }
 
   runApp(const ProviderScope(child: AppShell()));

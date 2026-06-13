@@ -89,7 +89,7 @@ class _WriteReviewSheetState extends ConsumerState<WriteReviewSheet> {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: AppColors.divider,
+                color: Theme.of(context).colorScheme.outlineVariant,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -129,14 +129,14 @@ class _WriteReviewSheetState extends ConsumerState<WriteReviewSheet> {
               hintText: 'Share your experience (optional)',
               hintStyle: AppTextStyles.bodySmall.copyWith(color: AppColors.textHint),
               filled: true,
-              fillColor: AppColors.background,
+              fillColor: Theme.of(context).colorScheme.surface,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: AppColors.divider),
+                borderSide: BorderSide(color: Theme.of(context).colorScheme.outline),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: AppColors.divider),
+                borderSide: BorderSide(color: Theme.of(context).colorScheme.outline),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),

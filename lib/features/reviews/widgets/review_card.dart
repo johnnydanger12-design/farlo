@@ -6,10 +6,11 @@ import '../../../core/widgets/star_rating_widget.dart';
 import '../models/review.dart';
 
 class ReviewCard extends StatelessWidget {
-  const ReviewCard({super.key, required this.review, this.isOwn = false, this.onDelete});
+  const ReviewCard({super.key, required this.review, this.isOwn = false, this.onEdit, this.onDelete});
 
   final Review review;
   final bool isOwn;
+  final VoidCallback? onEdit;
   final VoidCallback? onDelete;
 
   @override
@@ -17,9 +18,9 @@ class ReviewCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.divider),
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -51,12 +52,21 @@ class ReviewCard extends StatelessWidget {
                 ),
               ),
               StarRatingWidget(rating: review.rating.toDouble(), size: 14, showValue: false),
-              if (isOwn && onDelete != null) ...[
-                const SizedBox(width: AppSpacing.sm),
-                GestureDetector(
-                  onTap: onDelete,
-                  child: const Icon(Icons.delete_outline, size: 18, color: AppColors.textHint),
-                ),
+              if (isOwn) ...[
+                if (onEdit != null) ...[
+                  const SizedBox(width: AppSpacing.sm),
+                  GestureDetector(
+                    onTap: onEdit,
+                    child: const Icon(Icons.edit_outlined, size: 18, color: AppColors.textHint),
+                  ),
+                ],
+                if (onDelete != null) ...[
+                  const SizedBox(width: AppSpacing.sm),
+                  GestureDetector(
+                    onTap: onDelete,
+                    child: const Icon(Icons.delete_outline, size: 18, color: AppColors.textHint),
+                  ),
+                ],
               ],
             ],
           ),

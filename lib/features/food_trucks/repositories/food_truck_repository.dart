@@ -38,13 +38,14 @@ class FoodTruckRepository {
         .eq('id', id);
   }
 
-  Future<void> updateLocation(String id, double lat, double lng) async {
+  Future<void> updateLocation(String id, double lat, double lng, {String? address}) async {
     await _supabase
         .from(SupabaseConstants.foodTrucksTable)
         .update({
           'latitude': lat,
           'longitude': lng,
           'location_updated_at': DateTime.now().toIso8601String(),
+          'address': address,
         })
         .eq('id', id);
   }

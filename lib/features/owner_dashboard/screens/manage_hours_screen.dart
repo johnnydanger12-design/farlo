@@ -82,11 +82,8 @@ class _ManageHoursScreenState extends ConsumerState<ManageHoursScreen> {
       data: (truck) {
         if (truck != null) _init(truck.operatingHours);
         return Scaffold(
-          backgroundColor: AppColors.background,
           appBar: AppBar(
             title: const Text('Operating Hours'),
-            backgroundColor: AppColors.surface,
-            foregroundColor: AppColors.textPrimary,
             elevation: 0,
             surfaceTintColor: Colors.transparent,
             leading: IconButton(
@@ -109,7 +106,7 @@ class _ManageHoursScreenState extends ConsumerState<ManageHoursScreen> {
           body: ListView.separated(
             padding: const EdgeInsets.all(AppSpacing.lg),
             itemCount: 7,
-            separatorBuilder: (_, _) => const Divider(color: AppColors.divider, height: 1),
+            separatorBuilder: (_, _) => const Divider(height: 1),
             itemBuilder: (_, day) => _DayRow(
               day: day,
               entry: _entries[day] ?? _HourEntry(isClosed: false, openTime: '09:00', closeTime: '17:00'),
@@ -220,9 +217,9 @@ class _TimeChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: AppColors.background,
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.divider),
+        border: Border.all(color: Theme.of(context).colorScheme.outline),
       ),
       child: Text(_display, style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.w600)),
     );
