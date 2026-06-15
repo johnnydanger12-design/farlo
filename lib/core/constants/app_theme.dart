@@ -5,7 +5,7 @@ class AppTheme {
   AppTheme._();
 
   static ThemeData forConsumer(BuildContext context) =>
-      _override(context, AppColors.consumerBlue);
+      _override(context, AppColors.primary);
 
   static ThemeData forOwner(BuildContext context) =>
       _override(context, AppColors.primary);

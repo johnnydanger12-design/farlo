@@ -1,28 +1,47 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-typedef NotifPrefs = ({bool pushEnabled, bool openAlert});
+typedef NotifPrefs = ({
+  bool pushEnabled,
+  bool openAlert,
+  bool announcementAlert,
+  bool bookingAlert,
+});
+
+const _defaultPrefs = (
+  pushEnabled: true,
+  openAlert: true,
+  announcementAlert: true,
+  bookingAlert: true,
+);
 
 class NotificationPrefsRepository {
   final _client = Supabase.instance.client;
 
   Future<NotifPrefs> fetchPrefs() async {
     final userId = _client.auth.currentUser?.id;
-    if (userId == null) return (pushEnabled: true, openAlert: true);
+    if (userId == null) return _defaultPrefs;
 
     final data = await _client
         .from('notification_preferences')
-        .select('push_enabled, open_alert')
+        .select('push_enabled, open_alert, announcement_alert, booking_alert')
         .eq('user_id', userId)
         .maybeSingle();
 
-    if (data == null) return (pushEnabled: true, openAlert: true);
+    if (data == null) return _defaultPrefs;
     return (
       pushEnabled: data['push_enabled'] as bool? ?? true,
       openAlert: data['open_alert'] as bool? ?? true,
+      announcementAlert: data['announcement_alert'] as bool? ?? true,
+      bookingAlert: data['booking_alert'] as bool? ?? true,
     );
   }
 
-  Future<void> updatePrefs({bool? pushEnabled, bool? openAlert}) async {
+  Future<void> updatePrefs({
+    bool? pushEnabled,
+    bool? openAlert,
+    bool? announcementAlert,
+    bool? bookingAlert,
+  }) async {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) return;
 
@@ -32,6 +51,8 @@ class NotificationPrefsRepository {
         'updated_at': DateTime.now().toIso8601String(),
         'push_enabled': ?pushEnabled,
         'open_alert': ?openAlert,
+        'announcement_alert': ?announcementAlert,
+        'booking_alert': ?bookingAlert,
       },
       onConflict: 'user_id',
     );

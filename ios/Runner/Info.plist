@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Good Truck Finder</string>
+	<string>Farlo</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -15,7 +15,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>good_truck_finder</string>
+	<string>Farlo</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -47,14 +47,25 @@
 			</array>
 		</dict>
 	</dict>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.469153137408-f1r9qm65q3ale2frmsdfic1ch8vfo2c4</string>
+			</array>
+		</dict>
+	</array>
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>maps</string>
 	</array>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Good Truck Finder uses your location to show nearby food trucks.</string>
+	<string>Farlo uses your location to show nearby food trucks.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>Good Truck Finder uses your location to show nearby food trucks.</string>
+	<string>Farlo uses your location to show nearby food trucks.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>
@@ -74,9 +85,15 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSCalendarsUsageDescription</key>
+	<string>Farlo needs calendar access to add booked events.</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Farlo needs calendar access to add booked events.</string>
+	<key>NSCalendarsWriteOnlyAccessUsageDescription</key>
+	<string>Farlo needs calendar access to add booked events.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Good Truck Finder needs access to your photo library to let you upload truck photos and logos.</string>
+	<string>Farlo needs access to your photo library to let you upload truck photos and logos.</string>
 	<key>NSCameraUsageDescription</key>
-	<string>Good Truck Finder needs camera access to let you take photos of your truck.</string>
+	<string>Farlo needs camera access to let you take photos of your truck.</string>
 </dict>
 </plist>

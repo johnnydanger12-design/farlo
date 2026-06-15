@@ -4,6 +4,7 @@ class Review {
     required this.truckId,
     required this.userId,
     required this.userDisplayName,
+    this.userAvatarUrl,
     required this.rating,
     this.comment,
     required this.createdAt,
@@ -13,6 +14,7 @@ class Review {
   final String truckId;
   final String userId;
   final String userDisplayName;
+  final String? userAvatarUrl;
   final int rating;
   final String? comment;
   final DateTime createdAt;
@@ -23,6 +25,7 @@ class Review {
       truckId: map['truck_id'] as String,
       userId: map['user_id'] as String,
       userDisplayName: map['user_display_name'] as String,
+      userAvatarUrl: map['user_avatar_url'] as String?,
       rating: (map['rating'] as num).toInt(),
       comment: map['comment'] as String?,
       createdAt: DateTime.parse(map['created_at'] as String),

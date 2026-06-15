@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show TextInput;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
@@ -7,6 +8,7 @@ import '../../../core/constants/app_text_styles.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_text_field.dart';
 import '../providers/auth_provider.dart';
+import '../widgets/social_auth_buttons.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
@@ -39,9 +41,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           password: _passwordController.text,
           displayName: _nameController.text.trim(),
         );
+    final error = ref.read(authProvider).error;
+    TextInput.finishAutofillContext(shouldSave: error == null);
     if (mounted) {
       setState(() => _isLoading = false);
-      final error = ref.read(authProvider).error;
       if (error != null) _showError(error.toString());
     }
   }
@@ -81,6 +84,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   style: AppTextStyles.body,
                 ),
                 const SizedBox(height: AppSpacing.xxl),
+                SocialAuthButtons(onError: _showError),
+                const SizedBox(height: AppSpacing.lg),
+                const OrDivider(),
+                const SizedBox(height: AppSpacing.lg),
                 AppTextField(
                   label: 'Name',
                   controller: _nameController,
@@ -88,32 +95,42 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   validator: (v) => (v == null || v.trim().isEmpty) ? 'Enter your name' : null,
                 ),
                 const SizedBox(height: AppSpacing.md),
-                AppTextField(
-                  label: 'Email',
-                  controller: _emailController,
-                  keyboardType: TextInputType.emailAddress,
-                  textInputAction: TextInputAction.next,
-                  validator: (v) {
-                    if (v == null || v.isEmpty) return 'Enter your email';
-                    if (!v.contains('@')) return 'Enter a valid email';
-                    return null;
-                  },
-                ),
-                const SizedBox(height: AppSpacing.md),
-                AppTextField(
-                  label: 'Password',
-                  controller: _passwordController,
-                  obscureText: _obscurePassword,
-                  textInputAction: TextInputAction.done,
-                  onFieldSubmitted: (_) => _submit(),
-                  suffixIcon: IconButton(
-                    icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
-                    onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                AutofillGroup(
+                  onDisposeAction: AutofillContextAction.cancel,
+                  child: Column(
+                    children: [
+                      AppTextField(
+                        label: 'Email',
+                        controller: _emailController,
+                        autocorrect: false,
+                        textCapitalization: TextCapitalization.none,
+                        textInputAction: TextInputAction.next,
+                        autofillHints: const [AutofillHints.email],
+                        validator: (v) {
+                          if (v == null || v.isEmpty) return 'Enter your email';
+                          if (!v.contains('@')) return 'Enter a valid email';
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      AppTextField(
+                        label: 'Password',
+                        controller: _passwordController,
+                        obscureText: _obscurePassword,
+                        textInputAction: TextInputAction.done,
+                        onFieldSubmitted: (_) => _submit(),
+                        autofillHints: const [AutofillHints.newPassword],
+                        suffixIcon: IconButton(
+                          icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
+                          onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                        ),
+                        validator: (v) {
+                          if (v == null || v.length < 8) return 'Password must be at least 8 characters';
+                          return null;
+                        },
+                      ),
+                    ],
                   ),
-                  validator: (v) {
-                    if (v == null || v.length < 8) return 'Password must be at least 8 characters';
-                    return null;
-                  },
                 ),
                 const SizedBox(height: AppSpacing.xl),
                 AppButton(

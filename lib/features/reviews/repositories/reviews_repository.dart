@@ -32,6 +32,7 @@ class ReviewsRepository {
   Future<void> submitReview({
     required String truckId,
     required String userDisplayName,
+    String? userAvatarUrl,
     required int rating,
     String? comment,
   }) async {
@@ -42,6 +43,7 @@ class ReviewsRepository {
       'truck_id': truckId,
       'user_id': userId,
       'user_display_name': userDisplayName,
+      'user_avatar_url': userAvatarUrl,
       'rating': rating,
       'comment': comment?.trim().isEmpty ?? true ? null : comment!.trim(),
     }, onConflict: 'truck_id,user_id');

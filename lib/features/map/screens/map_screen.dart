@@ -154,6 +154,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   void _onTruckTapped(FoodTruck truck) {
+    _searchFocusNode.unfocus();
     ref.read(selectedTruckProvider.notifier).select(truck);
     setState(() => _isFollowing = false);
     _mapController.move(
@@ -181,8 +182,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     }
   }
 
-  // Returns the screen-edge position for an off-screen truck, or null if on-screen.
-  Offset? _edgePosition(LatLng truckPos, Size stackSize) {
+  // Returns (edge position, scale) for an off-screen truck, or null if on-screen.
+  // Scale shrinks from 1.0 → 0.5 the farther the truck is beyond the visible area.
+  (Offset, double)? _edgePosition(LatLng truckPos, Size stackSize) {
     try {
       final pt = _mapController.camera.latLngToScreenOffset(truckPos);
       final tx = pt.dx;
@@ -191,11 +193,10 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         return null;
       }
       const half = 20.0;
-      const pad = 12.0;
-      final minX = pad + half;
-      final maxX = stackSize.width - pad - half;
-      final minY = pad + half;
-      final maxY = stackSize.height - pad - half;
+      final minX = half;
+      final maxX = stackSize.width - half;
+      final minY = half;
+      final maxY = stackSize.height - half;
       final cx = stackSize.width / 2;
       final cy = stackSize.height / 2;
       final dx = tx - cx;
@@ -207,9 +208,18 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       if (dy > 0) t = math.min(t, (maxY - cy) / dy);
       if (dy < 0) t = math.min(t, (minY - cy) / dy);
       if (!t.isFinite || t <= 0) return null;
-      return Offset(
-        (cx + dx * t).clamp(minX, maxX),
-        (cy + dy * t).clamp(minY, maxY),
+
+      final offX = math.max(0.0, math.max(-tx, tx - stackSize.width));
+      final offY = math.max(0.0, math.max(-ty, ty - stackSize.height));
+      final offDist = math.sqrt(offX * offX + offY * offY);
+      final scale = 1.0 - 0.5 * (offDist / 400.0).clamp(0.0, 1.0);
+
+      return (
+        Offset(
+          (cx + dx * t).clamp(minX, maxX),
+          (cy + dy * t).clamp(minY, maxY),
+        ),
+        scale,
       );
     } catch (_) {
       return null;
@@ -220,15 +230,19 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     return trucks
         .where((t) => t.isOpen && favIds.contains(t.id))
         .expand((truck) {
-          final pos = _edgePosition(LatLng(truck.latitude, truck.longitude), stackSize);
-          if (pos == null) return <Widget>[];
+          final result = _edgePosition(LatLng(truck.latitude, truck.longitude), stackSize);
+          if (result == null) return <Widget>[];
+          final (pos, scale) = result;
           return <Widget>[
             Positioned(
               left: pos.dx - 20,
               top: pos.dy - 20,
-              child: _OffScreenIndicator(
-                truck: truck,
-                onTap: () => _onTruckTapped(truck),
+              child: Transform.scale(
+                scale: scale,
+                child: _OffScreenIndicator(
+                  truck: truck,
+                  onTap: () => _onTruckTapped(truck),
+                ),
               ),
             ),
           ];
@@ -290,11 +304,15 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             options: MapOptions(
               initialCenter: _defaultCenter,
               initialZoom: 14.0,
-              onTap: (_, _) => ref.read(selectedTruckProvider.notifier).select(null),
+              onTap: (_, _) {
+                ref.read(selectedTruckProvider.notifier).select(null);
+                _searchFocusNode.unfocus();
+              },
               // User drag → stop following.
               onPositionChanged: (_, hasGesture) {
-                if (hasGesture && _isFollowing) {
-                  setState(() => _isFollowing = false);
+                if (hasGesture) {
+                  _searchFocusNode.unfocus();
+                  if (_isFollowing) setState(() => _isFollowing = false);
                 }
               },
             ),
@@ -304,7 +322,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                     ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'
                     : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                 subdomains: const ['a', 'b', 'c', 'd'],
-                userAgentPackageName: 'com.goodtruckfinder.app',
+                userAgentPackageName: 'com.farlo.app',
               ),
               if (userPos != null)
                 CircleLayer(

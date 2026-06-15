@@ -186,13 +186,25 @@ Deno.serve(async (req: Request) => {
       targetUserId = booking.food_trucks?.owner_id ?? null;
       title = 'New Booking Request';
       notifBody = `${booking.contact_name} wants to book your truck for a ${booking.event_type}`;
+    } else if (action === 'booking_cancelled_by_consumer') {
+      targetUserId = booking.food_trucks?.owner_id ?? null;
+      title = 'Booking Canceled';
+      notifBody = `${booking.contact_name} canceled their ${booking.event_type} booking.`;
     } else if (action === 'booking_status_changed') {
       targetUserId = booking.requester_id ?? null;
-      const accepted = booking.status === 'accepted';
-      title = accepted ? 'Booking Accepted!' : 'Booking Declined';
-      notifBody = accepted
-        ? `${booking.food_trucks?.name} accepted your booking request`
-        : `${booking.food_trucks?.name} has declined your booking request`;
+      if (booking.status === 'accepted') {
+        title = 'Booking Accepted!';
+        notifBody = `${booking.food_trucks?.name} accepted your booking request`;
+      } else if (booking.status === 'cancelled') {
+        title = 'Event Canceled';
+        const reason = booking.cancellation_reason as string | null;
+        notifBody = reason
+          ? `${booking.food_trucks?.name} had to cancel your event. They said: "${reason}"`
+          : `${booking.food_trucks?.name} had to cancel your event.`;
+      } else {
+        title = 'Booking Declined';
+        notifBody = `${booking.food_trucks?.name} has declined your booking request`;
+      }
     } else {
       return new Response(JSON.stringify({ sent: false, reason: 'unknown_action' }), { status: 200 });
     }

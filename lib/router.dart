@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'features/auth/providers/auth_provider.dart';
 import 'features/auth/screens/login_screen.dart';
+import 'features/onboarding/providers/onboarding_provider.dart';
+import 'features/onboarding/screens/onboarding_screen.dart';
 import 'features/auth/screens/register_screen.dart';
 import 'features/auth/screens/register_owner_screen.dart';
 import 'features/account/screens/account_screen.dart';
@@ -15,6 +17,7 @@ import 'features/owner_dashboard/screens/manage_menu_screen.dart';
 import 'features/owner_dashboard/screens/subscription_screen.dart';
 import 'features/employees/screens/employees_screen.dart';
 import 'features/bookings/screens/booking_requests_screen.dart';
+import 'features/bookings/screens/my_requests_screen.dart';
 import 'features/food_trucks/screens/truck_profile_screen.dart';
 import 'shells/consumer_shell.dart';
 import 'shells/owner_shell.dart';
@@ -28,13 +31,19 @@ final routerProvider = Provider<GoRouter>((ref) {
     refreshListenable: _AuthListenable(ref),
     redirect: (context, state) {
       final authAsync = ref.read(authProvider);
+      final onboardingAsync = ref.read(onboardingProvider);
 
-      // Still loading the initial session — don't redirect yet.
-      if (authAsync.isLoading) return null;
+      if (authAsync.isLoading || onboardingAsync.isLoading) return null;
+
+      final onboardingComplete = onboardingAsync.asData?.value ?? true;
+      final loc = state.matchedLocation;
+
+      if (!onboardingComplete) {
+        return loc == '/onboarding' ? null : '/onboarding';
+      }
 
       final user = authAsync.asData?.value;
       final isAuthenticated = user != null;
-      final loc = state.matchedLocation;
       final isOnAuthRoute = loc == '/login' || loc == '/register' || loc == '/register-owner';
 
       if (!isAuthenticated && !isOnAuthRoute) return '/login';
@@ -49,6 +58,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       return null;
     },
     routes: [
+      GoRoute(path: '/onboarding', builder: (c, s) => const OnboardingScreen()),
       GoRoute(path: '/login', builder: (c, s) => const LoginScreen()),
       GoRoute(path: '/register', builder: (c, s) => const RegisterScreen()),
       GoRoute(path: '/register-owner', builder: (c, s) => const RegisterOwnerScreen()),
@@ -76,7 +86,14 @@ final routerProvider = Provider<GoRouter>((ref) {
             GoRoute(path: '/favorites', builder: (c, s) => const FavoritesScreen()),
           ]),
           StatefulShellBranch(routes: [
-            GoRoute(path: '/account', builder: (c, s) => const AccountScreen()),
+            GoRoute(
+              path: '/account',
+              builder: (c, s) => const AccountScreen(),
+              routes: [
+                GoRoute(path: 'my-requests', builder: (c, s) => const MyRequestsScreen()),
+                GoRoute(path: 'settings', builder: (c, s) => const AccountSettingsScreen()),
+              ],
+            ),
           ]),
         ],
       ),
@@ -133,7 +150,13 @@ final routerProvider = Provider<GoRouter>((ref) {
             ),
           ]),
           StatefulShellBranch(routes: [
-            GoRoute(path: '/owner-account', builder: (c, s) => const AccountScreen()),
+            GoRoute(
+              path: '/owner-account',
+              builder: (c, s) => const AccountScreen(),
+              routes: [
+                GoRoute(path: 'settings', builder: (c, s) => const AccountSettingsScreen()),
+              ],
+            ),
           ]),
         ],
       ),
@@ -141,9 +164,10 @@ final routerProvider = Provider<GoRouter>((ref) {
   );
 });
 
-// Notifies go_router to re-run redirect when auth state changes.
+// Notifies go_router to re-run redirect when auth or onboarding state changes.
 class _AuthListenable extends ChangeNotifier {
   _AuthListenable(Ref ref) {
     ref.listen(authProvider, (prev, next) => notifyListeners());
+    ref.listen(onboardingProvider, (prev, next) => notifyListeners());
   }
 }

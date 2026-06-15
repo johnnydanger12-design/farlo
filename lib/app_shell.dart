@@ -25,7 +25,7 @@ class AppShell extends ConsumerWidget {
     final themeMode = ref.watch(themeModeProvider).asData?.value ?? ThemeMode.system;
 
     return MaterialApp.router(
-      title: 'Good Truck Finder',
+      title: 'Farlo',
       debugShowCheckedModeBanner: false,
       routerConfig: router,
       themeMode: themeMode,

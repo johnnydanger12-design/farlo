@@ -1,6 +1,13 @@
+import 'dart:convert';
+import 'dart:typed_data';
+import 'package:crypto/crypto.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/app_user.dart';
 import '../../../core/constants/supabase_constants.dart';
+
+const _googleWebClientId = String.fromEnvironment('GOOGLE_SIGN_IN_WEB_CLIENT_ID');
 
 class AuthRepository {
   AuthRepository(this._supabase);
@@ -72,6 +79,46 @@ class AuthRepository {
     return _fetchProfile(uid);
   }
 
+  // Called after a successful social sign-in on the owner registration screen.
+  // Idempotent: if the user already owns a truck, just returns their profile.
+  Future<AppUser> upgradeToOwner({
+    required String uid,
+    required String truckName,
+  }) async {
+    final existing = await _supabase
+        .from(SupabaseConstants.foodTrucksTable)
+        .select('id')
+        .eq('owner_id', uid)
+        .maybeSingle();
+
+    if (existing == null) {
+      await _supabase
+          .from(SupabaseConstants.profilesTable)
+          .update({'role': 'owner'})
+          .eq('id', uid);
+
+      await _supabase.from(SupabaseConstants.foodTrucksTable).insert({
+        'owner_id': uid,
+        'name': truckName,
+        'cuisine_type': 'Other',
+        'is_open': false,
+        'is_active': false,
+        'photo_urls': <String>[],
+      });
+
+      await _supabase.from(SupabaseConstants.subscriptionsTable).upsert(
+        {'owner_id': uid, 'status': 'trialing'},
+        onConflict: 'owner_id',
+      );
+    }
+
+    return _fetchProfile(uid);
+  }
+
+  Future<void> resetPasswordForEmail(String email) async {
+    await _supabase.auth.resetPasswordForEmail(email.trim().toLowerCase());
+  }
+
   Future<void> changePassword({
     required String email,
     required String currentPassword,
@@ -82,8 +129,113 @@ class AuthRepository {
     await _supabase.auth.updateUser(UserAttributes(password: newPassword));
   }
 
+  Future<void> updateDisplayName(String userId, String displayName) async {
+    await _supabase
+        .from(SupabaseConstants.profilesTable)
+        .update({'display_name': displayName})
+        .eq('id', userId);
+  }
+
   Future<void> signOut() async {
     await _supabase.auth.signOut();
+  }
+
+  Future<void> deleteAccount() async {
+    await _supabase.functions.invoke('delete-account');
+    // Session is invalidated server-side; clear local state only.
+    await _supabase.auth.signOut(scope: SignOutScope.local);
+  }
+
+  Future<String> updateAvatar(String userId, Uint8List bytes) async {
+    await _supabase.storage
+        .from('avatars')
+        .uploadBinary(userId, bytes,
+            fileOptions: const FileOptions(upsert: true, contentType: 'image/jpeg'));
+
+    // Append timestamp so CachedNetworkImage treats each upload as a new URL.
+    final url =
+        '${_supabase.storage.from('avatars').getPublicUrl(userId)}?v=${DateTime.now().millisecondsSinceEpoch}';
+
+    await _supabase
+        .from(SupabaseConstants.profilesTable)
+        .update({'avatar_url': url}).eq('id', userId);
+
+    return url;
+  }
+
+  Future<AppUser> signInWithApple() async {
+    final rawNonce = _supabase.auth.generateRawNonce();
+    final hashedNonce = sha256.convert(utf8.encode(rawNonce)).toString();
+
+    final credential = await SignInWithApple.getAppleIDCredential(
+      scopes: [
+        AppleIDAuthorizationScopes.email,
+        AppleIDAuthorizationScopes.fullName,
+      ],
+      nonce: hashedNonce,
+    );
+
+    final response = await _supabase.auth.signInWithIdToken(
+      provider: OAuthProvider.apple,
+      idToken: credential.identityToken!,
+      nonce: rawNonce,
+    );
+
+    final uid = response.user!.id;
+    final email = response.user!.email ?? '';
+    final fullName = [credential.givenName, credential.familyName]
+        .where((s) => s != null && s.isNotEmpty)
+        .join(' ');
+
+    return _provisionSocialProfile(uid: uid, email: email, displayName: fullName);
+  }
+
+  Future<AppUser> signInWithGoogle() async {
+    final googleUser = await GoogleSignIn(
+      serverClientId: _googleWebClientId.isEmpty ? null : _googleWebClientId,
+    ).signIn();
+
+    if (googleUser == null) throw SocialCancelledException();
+
+    final googleAuth = await googleUser.authentication;
+
+    final response = await _supabase.auth.signInWithIdToken(
+      provider: OAuthProvider.google,
+      idToken: googleAuth.idToken!,
+      accessToken: googleAuth.accessToken,
+    );
+
+    final uid = response.user!.id;
+    final email = googleUser.email;
+    final displayName = googleUser.displayName ?? email.split('@').first;
+
+    return _provisionSocialProfile(uid: uid, email: email, displayName: displayName);
+  }
+
+  // Only inserts on first social sign-in. Never overwrites an existing profile
+  // (Apple only provides name/email on the very first authorization).
+  Future<AppUser> _provisionSocialProfile({
+    required String uid,
+    required String email,
+    required String displayName,
+  }) async {
+    final existing = await _supabase
+        .from(SupabaseConstants.profilesTable)
+        .select('id')
+        .eq('id', uid)
+        .maybeSingle();
+
+    if (existing == null) {
+      final name = displayName.isNotEmpty ? displayName : email.split('@').first;
+      await _supabase.from(SupabaseConstants.profilesTable).insert({
+        'id': uid,
+        'email': email,
+        'display_name': name,
+        'role': 'consumer',
+      });
+    }
+
+    return _fetchProfile(uid);
   }
 
   Future<AppUser?> fetchCurrentUser() async {
@@ -101,3 +253,5 @@ class AuthRepository {
     return AppUser.fromMap(data);
   }
 }
+
+class SocialCancelledException implements Exception {}

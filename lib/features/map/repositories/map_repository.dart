@@ -18,6 +18,20 @@ class MapRepository {
     return (data as List).map((e) => FoodTruck.fromMap(e as Map<String, dynamic>)).toList();
   }
 
+  Stream<List<FoodTruck>> streamActiveTrucks() {
+    return _supabase
+        .from(SupabaseConstants.foodTrucksTable)
+        .stream(primaryKey: ['id'])
+        .eq('is_active', true)
+        .map((rows) => rows
+            .where((e) =>
+                e['is_open'] == true &&
+                e['latitude'] != null &&
+                e['longitude'] != null)
+            .map((e) => FoodTruck.fromMap(e))
+            .toList());
+  }
+
   Future<List<FoodTruck>> searchTrucks(String query) async {
     final q = query.trim();
     if (q.isEmpty) return [];

@@ -219,7 +219,9 @@ class _EditTruckScreenState extends ConsumerState<EditTruckScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Logo picker
-                Text('Logo', style: AppTextStyles.heading3),
+                Text('Truck Logo', style: AppTextStyles.heading3),
+                const SizedBox(height: 2),
+                const Text('Shown as your marker on the map', style: AppTextStyles.caption),
                 const SizedBox(height: AppSpacing.sm),
                 _LogoPicker(
                   existingUrl: _existingLogoUrl,

@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
@@ -30,16 +31,35 @@ class ReviewCard extends StatelessWidget {
               CircleAvatar(
                 radius: 16,
                 backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
-                child: Text(
-                  review.userDisplayName.isNotEmpty
-                      ? review.userDisplayName[0].toUpperCase()
-                      : '?',
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.primary,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
-                  ),
-                ),
+                child: review.userAvatarUrl != null
+                    ? ClipOval(
+                        child: CachedNetworkImage(
+                          imageUrl: review.userAvatarUrl!,
+                          width: 32,
+                          height: 32,
+                          fit: BoxFit.cover,
+                          errorWidget: (_, _, _) => Text(
+                            review.userDisplayName.isNotEmpty
+                                ? review.userDisplayName[0].toUpperCase()
+                                : '?',
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.primary,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                      )
+                    : Text(
+                        review.userDisplayName.isNotEmpty
+                            ? review.userDisplayName[0].toUpperCase()
+                            : '?',
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.primary,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
               ),
               const SizedBox(width: AppSpacing.sm),
               Expanded(

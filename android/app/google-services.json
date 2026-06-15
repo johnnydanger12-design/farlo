@@ -26,6 +26,25 @@
     },
     {
       "client_info": {
+        "mobilesdk_app_id": "1:469153137408:android:fbf18959fc3b428668e9e5",
+        "android_client_info": {
+          "package_name": "com.farlo.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA2EMaJfDkWqIkQ31zhJUWR_GItv6zCYwE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
         "mobilesdk_app_id": "1:469153137408:android:8183147264e9c75568e9e5",
         "android_client_info": {
           "package_name": "com.goodtruckfinder.good_truck_finder"

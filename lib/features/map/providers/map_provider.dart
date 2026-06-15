@@ -8,8 +8,8 @@ final mapRepositoryProvider = Provider<MapRepository>((ref) {
   return MapRepository(Supabase.instance.client);
 });
 
-final activeTrucksProvider = FutureProvider<List<FoodTruck>>((ref) {
-  return ref.read(mapRepositoryProvider).fetchActiveTrucks();
+final activeTrucksProvider = StreamProvider<List<FoodTruck>>((ref) {
+  return ref.read(mapRepositoryProvider).streamActiveTrucks();
 });
 
 // Streams live position updates. Yields null if permission denied or unavailable.

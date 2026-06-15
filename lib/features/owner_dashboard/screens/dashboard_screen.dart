@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geocoding/geocoding.dart';
@@ -55,6 +56,12 @@ class DashboardScreen extends ConsumerWidget {
                 label: 'Send Announcement',
                 subtitle: 'Notify your followers with an update',
                 onTap: () => _showAnnouncementSheet(context, truck.id, truck.name),
+              ),
+              _DashboardTile(
+                icon: Icons.ios_share_outlined,
+                label: 'Share My Profile',
+                subtitle: 'Let customers know where to find you',
+                onTap: () => _shareTruckProfile(context, truck.name),
               ),
               const SizedBox(height: AppSpacing.lg),
               const _SectionHeader('Manage'),
@@ -187,6 +194,16 @@ class DashboardScreen extends ConsumerWidget {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _AnnouncementSheet(truckId: truckId, truckName: truckName),
+    );
+  }
+
+  void _shareTruckProfile(BuildContext context, String truckName) {
+    final box = context.findRenderObject() as RenderBox?;
+    Share.share(
+      'Check out $truckName on Farlo!\n\n'
+      'Find food trucks near you, see their menus, and follow your favorites.\n\n'
+      'Download the app → https://farlo.app',
+      sharePositionOrigin: box == null ? null : box.localToGlobal(Offset.zero) & box.size,
     );
   }
 }
@@ -480,6 +497,11 @@ class _AnnouncementSheetState extends State<_AnnouncementSheet> {
             width: double.infinity,
             child: FilledButton(
               onPressed: canSend ? _send : null,
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                disabledBackgroundColor: AppColors.primary.withValues(alpha: 0.4),
+                disabledForegroundColor: Colors.white.withValues(alpha: 0.7),
+              ),
               child: _loading
                   ? const SizedBox(
                       width: 18, height: 18,

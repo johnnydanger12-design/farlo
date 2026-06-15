@@ -12,16 +12,47 @@ class NotificationPrefsNotifier extends AsyncNotifier<NotifPrefs> {
     return _repo.fetchPrefs();
   }
 
+  NotifPrefs get _current =>
+      state.asData?.value ?? (pushEnabled: true, openAlert: true, announcementAlert: true, bookingAlert: true);
+
   Future<void> setPushEnabled(bool value) async {
-    final current = state.asData?.value ?? (pushEnabled: true, openAlert: true);
-    state = AsyncData((pushEnabled: value, openAlert: current.openAlert));
+    state = AsyncData((
+      pushEnabled: value,
+      openAlert: _current.openAlert,
+      announcementAlert: _current.announcementAlert,
+      bookingAlert: _current.bookingAlert,
+    ));
     await _repo.updatePrefs(pushEnabled: value);
   }
 
   Future<void> setOpenAlert(bool value) async {
-    final current = state.asData?.value ?? (pushEnabled: true, openAlert: true);
-    state = AsyncData((pushEnabled: current.pushEnabled, openAlert: value));
+    state = AsyncData((
+      pushEnabled: _current.pushEnabled,
+      openAlert: value,
+      announcementAlert: _current.announcementAlert,
+      bookingAlert: _current.bookingAlert,
+    ));
     await _repo.updatePrefs(openAlert: value);
+  }
+
+  Future<void> setAnnouncementAlert(bool value) async {
+    state = AsyncData((
+      pushEnabled: _current.pushEnabled,
+      openAlert: _current.openAlert,
+      announcementAlert: value,
+      bookingAlert: _current.bookingAlert,
+    ));
+    await _repo.updatePrefs(announcementAlert: value);
+  }
+
+  Future<void> setBookingAlert(bool value) async {
+    state = AsyncData((
+      pushEnabled: _current.pushEnabled,
+      openAlert: _current.openAlert,
+      announcementAlert: _current.announcementAlert,
+      bookingAlert: value,
+    ));
+    await _repo.updatePrefs(bookingAlert: value);
   }
 }
 

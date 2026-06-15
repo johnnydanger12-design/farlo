@@ -1,5 +1,7 @@
+import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/rc_config.dart';
 import '../models/app_user.dart';
@@ -72,6 +74,78 @@ class AuthNotifier extends AsyncNotifier<AppUser?> {
     });
   }
 
+  Future<void> signInWithApple() async {
+    final prev = state;
+    state = const AsyncLoading();
+    try {
+      final user = await ref.read(authRepositoryProvider).signInWithApple();
+      await _rcLogIn(user.id);
+      await _claimInvites(user.id, user.email);
+      state = AsyncData(user);
+    } on SignInWithAppleAuthorizationException catch (e) {
+      state = e.code == AuthorizationErrorCode.canceled
+          ? prev
+          : AsyncError(e, StackTrace.current);
+    } catch (e, st) {
+      state = AsyncError(e, st);
+    }
+  }
+
+  Future<void> signInWithGoogle() async {
+    final prev = state;
+    state = const AsyncLoading();
+    try {
+      final user = await ref.read(authRepositoryProvider).signInWithGoogle();
+      await _rcLogIn(user.id);
+      await _claimInvites(user.id, user.email);
+      state = AsyncData(user);
+    } on SocialCancelledException {
+      state = prev;
+    } catch (e, st) {
+      state = AsyncError(e, st);
+    }
+  }
+
+  Future<void> signUpOwnerWithApple(String truckName) async {
+    final prev = state;
+    state = const AsyncLoading();
+    try {
+      final socialUser = await ref.read(authRepositoryProvider).signInWithApple();
+      final ownerUser = await ref.read(authRepositoryProvider).upgradeToOwner(
+        uid: socialUser.id,
+        truckName: truckName,
+      );
+      await _rcLogIn(ownerUser.id);
+      await _claimInvites(ownerUser.id, ownerUser.email);
+      state = AsyncData(ownerUser);
+    } on SignInWithAppleAuthorizationException catch (e) {
+      state = e.code == AuthorizationErrorCode.canceled
+          ? prev
+          : AsyncError(e, StackTrace.current);
+    } catch (e, st) {
+      state = AsyncError(e, st);
+    }
+  }
+
+  Future<void> signUpOwnerWithGoogle(String truckName) async {
+    final prev = state;
+    state = const AsyncLoading();
+    try {
+      final socialUser = await ref.read(authRepositoryProvider).signInWithGoogle();
+      final ownerUser = await ref.read(authRepositoryProvider).upgradeToOwner(
+        uid: socialUser.id,
+        truckName: truckName,
+      );
+      await _rcLogIn(ownerUser.id);
+      await _claimInvites(ownerUser.id, ownerUser.email);
+      state = AsyncData(ownerUser);
+    } on SocialCancelledException {
+      state = prev;
+    } catch (e, st) {
+      state = AsyncError(e, st);
+    }
+  }
+
   Future<void> changePassword({
     required String currentPassword,
     required String newPassword,
@@ -87,6 +161,45 @@ class AuthNotifier extends AsyncNotifier<AppUser?> {
 
   Future<void> signOut() async {
     await ref.read(authRepositoryProvider).signOut();
+    if (rcConfigured) try { await Purchases.logOut(); } catch (_) {}
+    state = const AsyncData(null);
+  }
+
+  Future<void> refreshUser() async {
+    final user = await ref.read(authRepositoryProvider).fetchCurrentUser();
+    state = AsyncData(user);
+  }
+
+  Future<void> updateDisplayName(String displayName) async {
+    final user = state.asData?.value;
+    if (user == null) return;
+    await ref.read(authRepositoryProvider).updateDisplayName(user.id, displayName);
+    state = AsyncData(AppUser(
+      id: user.id,
+      email: user.email,
+      displayName: displayName,
+      role: user.role,
+      avatarUrl: user.avatarUrl,
+      createdAt: user.createdAt,
+    ));
+  }
+
+  Future<void> updateAvatar(Uint8List bytes) async {
+    final user = state.asData?.value;
+    if (user == null) return;
+    final url = await ref.read(authRepositoryProvider).updateAvatar(user.id, bytes);
+    state = AsyncData(AppUser(
+      id: user.id,
+      email: user.email,
+      displayName: user.displayName,
+      role: user.role,
+      avatarUrl: url,
+      createdAt: user.createdAt,
+    ));
+  }
+
+  Future<void> deleteAccount() async {
+    await ref.read(authRepositoryProvider).deleteAccount();
     if (rcConfigured) try { await Purchases.logOut(); } catch (_) {}
     state = const AsyncData(null);
   }

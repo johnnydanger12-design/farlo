@@ -15,14 +15,73 @@ class BookingsRepository {
     return (rows as List).map((r) => BookingRequest.fromMap(r as Map<String, dynamic>)).toList();
   }
 
-  Future<void> updateRequestStatus(String requestId, String status) async {
+  Future<List<BookingRequest>> fetchMyRequests(String userId) async {
+    final rows = await _supabase
+        .from('event_booking_requests')
+        .select('*, food_trucks(name)')
+        .eq('requester_id', userId)
+        .order('event_date', ascending: false);
+    return (rows as List).map((r) => BookingRequest.fromMap(r as Map<String, dynamic>)).toList();
+  }
+
+  Future<void> cancelRequest(String requestId) async {
     await _supabase
         .from('event_booking_requests')
-        .update({'status': status})
+        .update({'status': 'cancelled', 'cancelled_by': 'consumer'})
+        .eq('id', requestId);
+    _invokeNotification('booking_cancelled_by_consumer', requestId);
+  }
+
+  Future<BookingRequest> createManualBooking({
+    required String truckId,
+    required String contactName,
+    required String contactEmail,
+    String? contactPhone,
+    required DateTime eventDate,
+    required String eventTime,
+    String? duration,
+    int? guestCount,
+    required String eventLocation,
+    required String eventType,
+    String? notes,
+  }) async {
+    final row = await _supabase
+        .from('event_booking_requests')
+        .insert({
+          'truck_id': truckId,
+          'contact_name': contactName,
+          'contact_email': contactEmail,
+          'contact_phone': ?contactPhone,
+          'event_date': eventDate.toIso8601String().substring(0, 10),
+          'event_time': eventTime,
+          'duration': ?duration,
+          'guest_count': ?guestCount,
+          'event_location': eventLocation,
+          'event_type': eventType,
+          'notes': ?notes,
+          'status': 'accepted',
+        })
+        .select('*')
+        .single();
+    _invokeConfirmationEmail(row['id'] as String);
+    return BookingRequest.fromMap(row);
+  }
+
+  Future<void> updateRequestStatus(String requestId, String status, {String? cancellationReason}) async {
+    final updates = <String, dynamic>{'status': status};
+    if (status == 'cancelled') {
+      updates['cancelled_by'] = 'owner';
+    }
+    if (cancellationReason != null && cancellationReason.isNotEmpty) {
+      updates['cancellation_reason'] = cancellationReason;
+    }
+    await _supabase
+        .from('event_booking_requests')
+        .update(updates)
         .eq('id', requestId);
 
-    // Notify the requester when the owner accepts or declines.
-    if (status == 'accepted' || status == 'declined') {
+    // Notify the requester when the owner responds or cancels.
+    if (status == 'accepted' || status == 'declined' || status == 'cancelled') {
       _invokeNotification('booking_status_changed', requestId);
     }
   }
@@ -62,6 +121,19 @@ class BookingsRepository {
 
     // Notify the truck owner — fire-and-forget, don't block the submit.
     _invokeNotification('booking_created', row['id'] as String);
+  }
+
+  void _invokeConfirmationEmail(String bookingId) {
+    () async {
+      try {
+        await _supabase.functions.invoke(
+          'send-booking-confirmation-email',
+          body: {'booking_id': bookingId},
+        );
+      } catch (e) {
+        debugPrint('Confirmation email invoke failed: $e');
+      }
+    }();
   }
 
   void _invokeNotification(String action, String bookingId) {

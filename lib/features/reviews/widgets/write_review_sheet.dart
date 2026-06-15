@@ -53,6 +53,7 @@ class _WriteReviewSheetState extends ConsumerState<WriteReviewSheet> {
       await ref.read(reviewsRepositoryProvider).submitReview(
             truckId: widget.truckId,
             userDisplayName: displayName,
+            userAvatarUrl: user?.avatarUrl,
             rating: _rating,
             comment: _commentCtrl.text,
           );
