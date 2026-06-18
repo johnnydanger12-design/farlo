@@ -31,10 +31,21 @@ class FoodTruckRepository {
         .eq('id', id);
   }
 
-  Future<void> updateOpenStatus(String id, {required bool isOpen}) async {
+  Future<void> updateOpenStatus(String id, {required bool isOpen, String? userId}) async {
     await _supabase
         .from(SupabaseConstants.foodTrucksTable)
-        .update({'is_open': isOpen})
+        .update({
+          'is_open': isOpen,
+          'session_started_at': isOpen ? DateTime.now().toUtc().toIso8601String() : null,
+          'opened_by_user_id': isOpen ? userId : null,
+        })
+        .eq('id', id);
+  }
+
+  Future<void> updateOrdersAccepting(String id, bool accepting) async {
+    await _supabase
+        .from(SupabaseConstants.foodTrucksTable)
+        .update({'orders_accepting': accepting})
         .eq('id', id);
   }
 
@@ -44,7 +55,7 @@ class FoodTruckRepository {
         .update({
           'latitude': lat,
           'longitude': lng,
-          'location_updated_at': DateTime.now().toIso8601String(),
+          'location_updated_at': DateTime.now().toUtc().toIso8601String(),
           'address': address,
         })
         .eq('id', id);

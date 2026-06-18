@@ -40,7 +40,7 @@ class _TransferTruckSheetState extends ConsumerState<TransferTruckSheet> {
       final result = await supabase
           .from('profiles')
           .select('id, display_name, email')
-          .eq('email', email)
+          .ilike('email', email)
           .maybeSingle();
 
       if (!mounted) return;
@@ -50,7 +50,7 @@ class _TransferTruckSheetState extends ConsumerState<TransferTruckSheet> {
           _error = 'No account found with that email. The new owner must sign up for Good Truck Finder first.';
         });
       } else if ((result['id'] as String) == currentUserId) {
-        setState(() { _error = 'You can\'t transfer your truck to yourself.'; });
+        setState(() { _error = 'You can\'t transfer your business to yourself.'; });
       } else {
         setState(() { _recipient = result; });
       }
@@ -106,7 +106,7 @@ class _TransferTruckSheetState extends ConsumerState<TransferTruckSheet> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
-                'Transfer Truck Ownership',
+                'Transfer Business Ownership',
                 style: AppTextStyles.heading3,
                 textAlign: TextAlign.center,
               ),
@@ -122,7 +122,7 @@ class _TransferTruckSheetState extends ConsumerState<TransferTruckSheet> {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
-                  'This permanently transfers ownership. Your account will become a consumer account. This cannot be undone once accepted.',
+                  'This permanently transfers ownership of the business and its active subscription to the new owner. Your account will become a consumer account. This cannot be undone once accepted.\n\nImportant: cancel your subscription in App Store Settings → Subscriptions to stop being charged.',
                   style: AppTextStyles.caption.copyWith(color: AppColors.error),
                 ),
               ),

@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_stripe/flutter_stripe.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../auth/providers/auth_provider.dart';
+import '../models/booking_deposit.dart';
+import '../models/booking_quote.dart';
 import '../models/booking_request.dart';
 import '../providers/bookings_provider.dart';
+import '../screens/booking_chat_screen.dart';
 
 const _months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const _monthsFull = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -50,6 +54,32 @@ String _daysLabel(int days) {
   return '${days.abs()} days ago';
 }
 
+bool _withinCancellationWindow(BookingRequest r) {
+  final hours = r.truckCancellationPolicyHours;
+  if (hours == null) return false;
+  final eventStart = DateTime(r.eventDate.year, r.eventDate.month, r.eventDate.day);
+  return eventStart.difference(DateTime.now()).inHours < hours;
+}
+
+String _policyLabel(int hours) {
+  if (hours < 24) return '$hours hours';
+  final days = hours ~/ 24;
+  return days == 1 ? '1 day' : '$days days';
+}
+
+Future<void> _openChat(BuildContext context, BookingRequest request) {
+  return Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => BookingChatScreen(
+        bookingId: request.id,
+        title: request.truckName ?? 'Business',
+        subtitle: '${request.eventType}  ·  ${_fmtShort(request.eventDate)}',
+      ),
+    ),
+  );
+}
+
 class MyRequestsScreen extends ConsumerStatefulWidget {
   const MyRequestsScreen({super.key});
 
@@ -92,7 +122,7 @@ class _MyRequestsScreenState extends ConsumerState<MyRequestsScreen> {
                   const SizedBox(height: AppSpacing.md),
                   Text('No requests yet', style: AppTextStyles.body.copyWith(color: AppColors.textSecondary)),
                   const SizedBox(height: 4),
-                  Text('Request a private event from any truck profile', style: AppTextStyles.caption),
+                  Text('Request a private event from any business profile', style: AppTextStyles.caption),
                 ],
               ),
             );
@@ -189,6 +219,35 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
+// ─── Message badge ────────────────────────────────────────────────────────────
+
+class _MsgBadge extends StatelessWidget {
+  const _MsgBadge({required this.count});
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: AppColors.primary,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.chat_bubble_outline, size: 10, color: Colors.white),
+          const SizedBox(width: 3),
+          Text(
+            '$count',
+            style: AppTextStyles.caption.copyWith(color: Colors.white, fontWeight: FontWeight.w700),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 // ─── Pending card ─────────────────────────────────────────────────────────────
 
 class _MyRequestCard extends ConsumerWidget {
@@ -198,35 +257,48 @@ class _MyRequestCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     const amber = Color(0xFFB45309);
-    return Container(
-      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: const Border(left: BorderSide(color: amber, width: 3)),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 6, offset: const Offset(0, 2))],
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(request.truckName ?? 'Food Truck', style: AppTextStyles.label),
-                const SizedBox(height: 2),
-                Text('${_fmtShort(request.eventDate)}  ·  ${request.eventTime}', style: AppTextStyles.caption),
-                Text(request.eventType, style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary)),
-              ],
+    final userId = ref.watch(authProvider).asData?.value?.id ?? '';
+    final msgCount = ref.watch(bookingMessageCountProvider((request.id, userId))).asData?.value ?? 0;
+
+    return GestureDetector(
+      onTap: () async {
+        await _openChat(context, request);
+        if (context.mounted) ref.invalidate(bookingMessageCountProvider((request.id, userId)));
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: const Border(left: BorderSide(color: amber, width: 3)),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 6, offset: const Offset(0, 2))],
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(request.truckName ?? 'Business', style: AppTextStyles.label),
+                  const SizedBox(height: 2),
+                  Text('${_fmtShort(request.eventDate)}  ·  ${request.eventTime}', style: AppTextStyles.caption),
+                  Text(request.eventType, style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary)),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(width: 8),
-          TextButton(
-            onPressed: () => _confirmCancel(context, ref),
-            style: TextButton.styleFrom(foregroundColor: AppColors.closedRed, padding: const EdgeInsets.symmetric(horizontal: 8)),
-            child: const Text('Cancel'),
-          ),
-        ],
+            const SizedBox(width: 8),
+            if (msgCount > 0) ...[
+              _MsgBadge(count: msgCount),
+              const SizedBox(width: 6),
+            ],
+            TextButton(
+              onPressed: () => _confirmCancel(context, ref),
+              style: TextButton.styleFrom(foregroundColor: AppColors.closedRed, padding: const EdgeInsets.symmetric(horizontal: 8)),
+              child: const Text('Cancel'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -237,7 +309,7 @@ class _MyRequestCard extends ConsumerWidget {
       builder: (dialogContext) => AlertDialog(
         backgroundColor: Theme.of(context).brightness == Brightness.light ? Colors.white : Theme.of(context).colorScheme.surface,
         title: const Text('Cancel Request?'),
-        content: Text('Cancel your ${request.eventType} request with ${request.truckName ?? 'this truck'}?'),
+        content: Text('Cancel your ${request.eventType} request with ${request.truckName ?? 'this business'}?'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Keep It')),
           TextButton(
@@ -265,100 +337,140 @@ class _MyUpcomingCard extends ConsumerWidget {
     const green = AppColors.openGreen;
     final days = _daysUntil(request.eventDate);
     final dayColor = days == 0 ? AppColors.closedRed : green;
+    final userId = ref.watch(authProvider).asData?.value?.id ?? '';
+    final msgCount = ref.watch(bookingMessageCountProvider((request.id, userId))).asData?.value ?? 0;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: const Border(left: BorderSide(color: green, width: 3)),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 6, offset: const Offset(0, 2))],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Date badge
-            Container(
-              width: 52,
-              padding: const EdgeInsets.symmetric(vertical: 6),
-              decoration: BoxDecoration(
-                color: green.withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(10),
+    return GestureDetector(
+      onTap: () async {
+        await _openChat(context, request);
+        if (context.mounted) ref.invalidate(bookingMessageCountProvider((request.id, userId)));
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: const Border(left: BorderSide(color: green, width: 3)),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 6, offset: const Offset(0, 2))],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Date badge
+              Container(
+                width: 52,
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                decoration: BoxDecoration(
+                  color: green.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Column(
+                  children: [
+                    Text(
+                      _months[request.eventDate.month - 1].toUpperCase(),
+                      style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: green),
+                    ),
+                    Text(
+                      '${request.eventDate.day}',
+                      style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: green, height: 1.1),
+                    ),
+                  ],
+                ),
               ),
-              child: Column(
-                children: [
-                  Text(
-                    _months[request.eventDate.month - 1].toUpperCase(),
-                    style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: green),
-                  ),
-                  Text(
-                    '${request.eventDate.day}',
-                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: green, height: 1.1),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: AppSpacing.md),
-            // Details
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(request.truckName ?? 'Food Truck', style: AppTextStyles.label),
-                  const SizedBox(height: 1),
-                  Text(request.eventType, style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary)),
-                  const SizedBox(height: 6),
-                  Text(
-                    [request.eventTime, request.duration].nonNulls.join('  ·  '),
-                    style: AppTextStyles.caption,
-                  ),
-                  Text(
-                    request.eventLocation,
-                    style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      TextButton.icon(
-                        onPressed: () => _confirmCancel(context, ref),
-                        icon: const Icon(Icons.cancel_outlined, size: 14),
-                        label: const Text('Cancel Event'),
-                        style: TextButton.styleFrom(
-                          foregroundColor: AppColors.closedRed,
-                          padding: EdgeInsets.zero,
-                          minimumSize: Size.zero,
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          textStyle: const TextStyle(fontSize: 12),
+              const SizedBox(width: AppSpacing.md),
+              // Details
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(request.truckName ?? 'Business', style: AppTextStyles.label),
+                    const SizedBox(height: 1),
+                    Text(request.eventType, style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary)),
+                    const SizedBox(height: 6),
+                    Text(
+                      [request.eventTime, request.duration].nonNulls.join('  ·  '),
+                      style: AppTextStyles.caption,
+                    ),
+                    Text(
+                      request.eventLocation,
+                      style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        TextButton.icon(
+                          onPressed: () => _confirmCancel(context, ref),
+                          icon: const Icon(Icons.cancel_outlined, size: 14),
+                          label: const Text('Cancel Event'),
+                          style: TextButton.styleFrom(
+                            foregroundColor: AppColors.closedRed,
+                            padding: EdgeInsets.zero,
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            textStyle: const TextStyle(fontSize: 12),
+                          ),
                         ),
-                      ),
-                      Text(
-                        _daysLabel(days),
-                        style: AppTextStyles.caption.copyWith(color: dayColor, fontWeight: FontWeight.w600),
-                      ),
-                    ],
-                  ),
-                ],
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (msgCount > 0) ...[
+                              _MsgBadge(count: msgCount),
+                              const SizedBox(width: 6),
+                            ],
+                            Text(
+                              _daysLabel(days),
+                              style: AppTextStyles.caption.copyWith(color: dayColor, fontWeight: FontWeight.w600),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    _ConsumerFinancialSection(request: request),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 
   Future<void> _confirmCancel(BuildContext context, WidgetRef ref) async {
+    final bgColor = Theme.of(context).brightness == Brightness.light
+        ? Colors.white
+        : Theme.of(context).colorScheme.surface;
+
+    if (_withinCancellationWindow(request)) {
+      final hours = request.truckCancellationPolicyHours!;
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          backgroundColor: bgColor,
+          title: const Text('Can\'t Cancel Online'),
+          content: Text(
+            '${request.truckName ?? 'This truck'} requires cancellations at least ${_policyLabel(hours)} before the event. Contact them directly to discuss cancellation.',
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('OK')),
+          ],
+        ),
+      );
+      return;
+    }
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        backgroundColor: Theme.of(context).brightness == Brightness.light ? Colors.white : Theme.of(context).colorScheme.surface,
+        backgroundColor: bgColor,
         title: const Text('Cancel Event?'),
         content: Text(
-          'Cancel your confirmed ${request.eventType} with ${request.truckName ?? 'this truck'} on ${_fmtLong(request.eventDate)}? The truck owner will be notified.',
+          'Cancel your confirmed ${request.eventType} with ${request.truckName ?? 'this business'} on ${_fmtLong(request.eventDate)}? The business owner will be notified.',
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Keep It')),
@@ -450,6 +562,7 @@ class _MyCompactTile extends StatelessWidget {
     final isExpired = request.status == 'pending' && _isOver(request);
     final isCancelled = request.status == 'cancelled';
     final isDeclined = request.status == 'declined';
+    final isPastAccepted = request.status == 'accepted' && _isOver(request);
     final reason = request.cancellationReason;
 
     final String? statusLabel;
@@ -463,49 +576,278 @@ class _MyCompactTile extends StatelessWidget {
       statusLabel = null;
     }
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 6),
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 10),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+    return GestureDetector(
+      onTap: () => _openChat(context, request),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 6),
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 10),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(request.truckName ?? 'Business', style: AppTextStyles.bodySmall.copyWith(fontWeight: FontWeight.w500)),
+                      const SizedBox(height: 1),
+                      Text(request.eventType, style: AppTextStyles.caption.copyWith(color: AppColors.textHint)),
+                    ],
+                  ),
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Text(request.truckName ?? 'Food Truck', style: AppTextStyles.bodySmall.copyWith(fontWeight: FontWeight.w500)),
-                    const SizedBox(height: 1),
-                    Text(request.eventType, style: AppTextStyles.caption.copyWith(color: AppColors.textHint)),
+                    Text(_fmtShort(request.eventDate), style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary)),
+                    if (statusLabel != null)
+                      Text(statusLabel, style: AppTextStyles.caption.copyWith(color: AppColors.closedRed)),
                   ],
                 ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(_fmtShort(request.eventDate), style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary)),
-                  if (statusLabel != null)
-                    Text(statusLabel, style: AppTextStyles.caption.copyWith(color: AppColors.closedRed)),
-                ],
+              ],
+            ),
+            if ((isCancelled || isDeclined) && reason != null && reason.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(
+                '"$reason"',
+                style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary, fontStyle: FontStyle.italic),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
               ),
             ],
-          ),
-          if (isCancelled && reason != null && reason.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Text(
-              '"$reason"',
-              style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary, fontStyle: FontStyle.italic),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
+            if (isPastAccepted)
+              _ConsumerFinancialSection(request: request),
           ],
-        ],
+        ),
       ),
+    );
+  }
+}
+
+// ─── Consumer financial section ───────────────────────────────────────────────
+
+class _ConsumerFinancialSection extends ConsumerStatefulWidget {
+  const _ConsumerFinancialSection({required this.request});
+  final BookingRequest request;
+
+  @override
+  ConsumerState<_ConsumerFinancialSection> createState() => _ConsumerFinancialSectionState();
+}
+
+class _ConsumerFinancialSectionState extends ConsumerState<_ConsumerFinancialSection> {
+  bool _paying = false;
+  String? _error;
+  bool _depositJustPaid = false;
+  bool _invoiceJustPaid = false;
+
+  Future<void> _pay({required String type, required String recordId, required double amount}) async {
+    setState(() { _paying = true; _error = null; });
+    try {
+      final result = await ref.read(bookingsRepositoryProvider).createBookingPaymentIntent(
+        type: type,
+        recordId: recordId,
+        bookingId: widget.request.id,
+        amount: amount,
+      );
+      await Stripe.instance.initPaymentSheet(
+        paymentSheetParameters: SetupPaymentSheetParameters(
+          paymentIntentClientSecret: result['client_secret'] as String,
+          merchantDisplayName: 'Farlo',
+        ),
+      );
+      await Stripe.instance.presentPaymentSheet();
+      // PaymentSheet succeeded — payment is confirmed on Stripe's side.
+      // Optimistically mark as paid locally so the UI reflects it immediately
+      // while the webhook asynchronously updates the DB.
+      if (mounted) {
+        setState(() {
+          if (type == 'deposit') _depositJustPaid = true;
+          if (type == 'invoice') _invoiceJustPaid = true;
+        });
+      }
+      ref.invalidate(bookingQuotesProvider(widget.request.id));
+      ref.invalidate(bookingDepositProvider(widget.request.id));
+    } on StripeException catch (e) {
+      if (e.error.code != FailureCode.Canceled && mounted) {
+        setState(() => _error = e.error.localizedMessage ?? 'Payment failed.');
+      }
+    } catch (_) {
+      if (mounted) setState(() => _error = 'Payment failed. Please try again.');
+    } finally {
+      if (mounted) setState(() => _paying = false);
+    }
+  }
+
+  Future<void> _respondEstimate(String quoteId, bool accepted) async {
+    try {
+      await ref.read(bookingsRepositoryProvider).respondToEstimate(quoteId, widget.request.id, accepted);
+      ref.invalidate(bookingQuotesProvider(widget.request.id));
+    } catch (_) {}
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final quotes = ref.watch(bookingQuotesProvider(widget.request.id)).asData?.value ?? [];
+    final deposit = ref.watch(bookingDepositProvider(widget.request.id)).asData?.value;
+
+    final estimate = quotes.where((q) => q.type == QuoteType.estimate).lastOrNull;
+    final invoice = quotes.where((q) => q.type == QuoteType.invoice).lastOrNull;
+
+    if (estimate == null && deposit == null && invoice == null) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SizedBox(height: AppSpacing.sm),
+        const Divider(height: 1),
+        const SizedBox(height: AppSpacing.sm),
+
+        // ── Estimate ─────────────────────────────────────────────────────────
+        if (estimate != null) ...[
+          if (estimate.status == QuoteStatus.sent) ...[
+            _QuoteRow(label: 'Estimate', amount: estimate.amount, notes: estimate.notes),
+            const SizedBox(height: AppSpacing.sm),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: _paying ? null : () => _respondEstimate(estimate.id, false),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.closedRed,
+                      side: const BorderSide(color: AppColors.closedRed),
+                    ),
+                    child: const Text('Decline'),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: _paying ? null : () => _respondEstimate(estimate.id, true),
+                    child: const Text('Accept'),
+                  ),
+                ),
+              ],
+            ),
+          ] else
+            _ConsumerStatusRow(
+              label: 'Estimate',
+              amount: estimate.amount,
+              status: switch (estimate.status) {
+                QuoteStatus.accepted => 'Accepted',
+                QuoteStatus.declined => 'Declined',
+                QuoteStatus.paid => 'Paid',
+                _ => '',
+              },
+              color: switch (estimate.status) {
+                QuoteStatus.accepted || QuoteStatus.paid => AppColors.openGreen,
+                QuoteStatus.declined => AppColors.closedRed,
+                _ => AppColors.textSecondary,
+              },
+            ),
+        ],
+
+        // ── Deposit ───────────────────────────────────────────────────────────
+        if (deposit != null) ...[
+          const SizedBox(height: AppSpacing.sm),
+          if (deposit.status == DepositStatus.requested && !_depositJustPaid)
+            FilledButton.icon(
+              onPressed: _paying ? null : () => _pay(type: 'deposit', recordId: deposit.id, amount: deposit.amount),
+              icon: _paying
+                  ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Icon(Icons.lock_outline, size: 14),
+              label: Text('Pay Deposit · \$${deposit.amount.toStringAsFixed(2)}'),
+              style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+            )
+          else
+            _ConsumerStatusRow(
+              label: 'Deposit',
+              amount: deposit.amount,
+              status: (deposit.status == DepositStatus.paid || _depositJustPaid) ? 'Paid' : 'Refunded',
+              color: (deposit.status == DepositStatus.paid || _depositJustPaid) ? AppColors.openGreen : AppColors.textSecondary,
+            ),
+        ],
+
+        // ── Invoice ───────────────────────────────────────────────────────────
+        if (invoice != null) ...[
+          const SizedBox(height: AppSpacing.sm),
+          if (invoice.status == QuoteStatus.sent && !_invoiceJustPaid)
+            FilledButton.icon(
+              onPressed: _paying ? null : () => _pay(type: 'invoice', recordId: invoice.id, amount: invoice.amount),
+              icon: _paying
+                  ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Icon(Icons.receipt_outlined, size: 14),
+              label: Text('Pay Invoice · \$${invoice.amount.toStringAsFixed(2)}'),
+              style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+            )
+          else
+            _ConsumerStatusRow(
+              label: 'Invoice',
+              amount: invoice.amount,
+              status: 'Paid',
+              color: AppColors.openGreen,
+            ),
+        ],
+
+        if (_error != null) ...[
+          const SizedBox(height: AppSpacing.sm),
+          Text(_error!, style: AppTextStyles.caption.copyWith(color: AppColors.error)),
+        ],
+      ],
+    );
+  }
+}
+
+class _QuoteRow extends StatelessWidget {
+  const _QuoteRow({required this.label, required this.amount, this.notes});
+  final String label;
+  final double amount;
+  final String? notes;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(label, style: AppTextStyles.label),
+            Text('\$${amount.toStringAsFixed(2)}', style: AppTextStyles.label.copyWith(fontWeight: FontWeight.w700)),
+          ],
+        ),
+        if (notes != null && notes!.isNotEmpty)
+          Text(notes!, style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary), maxLines: 2, overflow: TextOverflow.ellipsis),
+      ],
+    );
+  }
+}
+
+class _ConsumerStatusRow extends StatelessWidget {
+  const _ConsumerStatusRow({required this.label, required this.amount, required this.status, required this.color});
+  final String label;
+  final double amount;
+  final String status;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Text('$label · \$${amount.toStringAsFixed(2)}', style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.w600)),
+        const SizedBox(width: AppSpacing.sm),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Text(status, style: AppTextStyles.caption.copyWith(color: color, fontWeight: FontWeight.w600)),
+        ),
+      ],
     );
   }
 }

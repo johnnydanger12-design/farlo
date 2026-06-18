@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
+import '../../../core/location_tracking_service.dart';
 import '../../../features/food_trucks/providers/food_truck_provider.dart';
 import '../../../features/map/models/food_truck.dart';
 import '../../auth/providers/auth_provider.dart';
@@ -73,17 +74,57 @@ class EmployeeGoLiveNotifier extends AsyncNotifier<FoodTruck?> {
         .select('*, operating_hours(*), menu_items(*)')
         .eq('id', _truckId)
         .single();
-    return FoodTruck.fromMap(data);
+    final truck = FoodTruck.fromMap(data);
+
+    // Watch for remote changes so an owner-terminated session flips the toggle immediately.
+    final channel = Supabase.instance.client
+        .channel('employee-truck-$_truckId')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
+          schema: 'public',
+          table: 'food_trucks',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'id',
+            value: _truckId,
+          ),
+          callback: (_) => _syncFromRemote(),
+        )
+        .subscribe();
+    ref.onDispose(channel.unsubscribe);
+
+    return truck;
+  }
+
+  Future<void> _syncFromRemote() async {
+    final wasOpen = state.asData?.value?.isOpen ?? false;
+    try {
+      final data = await Supabase.instance.client
+          .from('food_trucks')
+          .select('*, operating_hours(*), menu_items(*)')
+          .eq('id', _truckId)
+          .single();
+      final fresh = FoodTruck.fromMap(data);
+      if (wasOpen && !fresh.isOpen) {
+        LocationTrackingService.instance.stop();
+      }
+      state = AsyncData(fresh);
+    } catch (_) {}
   }
 
   Future<void> setOpenStatus(bool isOpen) async {
     final truck = state.asData?.value;
     if (truck == null) return;
-    state = AsyncData(truck.copyWith(isOpen: isOpen));
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    state = AsyncData(truck.copyWith(
+      isOpen: isOpen,
+      sessionStartedAt: isOpen ? DateTime.now() : null,
+      openedByUserId: isOpen ? userId : null,
+    ));
     try {
       await ref
           .read(foodTruckRepositoryProvider)
-          .updateOpenStatus(truck.id, isOpen: isOpen);
+          .updateOpenStatus(truck.id, isOpen: isOpen, userId: userId);
     } catch (_) {
       state = AsyncData(truck);
       rethrow;
@@ -103,27 +144,53 @@ class EmployeeGoLiveNotifier extends AsyncNotifier<FoodTruck?> {
         .read(foodTruckRepositoryProvider)
         .updateLocation(truck.id, lat, lng, address: address);
   }
+
+  Future<void> updateOrdersAccepting(bool accepting) async {
+    final truck = state.asData?.value;
+    if (truck == null) return;
+    state = AsyncData(truck.copyWith(ordersAccepting: accepting));
+    try {
+      await ref.read(foodTruckRepositoryProvider).updateOrdersAccepting(truck.id, accepting);
+    } catch (_) {
+      state = AsyncData(truck);
+      rethrow;
+    }
+  }
 }
 
-// Shared go-live handler — used by both owner dashboard and employee card.
+// Shared go-open handler — used by both owner dashboard and employee card.
 Future<void> handleGoLive({
   required bool isOpen,
+  required bool isFixed,
   required Future<void> Function(bool) setOpenStatus,
   required Future<void> Function(double, double, {String? address}) updateLocation,
   required void Function(String, {bool isError}) showMessage,
 }) async {
   if (!isOpen) {
     await setOpenStatus(false);
+    LocationTrackingService.instance.stop();
     return;
   }
 
+  // Fixed businesses have a permanent address — skip GPS entirely.
+  if (isFixed) {
+    try {
+      await setOpenStatus(true);
+      showMessage('You\'re open — customers can find you now!');
+    } catch (e) {
+      showMessage('Could not update status: $e', isError: true);
+    }
+    return;
+  }
+
+  // Mobile business — request location and start GPS tracking.
   LocationPermission permission = await Geolocator.checkPermission();
   if (permission == LocationPermission.denied) {
     permission = await Geolocator.requestPermission();
   }
   if (permission == LocationPermission.deniedForever ||
       permission == LocationPermission.denied) {
-    showMessage('Location permission is required to go live', isError: true);
+    showMessage('Location permission is required', isError: true);
     return;
   }
 
@@ -154,7 +221,8 @@ Future<void> handleGoLive({
     } catch (_) {}
     await updateLocation(pos.latitude, pos.longitude, address: address);
     await setOpenStatus(true);
-    showMessage('You\'re live — customers can find you now!');
+    LocationTrackingService.instance.start(onLocation: updateLocation);
+    showMessage('You\'re open — customers can find you now!');
   } catch (e) {
     showMessage('Could not get location: $e', isError: true);
   }

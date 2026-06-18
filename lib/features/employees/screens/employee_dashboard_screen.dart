@@ -125,63 +125,76 @@ class _EmployeeDashboardScreenState extends ConsumerState<EmployeeDashboardScree
       String? address;
 
       if (!isOwnerLive) {
-        // Mode B: employee goes live — get location first
-        LocationPermission permission = await Geolocator.checkPermission();
-        if (permission == LocationPermission.denied) {
-          permission = await Geolocator.requestPermission();
-        }
-        if (!mounted) return;
-        if (permission == LocationPermission.deniedForever ||
-            permission == LocationPermission.denied) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-              content: Text('Location permission is required to go live')));
-          return;
-        }
-
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Getting your location…')));
-
-        final pos = await Geolocator.getCurrentPosition(
-          locationSettings:
-              const LocationSettings(accuracy: LocationAccuracy.high),
-        );
-        if (!mounted) return;
-
-        try {
-          final marks =
-              await placemarkFromCoordinates(pos.latitude, pos.longitude);
-          if (marks.isNotEmpty) {
-            final p = marks.first;
-            final street = [
-              if (p.subThoroughfare?.isNotEmpty ?? false) p.subThoroughfare!,
-              if (p.thoroughfare?.isNotEmpty ?? false) p.thoroughfare!,
-            ].join(' ');
-            final city = p.locality ?? '';
-            if (street.isNotEmpty && city.isNotEmpty) {
-              address = '$street, $city';
-            } else if (city.isNotEmpty) {
-              address = city;
-            } else if (street.isNotEmpty) {
-              address = street;
-            }
-          }
-        } catch (_) {}
-
         final notifier =
             ref.read(employeeGoLiveProvider(widget.truckId).notifier);
-        await notifier.updateLocation(pos.latitude, pos.longitude,
-            address: address);
-        await notifier.setOpenStatus(true);
-        LocationTrackingService.instance
-            .start(onLocation: notifier.updateLocation);
 
-        if (mounted) {
-          ScaffoldMessenger.of(context).hideCurrentSnackBar();
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Truck is live — customers can find you now!'),
-            backgroundColor: AppColors.openGreen,
-            duration: Duration(seconds: 3),
-          ));
+        if (truck?.isFixed ?? false) {
+          // Fixed business — no GPS needed, just mark as open.
+          await notifier.setOpenStatus(true);
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text('Truck is open — customers can find you now!'),
+              backgroundColor: AppColors.openGreen,
+              duration: Duration(seconds: 3),
+            ));
+          }
+        } else {
+          // Mobile business — get location first.
+          LocationPermission permission = await Geolocator.checkPermission();
+          if (permission == LocationPermission.denied) {
+            permission = await Geolocator.requestPermission();
+          }
+          if (!mounted) return;
+          if (permission == LocationPermission.deniedForever ||
+              permission == LocationPermission.denied) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                content: Text('Location permission is required')));
+            return;
+          }
+
+          ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Getting your location…')));
+
+          final pos = await Geolocator.getCurrentPosition(
+            locationSettings:
+                const LocationSettings(accuracy: LocationAccuracy.high),
+          );
+          if (!mounted) return;
+
+          try {
+            final marks =
+                await placemarkFromCoordinates(pos.latitude, pos.longitude);
+            if (marks.isNotEmpty) {
+              final p = marks.first;
+              final street = [
+                if (p.subThoroughfare?.isNotEmpty ?? false) p.subThoroughfare!,
+                if (p.thoroughfare?.isNotEmpty ?? false) p.thoroughfare!,
+              ].join(' ');
+              final city = p.locality ?? '';
+              if (street.isNotEmpty && city.isNotEmpty) {
+                address = '$street, $city';
+              } else if (city.isNotEmpty) {
+                address = city;
+              } else if (street.isNotEmpty) {
+                address = street;
+              }
+            }
+          } catch (_) {}
+
+          await notifier.updateLocation(pos.latitude, pos.longitude,
+              address: address);
+          await notifier.setOpenStatus(true);
+          LocationTrackingService.instance
+              .start(onLocation: notifier.updateLocation);
+
+          if (mounted) {
+            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text('Truck is open — customers can find you now!'),
+              backgroundColor: AppColors.openGreen,
+              duration: Duration(seconds: 3),
+            ));
+          }
         }
       }
 
@@ -220,8 +233,8 @@ class _EmployeeDashboardScreenState extends ConsumerState<EmployeeDashboardScree
       builder: (dialogContext) => AlertDialog(
         title: const Text('Clock Out?'),
         content: Text(isOwnerLive
-            ? 'End your shift? The truck will stay live on the owner\'s device.'
-            : 'End your shift and take the truck offline?'),
+            ? 'End your shift? The truck will stay open on the owner\'s device.'
+            : 'End your shift and close the business?'),
         actionsAlignment: MainAxisAlignment.center,
         actions: [
           TextButton(
@@ -460,7 +473,7 @@ class _StatusCard extends StatelessWidget {
                           Text(
                             isClockedIn
                                 ? (isOwnerLive
-                                    ? 'Owner is Live'
+                                    ? 'Owner is Open'
                                     : 'You\'re Clocked In')
                                 : 'Not Clocked In',
                             style: AppTextStyles.label.copyWith(
@@ -475,7 +488,7 @@ class _StatusCard extends StatelessWidget {
                             isClockedIn
                                 ? (isOwnerLive
                                     ? 'Location broadcasting from owner\'s device'
-                                    : 'Truck is live — customers can see you')
+                                    : 'Truck is open — customers can see you')
                                 : 'Clock in to start your shift',
                             style: AppTextStyles.caption,
                           ),

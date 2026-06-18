@@ -80,7 +80,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 const Text('Create account', style: AppTextStyles.heading1),
                 const SizedBox(height: AppSpacing.sm),
                 const Text(
-                  'Discover food trucks near you.',
+                  'Discover local businesses near you.',
                   style: AppTextStyles.body,
                 ),
                 const SizedBox(height: AppSpacing.xxl),

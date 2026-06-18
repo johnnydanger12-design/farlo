@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
@@ -27,8 +28,21 @@ import '../../map/models/food_truck.dart';
 import '../../../core/widgets/truck_map_pin.dart';
 import '../../food_trucks/screens/truck_profile_screen.dart';
 import '../../orders/models/order.dart';
+import '../../orders/repositories/orders_repository.dart';
+import '../providers/subscription_provider.dart';
 
 // ─── Dashboard-only lightweight providers ─────────────────────────────────────
+
+final _stripeConnectedProvider = FutureProvider.autoDispose<bool>((ref) async {
+  final userId = Supabase.instance.client.auth.currentUser?.id;
+  if (userId == null) return false;
+  final row = await Supabase.instance.client
+      .from('profiles')
+      .select('stripe_account_id')
+      .eq('id', userId)
+      .single();
+  return (row['stripe_account_id'] as String?) != null;
+});
 
 final _acceptedBookingsForMonthProvider = FutureProvider.family<
     List<BookingRequest>, (String, int, int)>((ref, key) async {
@@ -94,9 +108,23 @@ class DashboardScreen extends ConsumerWidget {
           return ListView(
             padding: const EdgeInsets.all(AppSpacing.lg),
             children: [
+              const _StripeStatusCard(),
+              const SizedBox(height: AppSpacing.md),
               _QuickActionsRow(
-                onAnnouncement: () =>
-                    _showAnnouncementSheet(context, truck.id, truck.name),
+                onAnnouncement: () {
+                  final sub = ref.read(subscriptionProvider).asData?.value;
+                  if (sub?.hasAccess != true) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                      content: const Text('Announcements require an active subscription'),
+                      action: SnackBarAction(
+                        label: 'Upgrade',
+                        onPressed: () => context.go('/dashboard/subscription'),
+                      ),
+                    ));
+                    return;
+                  }
+                  _showAnnouncementSheet(context, truck.id, truck.name);
+                },
                 onShare: () => _shareTruckProfile(context, truck.name),
               ),
               const SizedBox(height: AppSpacing.md),
@@ -107,7 +135,7 @@ class DashboardScreen extends ConsumerWidget {
                     _handleToggle(context, ref, val, truck.name),
               ),
               const SizedBox(height: AppSpacing.md),
-              if (truck.isOpen) ...[
+              if (truck.isOpen && truck.ordersEnabled) ...[
                 _OrdersWidget(truckId: truck.id),
                 const SizedBox(height: AppSpacing.md),
               ],
@@ -137,6 +165,53 @@ class DashboardScreen extends ConsumerWidget {
       return;
     }
 
+    // Require an active subscription to go live.
+    final sub = ref.read(subscriptionProvider).asData?.value;
+    if (sub?.hasAccess != true) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: const Text('An active subscription is required to open'),
+          action: SnackBarAction(
+            label: 'Upgrade',
+            onPressed: () => context.go('/dashboard/subscription'),
+          ),
+        ));
+      }
+      return;
+    }
+
+    final isFixed = ref.read(ownerTruckProvider).asData?.value?.isFixed ?? false;
+
+    if (isFixed) {
+      // Fixed businesses have a permanent address — no GPS needed, just open.
+      try {
+        await ref.read(ownerTruckProvider.notifier).setOpenStatus(true);
+        final prefs = ref.read(notificationPrefsProvider).asData?.value;
+        if (prefs?.pushEnabled ?? true) {
+          if (prefs?.openAlert ?? true) {
+            PushNotificationService.sendTruckOpenAlert(truckName);
+          }
+        }
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('You\'re open — customers can find you now!'),
+              backgroundColor: AppColors.openGreen,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Could not update status: $e')),
+          );
+        }
+      }
+      return;
+    }
+
+    // Mobile business — request location and start GPS tracking.
     LocationPermission permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
@@ -146,7 +221,7 @@ class DashboardScreen extends ConsumerWidget {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-              content: Text('Location permission is required to go live')),
+              content: Text('Location permission is required')),
         );
       }
       return;
@@ -203,7 +278,7 @@ class DashboardScreen extends ConsumerWidget {
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('You\'re live — customers can find you now!'),
+            content: Text('You\'re open — customers can find you now!'),
             backgroundColor: AppColors.openGreen,
             duration: Duration(seconds: 3),
           ),
@@ -234,7 +309,7 @@ class DashboardScreen extends ConsumerWidget {
     final box = context.findRenderObject() as RenderBox?;
     Share.share(
       'Check out $truckName on Farlo!\n\n'
-      'Find food trucks near you, see their menus, and follow your favorites.\n\n'
+      'Find local businesses near you, see their menus, and follow your favorites.\n\n'
       'Download the app → https://farlo.app',
       sharePositionOrigin:
           box == null ? null : box.localToGlobal(Offset.zero) & box.size,
@@ -269,8 +344,46 @@ class _StatusCard extends ConsumerWidget {
     return 'Updated ${diff.inDays}d ago';
   }
 
+  Future<void> _toggleOrdersAccepting(
+    BuildContext context,
+    WidgetRef ref,
+    bool val,
+    bool stripeConnected,
+  ) async {
+    if (val && !stripeConnected) {
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          backgroundColor: Theme.of(context).brightness == Brightness.light
+              ? Colors.white
+              : Theme.of(context).colorScheme.surface,
+          title: const Text('Connect Stripe First'),
+          content: const Text(
+            'Online orders require a connected Stripe account to receive payments.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+                context.go('/dashboard/stripe-connect');
+              },
+              child: const Text('Connect Stripe →'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+    await ref.read(ownerTruckProvider.notifier).updateOrdersAccepting(val);
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final stripeConnected = ref.watch(_stripeConnectedProvider).asData?.value ?? false;
     final employeeName = _isEmployeeLive
         ? ref
             .watch(_profileDisplayNameProvider(truck.openedByUserId!))
@@ -325,14 +438,14 @@ class _StatusCard extends ConsumerWidget {
                               height: 44,
                               fit: BoxFit.cover,
                               errorBuilder: (_, _, _) => Icon(
-                                Icons.lunch_dining,
+                                Icons.storefront_outlined,
                                 color: Theme.of(context).colorScheme.primary,
                                 size: 24,
                               ),
                             ),
                           )
                         : Icon(
-                            Icons.lunch_dining,
+                            Icons.storefront_outlined,
                             color: Theme.of(context).colorScheme.primary,
                             size: 24,
                           ),
@@ -435,9 +548,9 @@ class _StatusCard extends ConsumerWidget {
                       Text(
                         truck.isOpen
                             ? (_isEmployeeLive
-                                ? '$firstName is Live'
-                                : 'You\'re Live')
-                            : 'You\'re Offline',
+                                ? '$firstName is Open'
+                                : 'You\'re Open')
+                            : 'You\'re Closed',
                         style: AppTextStyles.label.copyWith(
                           color: truck.isOpen
                               ? AppColors.openGreen
@@ -449,9 +562,11 @@ class _StatusCard extends ConsumerWidget {
                       Text(
                         truck.isOpen
                             ? (_isEmployeeLive
-                                ? 'Your truck is live on the map'
+                                ? 'You\'re open on the map'
                                 : 'Customers can see you on the map')
-                            : 'Flip to go live and share your location',
+                            : (truck.isFixed
+                                ? 'Flip to show you\'re open'
+                                : 'Flip to open and share your location'),
                         style: AppTextStyles.caption,
                       ),
                     ],
@@ -468,7 +583,7 @@ class _StatusCard extends ConsumerWidget {
                           title: const Text('End Session?',
                               textAlign: TextAlign.center),
                           content: Text(
-                            'This will take $firstName offline and end their active session.',
+                            'This will close the business and end their active session.',
                             textAlign: TextAlign.center,
                           ),
                           actionsAlignment: MainAxisAlignment.center,
@@ -507,7 +622,186 @@ class _StatusCard extends ConsumerWidget {
               ],
             ),
           ),
+
+          // Cascading orders-accepting toggle — only when live with orders enabled
+          if (truck.isOpen && truck.ordersEnabled) ...[
+            const Divider(height: 1, color: AppColors.divider),
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.lg, vertical: AppSpacing.sm),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          truck.ordersAccepting
+                              ? 'Accepting online orders'
+                              : 'Online orders paused',
+                          style: AppTextStyles.bodySmall.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: truck.ordersAccepting
+                                ? AppColors.openGreen
+                                : AppColors.textSecondary,
+                          ),
+                        ),
+                        Text(
+                          truck.ordersAccepting
+                              ? 'Customers can place orders now'
+                              : 'Tap to start accepting orders',
+                          style: AppTextStyles.caption,
+                        ),
+                      ],
+                    ),
+                  ),
+                  Switch(
+                    value: truck.ordersAccepting,
+                    onChanged: (v) =>
+                        _toggleOrdersAccepting(context, ref, v, stripeConnected),
+                    activeThumbColor: AppColors.openGreen,
+                    activeTrackColor:
+                        AppColors.openGreen.withValues(alpha: 0.4),
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
+      ),
+    );
+  }
+}
+
+// ─── Stripe status card ───────────────────────────────────────────────────────
+
+class _StripeStatusCard extends ConsumerStatefulWidget {
+  const _StripeStatusCard();
+
+  @override
+  ConsumerState<_StripeStatusCard> createState() => _StripeStatusCardState();
+}
+
+class _StripeStatusCardState extends ConsumerState<_StripeStatusCard> {
+  bool _launching = false;
+
+  Future<void> _openStripe(bool isConnected) async {
+    if (!isConnected) {
+      context.go('/dashboard/stripe-connect');
+      return;
+    }
+    setState(() => _launching = true);
+    try {
+      final url = await OrdersRepository(Supabase.instance.client)
+          .connectStripeAccount();
+      final uri = Uri.parse(url);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      }
+    } catch (_) {
+      if (mounted) context.go('/dashboard/stripe-connect');
+    } finally {
+      if (mounted) setState(() => _launching = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final asyncStatus = ref.watch(_stripeConnectedProvider);
+    final isConnected = asyncStatus.asData?.value ?? false;
+    final isLoading = asyncStatus.isLoading || _launching;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.lg, vertical: AppSpacing.md),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: isConnected
+                    ? AppColors.openGreen.withValues(alpha: 0.12)
+                    : Theme.of(context)
+                        .colorScheme
+                        .primary
+                        .withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                isConnected
+                    ? Icons.check_circle_outline
+                    : Icons.account_balance_outlined,
+                size: 20,
+                color: isConnected
+                    ? AppColors.openGreen
+                    : Theme.of(context).colorScheme.primary,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    isConnected ? 'Stripe Connected' : 'Payments Not Set Up',
+                    style: AppTextStyles.bodySmall.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: isConnected
+                          ? AppColors.openGreen
+                          : Theme.of(context).colorScheme.onSurface,
+                    ),
+                  ),
+                  Text(
+                    isConnected
+                        ? 'Tap to manage your Stripe account'
+                        : 'Required for orders and booking payments',
+                    style: AppTextStyles.caption,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            if (isLoading)
+              const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            else
+              TextButton(
+                onPressed: () => _openStripe(isConnected),
+                style: TextButton.styleFrom(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: Text(
+                  isConnected ? 'Dashboard →' : 'Set Up →',
+                  style: AppTextStyles.caption.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: isConnected
+                        ? AppColors.openGreen
+                        : Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -562,9 +856,6 @@ class _OrdersWidgetState extends ConsumerState<_OrdersWidget> {
     final inProgress = orders
         .where((o) => o.status == 'accepted' || o.status == 'ready')
         .toList();
-    final truck = ref.watch(ownerTruckProvider).asData?.value;
-    final ordersAccepting = truck?.ordersAccepting ?? true;
-
     return Container(
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
@@ -608,34 +899,6 @@ class _OrdersWidgetState extends ConsumerState<_OrdersWidget> {
                   const Icon(Icons.chevron_right, color: AppColors.textHint),
                 ],
               ),
-            ),
-          ),
-          // Accept orders toggle
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-                AppSpacing.lg, AppSpacing.sm, AppSpacing.md, 0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    ordersAccepting ? 'Accepting orders' : 'Not accepting orders',
-                    style: AppTextStyles.caption.copyWith(
-                      color: ordersAccepting
-                          ? AppColors.openGreen
-                          : AppColors.textSecondary,
-                    ),
-                  ),
-                ),
-                Switch(
-                  value: ordersAccepting,
-                  onChanged: (_) => ref
-                      .read(ownerTruckProvider.notifier)
-                      .updateOrdersAccepting(!ordersAccepting),
-                  activeThumbColor: AppColors.openGreen,
-                  activeTrackColor: AppColors.openGreen.withValues(alpha: 0.4),
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-              ],
             ),
           ),
           // Order rows

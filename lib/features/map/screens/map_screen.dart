@@ -28,6 +28,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   final _searchController = TextEditingController();
   final _searchFocusNode = FocusNode();
   StreamSubscription<MapEvent>? _mapEventSub;
+  Timer? _badgeTimer;
   bool _isFollowing = true;
   String _searchQuery = '';
   String _instantQuery = '';
@@ -48,6 +49,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     _resolveInitialCenter();
     _loadRecentSearches();
     _searchFocusNode.addListener(_onFocusChanged);
+    _badgeTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (mounted) setState(() {});
+    });
   }
 
   Future<void> _resolveInitialCenter() async {
@@ -74,6 +78,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   @override
   void dispose() {
     _mapEventSub?.cancel();
+    _badgeTimer?.cancel();
     _debounce?.cancel();
     _searchController.dispose();
     _searchFocusNode.removeListener(_onFocusChanged);
@@ -90,8 +95,12 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     if (pos == null) return trucks;
     return trucks.toList()
       ..sort((a, b) {
-        final da = Geolocator.distanceBetween(pos.latitude, pos.longitude, a.latitude, a.longitude);
-        final db = Geolocator.distanceBetween(pos.latitude, pos.longitude, b.latitude, b.longitude);
+        final da = (a.latitude != null && a.longitude != null)
+            ? Geolocator.distanceBetween(pos.latitude, pos.longitude, a.latitude!, a.longitude!)
+            : double.maxFinite;
+        final db = (b.latitude != null && b.longitude != null)
+            ? Geolocator.distanceBetween(pos.latitude, pos.longitude, b.latitude!, b.longitude!)
+            : double.maxFinite;
         return da.compareTo(db);
       });
   }
@@ -149,7 +158,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     _saveSearch(_instantQuery.isNotEmpty ? _instantQuery : _searchQuery);
     _clearSearch();
     setState(() => _isFollowing = false);
-    _mapController.move(LatLng(truck.latitude, truck.longitude), 16.0);
+    _mapController.move(LatLng(truck.latitude!, truck.longitude!), 16.0);
     _onTruckTapped(truck);
   }
 
@@ -158,7 +167,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     ref.read(selectedTruckProvider.notifier).select(truck);
     setState(() => _isFollowing = false);
     _mapController.move(
-      LatLng(truck.latitude, truck.longitude),
+      LatLng(truck.latitude!, truck.longitude!),
       _mapController.camera.zoom,
     );
     showModalBottomSheet<void>(
@@ -179,6 +188,17 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         LatLng(pos.latitude, pos.longitude),
         _mapController.camera.zoom,
       );
+    }
+  }
+
+  // Returns true when a truck's coordinate falls within the current visible bounds.
+  // Falls back to true if the camera isn't ready yet so no markers are hidden early.
+  bool _inVisibleBounds(FoodTruck truck) {
+    try {
+      return _mapController.camera.visibleBounds
+          .contains(LatLng(truck.latitude!, truck.longitude!));
+    } catch (_) {
+      return true;
     }
   }
 
@@ -230,7 +250,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     return trucks
         .where((t) => t.isOpen && favIds.contains(t.id))
         .expand((truck) {
-          final result = _edgePosition(LatLng(truck.latitude, truck.longitude), stackSize);
+          final result = _edgePosition(LatLng(truck.latitude!, truck.longitude!), stackSize);
           if (result == null) return <Widget>[];
           final (pos, scale) = result;
           return <Widget>[
@@ -339,16 +359,28 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                 ),
               MarkerLayer(
                 markers: trucksAsync.asData?.value
+                        .where(_inVisibleBounds)
                         .map(
-                          (truck) => Marker(
-                            point: LatLng(truck.latitude, truck.longitude),
-                            width: 44,
-                            height: 44,
-                            child: GestureDetector(
-                              onTap: () => _onTruckTapped(truck),
-                              child: _TruckPin(isOpen: truck.isOpen, logoUrl: truck.logoUrl),
-                            ),
-                          ),
+                          (truck) {
+                            final showBadge = truck.sessionStartedAt != null &&
+                                DateTime.now().difference(truck.sessionStartedAt!).inMinutes >= 10;
+                            return Marker(
+                              point: LatLng(truck.latitude!, truck.longitude!),
+                              width: showBadge ? 72 : 44,
+                              height: showBadge ? 66 : 44,
+                              alignment: showBadge
+                                  ? const Alignment(0, -0.33)
+                                  : Alignment.center,
+                              child: GestureDetector(
+                                onTap: () => _onTruckTapped(truck),
+                                child: _TruckPin(
+                                  isOpen: truck.isOpen,
+                                  logoUrl: truck.logoUrl,
+                                  sessionStartedAt: truck.sessionStartedAt,
+                                ),
+                              ),
+                            );
+                          },
                         )
                         .toList() ??
                     [],
@@ -407,7 +439,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
               top: topPad + 72,
               left: 0,
               right: 0,
-              child: const Center(child: _MapChip(label: 'No active trucks in this area')),
+              child: const Center(child: _MapChip(label: 'No active businesses in this area')),
             ),
           // Employee go-live cards — pinned at bottom for assigned trucks
           if (employeeTrucks.isNotEmpty)
@@ -470,9 +502,9 @@ class _OffScreenIndicator extends StatelessWidget {
                   truck.logoUrl!,
                   fit: BoxFit.cover,
                   errorBuilder: (_, _, _) =>
-                      const Icon(Icons.lunch_dining, color: Colors.white, size: 22),
+                      const Icon(Icons.storefront_outlined, color: Colors.white, size: 22),
                 )
-              : const Icon(Icons.lunch_dining, color: Colors.white, size: 22),
+              : const Icon(Icons.storefront_outlined, color: Colors.white, size: 22),
         ),
       ),
     );
@@ -480,15 +512,27 @@ class _OffScreenIndicator extends StatelessWidget {
 }
 
 class _TruckPin extends StatelessWidget {
-  const _TruckPin({required this.isOpen, this.logoUrl});
+  const _TruckPin({required this.isOpen, this.logoUrl, this.sessionStartedAt});
 
   final bool isOpen;
   final String? logoUrl;
+  final DateTime? sessionStartedAt;
+
+  String? get _badge {
+    if (sessionStartedAt == null) return null;
+    final diff = DateTime.now().difference(sessionStartedAt!);
+    if (diff.inMinutes < 10) return null;
+    if (diff.inHours >= 1) return 'Opened ${diff.inHours}h';
+    return 'Opened ${diff.inMinutes}m';
+  }
 
   @override
   Widget build(BuildContext context) {
     final accentColor = isOpen ? Theme.of(context).colorScheme.primary : AppColors.textHint;
-    return Container(
+    final badge = _badge;
+    final circle = Container(
+      width: 44,
+      height: 44,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         border: Border.all(color: accentColor, width: 2.5),
@@ -511,6 +555,39 @@ class _TruckPin extends StatelessWidget {
             : _PinFallback(accentColor: accentColor),
       ),
     );
+
+    if (badge == null) return circle;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        circle,
+        const SizedBox(height: 3),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(8),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.18),
+                blurRadius: 4,
+                offset: const Offset(0, 1),
+              ),
+            ],
+          ),
+          child: Text(
+            badge,
+            style: const TextStyle(
+              fontSize: 9,
+              fontWeight: FontWeight.w700,
+              color: Colors.black87,
+              height: 1.1,
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }
 
@@ -522,7 +599,7 @@ class _PinFallback extends StatelessWidget {
   Widget build(BuildContext context) {
     return ColoredBox(
       color: accentColor,
-      child: const Center(child: Icon(Icons.lunch_dining, color: Colors.white, size: 24)),
+      child: const Center(child: Icon(Icons.storefront_outlined, color: Colors.white, size: 24)),
     );
   }
 }
@@ -695,7 +772,7 @@ class _SearchResults extends StatelessWidget {
             if (trucks.isEmpty) {
               return const Padding(
                 padding: EdgeInsets.all(16),
-                child: Text('No trucks found', style: TextStyle(color: AppColors.textHint, fontSize: 14)),
+                child: Text('No businesses found', style: TextStyle(color: AppColors.textHint, fontSize: 14)),
               );
             }
             return ListView.separated(
@@ -723,8 +800,8 @@ class _SearchResults extends StatelessWidget {
                           child: ClipOval(
                             child: truck.logoUrl != null
                                 ? Image.network(truck.logoUrl!, fit: BoxFit.cover,
-                                    errorBuilder: (_, _, _) => const Icon(Icons.lunch_dining, size: 20, color: AppColors.textHint))
-                                : const Icon(Icons.lunch_dining, size: 20, color: AppColors.textHint),
+                                    errorBuilder: (_, _, _) => const Icon(Icons.storefront_outlined, size: 20, color: AppColors.textHint))
+                                : const Icon(Icons.storefront_outlined, size: 20, color: AppColors.textHint),
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -741,7 +818,7 @@ class _SearchResults extends StatelessWidget {
                                     _DistanceChip(
                                       meters: Geolocator.distanceBetween(
                                         userPos!.latitude, userPos!.longitude,
-                                        truck.latitude, truck.longitude,
+                                        truck.latitude!, truck.longitude!,
                                       ),
                                     ),
                                   ],

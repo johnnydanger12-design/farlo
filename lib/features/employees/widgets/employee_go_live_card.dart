@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../providers/employees_provider.dart';
+import '../screens/employee_dashboard_screen.dart';
 
-/// Pinned card on the map — shown when the logged-in user is an employee
-/// of one or more trucks. One card per assigned truck.
 class EmployeeGoLiveCard extends ConsumerWidget {
   const EmployeeGoLiveCard({super.key, required this.truckId, required this.truckName});
 
@@ -16,12 +16,17 @@ class EmployeeGoLiveCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final asyncTruck = ref.watch(employeeGoLiveProvider(truckId));
-
-    final isOpen = asyncTruck.asData?.value?.isOpen ?? false;
+    final truck = asyncTruck.asData?.value;
+    final isOpen = truck?.isOpen ?? false;
+    final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+    final isOwnerSession = isOpen &&
+        truck?.openedByUserId != null &&
+        truck?.openedByUserId != currentUserId;
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md, vertical: AppSpacing.sm),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
@@ -51,11 +56,16 @@ class EmployeeGoLiveCard extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(truckName, style: AppTextStyles.label, maxLines: 1, overflow: TextOverflow.ellipsis),
+                Text(truckName,
+                    style: AppTextStyles.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis),
                 Text(
-                  isOpen ? 'Live — customers can see you' : 'Offline',
+                  isOwnerSession ? 'Owner is Open' : 'Tap to log in',
                   style: AppTextStyles.caption.copyWith(
-                    color: isOpen ? AppColors.openGreen : AppColors.textHint,
+                    color: isOwnerSession
+                        ? AppColors.openGreen
+                        : AppColors.textHint,
                   ),
                 ),
               ],
@@ -68,38 +78,29 @@ class EmployeeGoLiveCard extends ConsumerWidget {
                   height: 24,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
-              : Switch(
-                  value: isOpen,
-                  onChanged: (val) => _handleToggle(context, ref, val),
-                  activeThumbColor: AppColors.openGreen,
-                  activeTrackColor: AppColors.openGreen.withValues(alpha: 0.4),
+              : FilledButton(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => EmployeeDashboardScreen(
+                        truckId: truckId,
+                        truckName: truckName,
+                      ),
+                    ),
+                  ),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Theme.of(context).colorScheme.primary,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.md, vertical: 8),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: const Text('Dashboard',
+                      style:
+                          TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                 ),
         ],
       ),
     );
   }
 
-  Future<void> _handleToggle(BuildContext context, WidgetRef ref, bool isOpen) async {
-    final notifier = ref.read(employeeGoLiveProvider(truckId).notifier);
-    await handleGoLive(
-      isOpen: isOpen,
-      setOpenStatus: notifier.setOpenStatus,
-      updateLocation: notifier.updateLocation,
-      showMessage: (msg, {bool isError = false}) {
-        if (!context.mounted) return;
-        ScaffoldMessenger.of(context).hideCurrentSnackBar();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(msg),
-            backgroundColor: isError
-                ? AppColors.error
-                : isOpen
-                    ? AppColors.openGreen
-                    : null,
-            duration: Duration(seconds: isError ? 4 : 3),
-          ),
-        );
-      },
-    );
-  }
 }

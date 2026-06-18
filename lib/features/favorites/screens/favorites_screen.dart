@@ -196,7 +196,7 @@ class _TruckIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Icon(
-      Icons.lunch_dining,
+      Icons.storefront_outlined,
       color: Theme.of(context).colorScheme.primary,
       size: 28,
     );

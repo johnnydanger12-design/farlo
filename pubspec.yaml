@@ -55,8 +55,10 @@ dependencies:
   add_2_calendar: ^3.0.1
   share_plus: ^10.1.0
   sign_in_with_apple: ^6.1.2
-  google_sign_in: ^6.2.2
+  google_sign_in: ^7.2.0
   crypto: ^3.0.6
+  flutter_stripe: ^13.0.0
+  app_links: ^6.4.0
 
 dev_dependencies:
   flutter_test:
@@ -98,11 +100,16 @@ flutter_launcher_icons:
 
 flutter_native_splash:
   color: "#FFFFFF"
-  image: assets/images/icon.png
+  color_dark: "#121212"
+  image: "assets/images/Farlo Logo.png"
+  image_dark: "assets/images/Farlo Logo.png"
   ios: true
   android: true
-  ios_content_mode: center
+  ios_content_mode: scaleAspectFit
   android_12:
     color: "#FFFFFF"
-    image: assets/images/icon.png
+    color_dark: "#121212"
+    image: "assets/images/Farlo Logo.png"
+    image_dark: "assets/images/Farlo Logo.png"
     icon_background_color: "#FFFFFF"
+    icon_background_color_dark: "#121212"

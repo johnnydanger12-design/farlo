@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
@@ -16,6 +17,7 @@ import '../../reviews/models/review.dart';
 import '../../reviews/providers/reviews_provider.dart';
 import '../../reviews/widgets/review_card.dart';
 import '../../bookings/widgets/book_truck_sheet.dart';
+import '../../orders/widgets/order_cart_sheet.dart';
 import '../../reviews/widgets/write_review_sheet.dart';
 
 class TruckProfileScreen extends ConsumerWidget {
@@ -59,6 +61,7 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
   final _reviewsKey = GlobalKey();
   int _currentPhoto = 0;
   int? _filterRating;
+  RealtimeChannel? _truckChannel;
 
   @override
   void initState() {
@@ -66,6 +69,20 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
     if (widget.scrollToReviews) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToReviews());
     }
+    _truckChannel = Supabase.instance.client
+        .channel('truck-profile-${widget.truck.id}')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
+          schema: 'public',
+          table: 'food_trucks',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'id',
+            value: widget.truck.id,
+          ),
+          callback: (_) => ref.invalidate(foodTruckProvider(widget.truck.id)),
+        )
+        .subscribe();
   }
 
   void _scrollToReviews() {
@@ -81,13 +98,51 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
 
   @override
   void dispose() {
+    if (_truckChannel != null) {
+      Supabase.instance.client.removeChannel(_truckChannel!);
+    }
     _pageController.dispose();
     super.dispose();
   }
 
+  Future<void> _openOrderSheet() async {
+    final truck = widget.truck;
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => Scaffold(
+          backgroundColor: Colors.transparent,
+          body: SafeArea(
+            child: OrderCartSheet(truck: truck),
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _openBookingSheet() async {
     final truck = widget.truck;
-    // Capture top padding here — Flutter strips it from MediaQuery inside modals.
+
+    // Check that the truck owner has an active subscription before allowing
+    // a booking request — bookings are a subscription-gated feature.
+    final row = await Supabase.instance.client
+        .from('owner_subscriptions')
+        .select('status')
+        .eq('owner_id', truck.ownerId)
+        .inFilter('status', ['active', 'trialing'])
+        .maybeSingle();
+
+    if (!mounted) return;
+
+    if (row == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('This business isn\'t currently accepting booking requests.'),
+        ),
+      );
+      return;
+    }
+
     final topPadding = MediaQuery.of(context).viewPadding.top;
     final result = await showModalBottomSheet<bool>(
       context: context,
@@ -110,10 +165,11 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (_) => WriteReviewSheet(truckId: widget.truck.id, existing: existing),
+      builder: (_) => WriteReviewSheet(truckId: widget.truck.id, truckOwnerId: widget.truck.ownerId, existing: existing),
     );
     if (result == true) {
-      // Refresh the truck to get updated rating/count
+      ref.invalidate(truckReviewsProvider(widget.truck.id));
+      ref.invalidate(myReviewProvider(widget.truck.id));
       ref.invalidate(foodTruckProvider(widget.truck.id));
     }
   }
@@ -125,6 +181,33 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
     ref.invalidate(foodTruckProvider(widget.truck.id));
   }
 
+  Future<void> _replyToReview(Review review, {String? existing}) async {
+    final response = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _OwnerReplySheet(existingResponse: existing),
+    );
+    if (response == null || !mounted) return;
+    try {
+      await ref.read(reviewsRepositoryProvider).respondToReview(review.id, response);
+    } finally {
+      ref.invalidate(truckReviewsProvider(widget.truck.id));
+      ref.invalidate(myReviewProvider(widget.truck.id));
+      ref.invalidate(foodTruckProvider(widget.truck.id));
+    }
+  }
+
+  Future<void> _deleteOwnerResponse(Review review) async {
+    try {
+      await ref.read(reviewsRepositoryProvider).deleteOwnerResponse(review.id);
+    } finally {
+      ref.invalidate(truckReviewsProvider(widget.truck.id));
+      ref.invalidate(myReviewProvider(widget.truck.id));
+      ref.invalidate(foodTruckProvider(widget.truck.id));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final truck = widget.truck;
@@ -133,6 +216,7 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
     final asyncMyReview = ref.watch(myReviewProvider(truck.id));
     final user = ref.watch(authProvider).asData?.value;
     final isAuthenticated = user != null;
+    final isOwnerOfTruck = user?.id == truck.ownerId;
 
     return Scaffold(
       body: CustomScrollView(
@@ -238,6 +322,21 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
 
           const _SectionSpacer(),
 
+          // ── Order Now ────────────────────────────────────────────────────
+          if (truck.isOpen && truck.ordersEnabled && truck.ordersAccepting)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+                child: FilledButton.icon(
+                  onPressed: _openOrderSheet,
+                  icon: const Icon(Icons.shopping_bag_outlined),
+                  label: const Text('Order Now'),
+                  style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
+                ),
+              ),
+            ),
+
+          if (truck.isOpen && truck.ordersEnabled && truck.ordersAccepting) const _SectionSpacer(),
 
           // ── Menu ─────────────────────────────────────────────────────────
           if (truck.menuItems.isNotEmpty) ...[
@@ -292,7 +391,7 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
                     children: [
                       Text('Reviews', style: AppTextStyles.heading3),
                       asyncMyReview.when(
-                        data: (myReview) => myReview == null
+                        data: (myReview) => myReview == null && !isOwnerOfTruck
                             ? TextButton(
                                 onPressed: isAuthenticated
                                     ? () => _openReviewSheet(null)
@@ -350,8 +449,12 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
                                 child: ReviewCard(
                                   review: r,
                                   isOwn: isOwn,
+                                  isOwnerOfTruck: isOwnerOfTruck,
                                   onEdit: isOwn ? () => _openReviewSheet(r) : null,
                                   onDelete: isOwn ? () => _deleteReview(r.id) : null,
+                                  onReply: isOwnerOfTruck ? () => _replyToReview(r) : null,
+                                  onEditReply: isOwnerOfTruck ? () => _replyToReview(r, existing: r.ownerResponse) : null,
+                                  onDeleteReply: isOwnerOfTruck ? () => _deleteOwnerResponse(r) : null,
                                 ),
                               );
                             }),
@@ -578,7 +681,7 @@ class _TruckIconPlaceholder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Icon(Icons.lunch_dining, color: Colors.white54, size: 72);
+    return const Icon(Icons.storefront_outlined, color: Colors.white54, size: 72);
   }
 }
 
@@ -778,6 +881,94 @@ class _FilterChip extends StatelessWidget {
             color: active ? Colors.white : AppColors.textSecondary,
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _OwnerReplySheet extends StatefulWidget {
+  const _OwnerReplySheet({this.existingResponse});
+  final String? existingResponse;
+
+  @override
+  State<_OwnerReplySheet> createState() => _OwnerReplySheetState();
+}
+
+class _OwnerReplySheetState extends State<_OwnerReplySheet> {
+  late final TextEditingController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = TextEditingController(text: widget.existingResponse);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomPadding = MediaQuery.of(context).viewInsets.bottom;
+    final isLight = Theme.of(context).brightness == Brightness.light;
+    final canSubmit = _ctrl.text.trim().isNotEmpty;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: isLight ? Colors.white : Theme.of(context).colorScheme.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      padding: EdgeInsets.fromLTRB(
+        AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.lg + bottomPadding,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(
+              width: 36, height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.textHint,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            widget.existingResponse == null ? 'Reply to Review' : 'Edit Reply',
+            style: AppTextStyles.heading3,
+          ),
+          const SizedBox(height: AppSpacing.md),
+          TextField(
+            controller: _ctrl,
+            maxLines: 4,
+            maxLength: 500,
+            textCapitalization: TextCapitalization.sentences,
+            autofocus: true,
+            decoration: const InputDecoration(
+              hintText: 'Thank the customer or address their feedback…',
+              alignLabelWithHint: true,
+              counterText: '',
+            ),
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: canSubmit ? () => Navigator.pop(context, _ctrl.text.trim()) : null,
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                disabledBackgroundColor: AppColors.primary.withValues(alpha: 0.4),
+                disabledForegroundColor: Colors.white.withValues(alpha: 0.7),
+              ),
+              child: Text(widget.existingResponse == null ? 'Post Reply' : 'Save Reply'),
+            ),
+          ),
+        ],
       ),
     );
   }

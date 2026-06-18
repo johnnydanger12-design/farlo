@@ -77,22 +77,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const SizedBox(height: AppSpacing.xxl),
+                const SizedBox(height: AppSpacing.md),
                 Center(
                   child: Image.asset(
-                    'assets/images/icon.png',
-                    width: 80,
-                    height: 80,
+                    'assets/images/Farlo Logo.png',
+                    width: double.infinity,
+                    height: 120,
+                    fit: BoxFit.contain,
                   ),
                 ),
-                const SizedBox(height: AppSpacing.lg),
+                const SizedBox(height: AppSpacing.md),
                 const Text('Welcome', style: AppTextStyles.heading1),
                 const SizedBox(height: AppSpacing.sm),
                 const Text(
-                  'Sign in to find food trucks near you.',
+                  'Sign in to discover local businesses near you.',
                   style: AppTextStyles.body,
                 ),
-                const SizedBox(height: AppSpacing.xxl),
+                const SizedBox(height: AppSpacing.lg),
                 SocialAuthButtons(onError: _showError),
                 const SizedBox(height: AppSpacing.lg),
                 const OrDivider(),
@@ -181,11 +182,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Text('Own a food truck? ', style: AppTextStyles.bodySmall),
+                    const Text('Have a business? ', style: AppTextStyles.bodySmall),
                     GestureDetector(
                       onTap: () => context.go('/register-owner'),
                       child: const Text(
-                        'List your truck',
+                        'Get listed',
                         style: TextStyle(
                           color: AppColors.primary,
                           fontWeight: FontWeight.w600,

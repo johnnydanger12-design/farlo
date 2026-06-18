@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../router.dart';
 
 // Top-level handler required by Firebase for background messages.
 @pragma('vm:entry-point')
@@ -38,7 +39,7 @@ class PushNotificationService {
     }
   }
 
-  static Future<void> sendTruckClosedAlert(String truckName) async {
+static Future<void> sendTruckClosedAlert(String truckName) async {
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (userId == null) return;
     try {
@@ -48,6 +49,39 @@ class PushNotificationService {
       );
     } catch (e) {
       debugPrint('Failed to send truck closed alert: $e');
+    }
+  }
+
+  static Future<void> sendShiftAssigned(String shiftId) async {
+    try {
+      await Supabase.instance.client.functions.invoke(
+        'send-shift-notification',
+        body: {'action': 'shift_assigned', 'shift_id': shiftId},
+      );
+    } catch (e) {
+      debugPrint('Failed to send shift_assigned notification: $e');
+    }
+  }
+
+  static Future<void> sendShiftCorrected(String shiftId) async {
+    try {
+      await Supabase.instance.client.functions.invoke(
+        'send-shift-notification',
+        body: {'action': 'shift_corrected', 'shift_id': shiftId},
+      );
+    } catch (e) {
+      debugPrint('Failed to send shift_corrected notification: $e');
+    }
+  }
+
+  static Future<void> sendShiftResponse(String shiftId) async {
+    try {
+      await Supabase.instance.client.functions.invoke(
+        'send-shift-notification',
+        body: {'action': 'shift_response', 'shift_id': shiftId},
+      );
+    } catch (e) {
+      debugPrint('Failed to send shift_response notification: $e');
     }
   }
 
@@ -66,8 +100,11 @@ class PushNotificationService {
       return;
     }
 
-    // Register current token
-    final token = await FirebaseMessaging.instance.getToken();
+    // Register current token (throws on iOS simulator — safe to ignore)
+    String? token;
+    try {
+      token = await FirebaseMessaging.instance.getToken();
+    } catch (_) {}
     if (token != null) await _storeToken(token);
 
     // Re-register whenever the token rotates
@@ -81,6 +118,55 @@ class PushNotificationService {
       badge: true,
       sound: true,
     );
+
+    // Tap routing: app in background → user taps notification banner
+    FirebaseMessaging.onMessageOpenedApp.listen(_handleNotificationTap);
+
+    // Tap routing: app was terminated → user taps notification to launch
+    // By the time getInitialMessage resolves (after permission request above),
+    // the first frame has rendered and sharedRouter is set.
+    final initial = await FirebaseMessaging.instance.getInitialMessage();
+    if (initial != null) _handleNotificationTap(initial);
+  }
+
+  static void _handleNotificationTap(RemoteMessage message) {
+    final router = sharedRouter;
+    if (router == null) {
+      // Router not yet initialized (rare cold-start race) — retry after first frame.
+      Future.delayed(const Duration(milliseconds: 300), () => _handleNotificationTap(message));
+      return;
+    }
+
+    final type = message.data['type'] as String?;
+    switch (type) {
+      case 'booking_accepted':
+      case 'booking_declined':
+      case 'booking_cancelled_by_owner':
+      case 'estimate_sent':
+      case 'deposit_requested':
+      case 'invoice_sent':
+        router.go('/notifications/my-requests');
+      case 'booking_created':
+      case 'booking_cancelled_by_consumer':
+      case 'estimate_responded':
+      case 'deposit_paid':
+      case 'invoice_paid':
+        router.go('/owner-bookings');
+      case 'new_message':
+        final isOwner = message.data['recipient_is_owner'] == 'true';
+        router.go(isOwner ? '/owner-bookings' : '/notifications/my-requests');
+      case 'announcement':
+        router.go('/notifications');
+      case 'order_placed':
+      case 'order_cancelled':
+        router.go('/dashboard/orders');
+      case 'order_accepted':
+      case 'order_ready':
+      case 'order_declined':
+        router.go('/notifications/my-orders');
+      default:
+        break;
+    }
   }
 
   static Future<void> _storeToken(String token) async {

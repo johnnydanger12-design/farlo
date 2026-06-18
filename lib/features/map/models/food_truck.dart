@@ -13,9 +13,10 @@ class FoodTruck {
     this.menuPdfUrl,
     this.menuImageUrl,
     this.address,
-    required this.latitude,
-    required this.longitude,
+    this.latitude,
+    this.longitude,
     this.locationUpdatedAt,
+    this.sessionStartedAt,
     required this.averageRating,
     required this.reviewCount,
     required this.isOpen,
@@ -28,6 +29,11 @@ class FoodTruck {
     this.socialTwitter,
     this.socialYoutube,
     this.websiteUrl,
+    this.cancellationPolicyHours,
+    this.ordersEnabled = false,
+    this.ordersAccepting = true,
+    this.openedByUserId,
+    this.businessType = 'mobile',
   });
 
   final String id;
@@ -46,9 +52,17 @@ class FoodTruck {
   final String? socialTwitter;
   final String? socialYoutube;
   final String? websiteUrl;
-  final double latitude;
-  final double longitude;
+  final int? cancellationPolicyHours;
+  final bool ordersEnabled;
+  final bool ordersAccepting;
+  final String? openedByUserId;
+  final String businessType;
+
+  bool get isFixed => businessType == 'fixed';
+  final double? latitude;
+  final double? longitude;
   final DateTime? locationUpdatedAt;
+  final DateTime? sessionStartedAt;
   final double averageRating;
   final int reviewCount;
   final bool isOpen;
@@ -84,10 +98,13 @@ class FoodTruck {
       menuPdfUrl: map['menu_pdf_url'] as String?,
       menuImageUrl: map['menu_image_url'] as String?,
       address: map['address'] as String?,
-      latitude: (map['latitude'] as num).toDouble(),
-      longitude: (map['longitude'] as num).toDouble(),
+      latitude: (map['latitude'] as num?)?.toDouble(),
+      longitude: (map['longitude'] as num?)?.toDouble(),
       locationUpdatedAt: map['location_updated_at'] != null
           ? DateTime.parse(map['location_updated_at'] as String)
+          : null,
+      sessionStartedAt: map['session_started_at'] != null
+          ? DateTime.parse(map['session_started_at'] as String)
           : null,
       averageRating: (map['average_rating'] as num?)?.toDouble() ?? 0.0,
       reviewCount: (map['review_count'] as num?)?.toInt() ?? 0,
@@ -101,8 +118,15 @@ class FoodTruck {
       socialTwitter: map['social_twitter'] as String?,
       socialYoutube: map['social_youtube'] as String?,
       websiteUrl: map['website_url'] as String?,
+      cancellationPolicyHours: map['cancellation_policy_hours'] as int?,
+      ordersEnabled: map['orders_enabled'] as bool? ?? false,
+      ordersAccepting: map['orders_accepting'] as bool? ?? true,
+      openedByUserId: map['opened_by_user_id'] as String?,
+      businessType: map['business_type'] as String? ?? 'mobile',
     );
   }
+
+  static const _unset = Object();
 
   FoodTruck copyWith({
     String? name,
@@ -112,11 +136,16 @@ class FoodTruck {
     List<String>? photoUrls,
     String? address,
     bool? isOpen,
+    bool? ordersEnabled,
+    bool? ordersAccepting,
     double? latitude,
     double? longitude,
     DateTime? locationUpdatedAt,
+    Object? sessionStartedAt = _unset,
+    Object? openedByUserId = _unset,
     List<OperatingHours>? operatingHours,
     List<MenuItem>? menuItems,
+    String? businessType,
   }) {
     return FoodTruck(
       id: id,
@@ -132,12 +161,22 @@ class FoodTruck {
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
       locationUpdatedAt: locationUpdatedAt ?? this.locationUpdatedAt,
+      sessionStartedAt: sessionStartedAt == _unset
+          ? this.sessionStartedAt
+          : sessionStartedAt as DateTime?,
       averageRating: averageRating,
       reviewCount: reviewCount,
       isOpen: isOpen ?? this.isOpen,
+      ordersEnabled: ordersEnabled ?? this.ordersEnabled,
+      ordersAccepting: ordersAccepting ?? this.ordersAccepting,
+      openedByUserId: openedByUserId == _unset
+          ? this.openedByUserId
+          : openedByUserId as String?,
       isActive: isActive,
       operatingHours: operatingHours ?? this.operatingHours,
       menuItems: menuItems ?? this.menuItems,
+      cancellationPolicyHours: cancellationPolicyHours,
+      businessType: businessType ?? this.businessType,
     );
   }
 }

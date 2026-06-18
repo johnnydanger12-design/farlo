@@ -18,11 +18,15 @@ class BookingRequest {
     this.cancellationReason,
     this.cancelledBy,
     required this.createdAt,
+    this.otherTrucksPresent,
+    this.otherTrucksCount,
+    this.truckCancellationPolicyHours,
   });
 
   final String id;
   final String truckId;
   final String? truckName;
+  final int? truckCancellationPolicyHours;
   final String? requesterId;
   final String contactName;
   final String contactEmail;
@@ -38,12 +42,15 @@ class BookingRequest {
   final String? cancellationReason;
   final String? cancelledBy;
   final DateTime createdAt;
+  final bool? otherTrucksPresent;
+  final int? otherTrucksCount;
 
   factory BookingRequest.fromMap(Map<String, dynamic> map) {
     return BookingRequest(
       id: map['id'] as String,
       truckId: map['truck_id'] as String,
       truckName: (map['food_trucks'] as Map<String, dynamic>?)?['name'] as String?,
+      truckCancellationPolicyHours: (map['food_trucks'] as Map<String, dynamic>?)?['cancellation_policy_hours'] as int?,
       requesterId: map['requester_id'] as String?,
       contactName: map['contact_name'] as String,
       contactEmail: map['contact_email'] as String,
@@ -59,6 +66,8 @@ class BookingRequest {
       cancellationReason: map['cancellation_reason'] as String?,
       cancelledBy: map['cancelled_by'] as String?,
       createdAt: DateTime.parse(map['created_at'] as String),
+      otherTrucksPresent: map['other_trucks_present'] as bool?,
+      otherTrucksCount: map['other_trucks_count'] as int?,
     );
   }
 }

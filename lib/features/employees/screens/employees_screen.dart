@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../food_trucks/providers/food_truck_provider.dart';
+import '../../owner_dashboard/providers/subscription_provider.dart';
 import '../models/truck_employee.dart';
 import '../providers/employees_provider.dart';
 
@@ -104,6 +106,17 @@ class _EmployeesList extends ConsumerWidget {
   }
 
   void _showAddDialog(BuildContext context, WidgetRef ref) {
+    final sub = ref.read(subscriptionProvider).asData?.value;
+    if (sub?.hasAccess != true) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Text('Employee management requires an active subscription'),
+        action: SnackBarAction(
+          label: 'Upgrade',
+          onPressed: () => context.go('/dashboard/subscription'),
+        ),
+      ));
+      return;
+    }
     final ctrl = TextEditingController();
     showDialog<void>(
       context: context,
@@ -173,7 +186,7 @@ class _EmployeesList extends ConsumerWidget {
         backgroundColor: Theme.of(context).brightness == Brightness.light ? Colors.white : null,
         title: const Text('Remove employee?'),
         content: Text(
-          'Remove ${employee.displayName ?? employee.invitedEmail}? They will lose access to go live for your truck.',
+          'Remove ${employee.displayName ?? employee.invitedEmail}? They will lose access to open your business.',
         ),
         actions: [
           TextButton(
@@ -201,61 +214,62 @@ class _EmployeeTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isPending = employee.isPending;
-    return Container(
-      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
-      decoration: BoxDecoration(
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+      child: Material(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
-      ),
-      child: ListTile(
-        leading: CircleAvatar(
-          radius: 20,
-          backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
-          child: Text(
-            (employee.displayName ?? employee.invitedEmail)[0].toUpperCase(),
-            style: TextStyle(
-              color: Theme.of(context).colorScheme.primary,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-        title: Text(
-          employee.displayName ?? employee.invitedEmail,
-          style: AppTextStyles.label,
-        ),
-        subtitle: Text(
-          isPending ? 'Pending — waiting for sign-up' : employee.invitedEmail,
-          style: AppTextStyles.caption.copyWith(
-            color: isPending ? AppColors.textHint : null,
-          ),
-        ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (isPending)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: AppColors.textHint.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: const Text('Pending', style: TextStyle(fontSize: 11, color: AppColors.textHint)),
-              )
-            else
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: AppColors.openGreen.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text('Active', style: TextStyle(fontSize: 11, color: AppColors.openGreen)),
+        clipBehavior: Clip.antiAlias,
+        child: ListTile(
+          leading: CircleAvatar(
+            radius: 20,
+            backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
+            child: Text(
+              (employee.displayName ?? employee.invitedEmail)[0].toUpperCase(),
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.primary,
+                fontWeight: FontWeight.w600,
               ),
-            const SizedBox(width: AppSpacing.sm),
-            IconButton(
-              icon: const Icon(Icons.remove_circle_outline, color: AppColors.error, size: 20),
-              onPressed: onRemove,
             ),
-          ],
+          ),
+          title: Text(
+            employee.displayName ?? employee.invitedEmail,
+            style: AppTextStyles.label,
+          ),
+          subtitle: Text(
+            isPending ? 'Pending — waiting for sign-up' : employee.invitedEmail,
+            style: AppTextStyles.caption.copyWith(
+              color: isPending ? AppColors.textHint : null,
+            ),
+          ),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (isPending)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: AppColors.textHint.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Text('Pending', style: TextStyle(fontSize: 11, color: AppColors.textHint)),
+                )
+              else
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: AppColors.openGreen.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text('Active', style: TextStyle(fontSize: 11, color: AppColors.openGreen)),
+                ),
+              const SizedBox(width: AppSpacing.sm),
+              IconButton(
+                icon: const Icon(Icons.remove_circle_outline, color: AppColors.error, size: 20),
+                onPressed: onRemove,
+              ),
+            ],
+          ),
         ),
       ),
     );

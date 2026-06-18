@@ -11,20 +11,27 @@ class SubscriptionService {
     return info.entitlements.active.containsKey(_entitlementId);
   }
 
-  Future<void> purchase() async {
+  Future<void> purchase({bool annual = false}) async {
     if (!rcConfigured) throw Exception('Subscription service is not available in this build.');
     final offerings = await Purchases.getOfferings();
     final current = offerings.current;
     if (current == null || current.availablePackages.isEmpty) {
       throw Exception('No subscription offerings available. Please try again later.');
     }
-    final package = current.availablePackages.first;
+    final targetType = annual ? PackageType.annual : PackageType.monthly;
+    final package = current.availablePackages.firstWhere(
+      (p) => p.packageType == targetType,
+      orElse: () => current.availablePackages.first,
+    );
     await Purchases.purchase(PurchaseParams.package(package));
   }
 
   Future<void> restore() async {
     if (!rcConfigured) throw Exception('Subscription service is not available in this build.');
-    await Purchases.restorePurchases();
+    final info = await Purchases.restorePurchases();
+    if (!info.entitlements.active.containsKey(_entitlementId)) {
+      throw Exception('No active purchases found to restore.');
+    }
   }
 }
 

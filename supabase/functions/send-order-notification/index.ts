@@ -138,7 +138,7 @@ Deno.serve(async (req: Request) => {
     );
   }
 
-  const truckName: string = (order.food_trucks as Record<string, string> | null)?.name ?? 'the truck';
+  const truckName: string = (order.food_trucks as Record<string, string> | null)?.name ?? 'the business';
   const consumerName: string = (order.profiles as Record<string, string> | null)?.display_name ?? 'A customer';
   const ownerId: string | null = (order.food_trucks as Record<string, string> | null)?.owner_id ?? null;
   const totalFormatted = `$${Number(order.total_price).toFixed(2)}`;

@@ -31,6 +31,7 @@ class ReviewsRepository {
 
   Future<void> submitReview({
     required String truckId,
+    required String truckOwnerId,
     required String userDisplayName,
     String? userAvatarUrl,
     required int rating,
@@ -38,6 +39,7 @@ class ReviewsRepository {
   }) async {
     final userId = _supabase.auth.currentUser?.id;
     if (userId == null) throw Exception('Not authenticated');
+    if (userId == truckOwnerId) throw Exception('Owners cannot review their own truck');
 
     await _supabase.from(SupabaseConstants.reviewsTable).upsert({
       'truck_id': truckId,
@@ -47,6 +49,7 @@ class ReviewsRepository {
       'rating': rating,
       'comment': comment?.trim().isEmpty ?? true ? null : comment!.trim(),
     }, onConflict: 'truck_id,user_id');
+    // Notifications are inserted by DB triggers (bypass RLS): on_review_inserted, on_review_response_added
   }
 
   Future<void> deleteReview(String reviewId) async {
@@ -54,5 +57,19 @@ class ReviewsRepository {
         .from(SupabaseConstants.reviewsTable)
         .delete()
         .eq('id', reviewId);
+  }
+
+  Future<void> respondToReview(String reviewId, String response) async {
+    await _supabase.rpc('set_owner_review_response', params: {
+      'p_review_id': reviewId,
+      'p_response': response,
+    });
+    // Notification inserted by DB trigger on_review_response_added
+  }
+
+  Future<void> deleteOwnerResponse(String reviewId) async {
+    await _supabase.rpc('delete_owner_review_response', params: {
+      'p_review_id': reviewId,
+    });
   }
 }

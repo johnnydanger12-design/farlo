@@ -1,7 +1,52 @@
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../models/booking_deposit.dart';
+import '../models/booking_quote.dart';
 import '../models/booking_request.dart';
 import '../repositories/bookings_repository.dart';
+import '../repositories/messaging_repository.dart';
+
+// Realtime pending booking count for a truck — used by owner shell badge + dashboard.
+final pendingBookingCountProvider =
+    StreamProvider.family<int, String>((ref, truckId) {
+  final controller = StreamController<int>();
+
+  Future<void> refresh() async {
+    try {
+      final data = await Supabase.instance.client
+          .from('event_booking_requests')
+          .select('id')
+          .eq('truck_id', truckId)
+          .eq('status', 'pending');
+      if (!controller.isClosed) controller.add((data as List).length);
+    } catch (_) {}
+  }
+
+  refresh();
+
+  final channel = Supabase.instance.client
+      .channel('pending_bookings_$truckId')
+      .onPostgresChanges(
+        event: PostgresChangeEvent.all,
+        schema: 'public',
+        table: 'event_booking_requests',
+        filter: PostgresChangeFilter(
+          type: PostgresChangeFilterType.eq,
+          column: 'truck_id',
+          value: truckId,
+        ),
+        callback: (_) => refresh(),
+      )
+      .subscribe();
+
+  ref.onDispose(() {
+    channel.unsubscribe();
+    controller.close();
+  });
+
+  return controller.stream;
+});
 
 final bookingsRepositoryProvider = Provider<BookingsRepository>((ref) {
   return BookingsRepository(Supabase.instance.client);
@@ -38,6 +83,8 @@ class OwnerBookingRequestsNotifier extends AsyncNotifier<List<BookingRequest>> {
     required String eventLocation,
     required String eventType,
     String? notes,
+    bool? otherTrucksPresent,
+    int? otherTrucksCount,
   }) async {
     final booking = await ref.read(bookingsRepositoryProvider).createManualBooking(
       truckId: truckId,
@@ -51,6 +98,8 @@ class OwnerBookingRequestsNotifier extends AsyncNotifier<List<BookingRequest>> {
       eventLocation: eventLocation,
       eventType: eventType,
       notes: notes,
+      otherTrucksPresent: otherTrucksPresent,
+      otherTrucksCount: otherTrucksCount,
     );
     final current = state.asData?.value ?? [];
     state = AsyncData([booking, ...current]);
@@ -83,6 +132,8 @@ class OwnerBookingRequestsNotifier extends AsyncNotifier<List<BookingRequest>> {
         cancellationReason: cancellationReason ?? r.cancellationReason,
         cancelledBy: status == 'cancelled' ? 'owner' : r.cancelledBy,
         createdAt: r.createdAt,
+        otherTrucksPresent: r.otherTrucksPresent,
+        otherTrucksCount: r.otherTrucksCount,
       );
 }
 
@@ -130,9 +181,34 @@ class MyBookingRequestsNotifier extends AsyncNotifier<List<BookingRequest>> {
         cancellationReason: r.cancellationReason,
         cancelledBy: status == 'cancelled' ? 'consumer' : r.cancelledBy,
         createdAt: r.createdAt,
+        otherTrucksPresent: r.otherTrucksPresent,
+        otherTrucksCount: r.otherTrucksCount,
       );
 }
 
 final myBookingRequestsProvider = AsyncNotifierProvider<MyBookingRequestsNotifier, List<BookingRequest>>(
   MyBookingRequestsNotifier.new,
 );
+
+// Unread message count per booking for the current user — used for chat badges.
+// "Unread" = messages from the other party sent after the last time this user opened the chat.
+final bookingMessageCountProvider =
+    FutureProvider.autoDispose.family<int, (String, String)>((ref, args) async {
+  final (bookingId, userId) = args;
+  return MessagingRepository(Supabase.instance.client)
+      .fetchUnreadCount(bookingId, userId);
+});
+
+// ─── Financial: quotes (estimates & invoices) ─────────────────────────────────
+
+final bookingQuotesProvider =
+    FutureProvider.autoDispose.family<List<BookingQuote>, String>((ref, bookingId) {
+  return ref.read(bookingsRepositoryProvider).fetchQuotes(bookingId);
+});
+
+// ─── Financial: deposit ───────────────────────────────────────────────────────
+
+final bookingDepositProvider =
+    FutureProvider.autoDispose.family<BookingDeposit?, String>((ref, bookingId) {
+  return ref.read(bookingsRepositoryProvider).fetchDeposit(bookingId);
+});

@@ -10,10 +10,14 @@ class PlacesAutocompleteField extends StatefulWidget {
     super.key,
     required this.controller,
     this.validator,
+    this.label = '* Event location / address',
+    this.onCoordinatesSelected,
   });
 
   final TextEditingController controller;
   final String? Function(String?)? validator;
+  final String label;
+  final void Function(double lat, double lng)? onCoordinatesSelected;
 
   @override
   State<PlacesAutocompleteField> createState() => _PlacesAutocompleteFieldState();
@@ -93,18 +97,27 @@ class _PlacesAutocompleteFieldState extends State<PlacesAutocompleteField> {
 
     final uri = Uri.https('maps.googleapis.com', '/maps/api/place/details/json', {
       'place_id': pred.placeId,
-      'fields': 'formatted_address',
+      'fields': 'formatted_address,geometry',
       'key': _apiKey,
     });
     try {
       final res = await http.get(uri);
       final data = json.decode(res.body) as Map<String, dynamic>;
-      final address = (data['result'] as Map<String, dynamic>?)?['formatted_address'] as String?;
+      final result = data['result'] as Map<String, dynamic>?;
+      final address = result?['formatted_address'] as String?;
       final text = address ?? pred.description;
       widget.controller.value = TextEditingValue(
         text: text,
         selection: TextSelection.collapsed(offset: text.length),
       );
+      if (widget.onCoordinatesSelected != null) {
+        final loc = (result?['geometry'] as Map<String, dynamic>?)?['location'] as Map<String, dynamic>?;
+        if (loc != null) {
+          final lat = (loc['lat'] as num).toDouble();
+          final lng = (loc['lng'] as num).toDouble();
+          widget.onCoordinatesSelected!(lat, lng);
+        }
+      }
     } catch (_) {
       widget.controller.value = TextEditingValue(
         text: pred.description,
@@ -233,9 +246,9 @@ class _PlacesAutocompleteFieldState extends State<PlacesAutocompleteField> {
         validator: widget.validator,
         textInputAction: TextInputAction.done,
         onFieldSubmitted: (_) => _focusNode.unfocus(),
-        decoration: const InputDecoration(
-          labelText: '* Event location / address',
-          suffixIcon: Icon(Icons.search_outlined, size: 18),
+        decoration: InputDecoration(
+          labelText: widget.label,
+          suffixIcon: const Icon(Icons.search_outlined, size: 18),
         ),
       ),
     );

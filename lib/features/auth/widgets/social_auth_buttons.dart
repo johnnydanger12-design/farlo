@@ -32,6 +32,7 @@ class _SocialAuthButtonsState extends ConsumerState<SocialAuthButtons> {
   }
 
   String _friendlyError(Object error) {
+    debugPrint('Social sign-in error: $error');
     final msg = error.toString().toLowerCase();
     if (msg.contains('network') || msg.contains('socket')) {
       return 'No internet connection. Please try again.';

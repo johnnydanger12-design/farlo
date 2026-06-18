@@ -48,6 +48,10 @@ class AuthRepository {
     required String password,
     required String displayName,
     required String truckName,
+    String businessType = 'mobile',
+    String? address,
+    double? latitude,
+    double? longitude,
   }) async {
     final response = await _supabase.auth.signUp(
       email: email,
@@ -69,6 +73,10 @@ class AuthRepository {
       'is_open': false,
       'is_active': false,
       'photo_urls': <String>[],
+      'business_type': businessType,
+      'address': ?address,
+      'latitude': ?latitude,
+      'longitude': ?longitude,
     });
 
     await _supabase.from(SupabaseConstants.subscriptionsTable).insert({
@@ -84,6 +92,10 @@ class AuthRepository {
   Future<AppUser> upgradeToOwner({
     required String uid,
     required String truckName,
+    String businessType = 'mobile',
+    String? address,
+    double? latitude,
+    double? longitude,
   }) async {
     final existing = await _supabase
         .from(SupabaseConstants.foodTrucksTable)
@@ -104,6 +116,10 @@ class AuthRepository {
         'is_open': false,
         'is_active': false,
         'photo_urls': <String>[],
+        'business_type': businessType,
+        'address': ?address,
+        'latitude': ?latitude,
+        'longitude': ?longitude,
       });
 
       await _supabase.from(SupabaseConstants.subscriptionsTable).upsert(
@@ -191,23 +207,39 @@ class AuthRepository {
   }
 
   Future<AppUser> signInWithGoogle() async {
-    final googleUser = await GoogleSignIn(
+    final rawNonce = _supabase.auth.generateRawNonce();
+    final hashedNonce = sha256.convert(utf8.encode(rawNonce)).toString();
+
+    await GoogleSignIn.instance.initialize(
       serverClientId: _googleWebClientId.isEmpty ? null : _googleWebClientId,
-    ).signIn();
+      nonce: hashedNonce,
+    );
 
-    if (googleUser == null) throw SocialCancelledException();
+    final GoogleSignInAccount account;
+    try {
+      account = await GoogleSignIn.instance.authenticate();
+    } on GoogleSignInException catch (e) {
+      if (e.code == GoogleSignInExceptionCode.canceled ||
+          e.code == GoogleSignInExceptionCode.interrupted) {
+        throw SocialCancelledException();
+      }
+      rethrow;
+    }
 
-    final googleAuth = await googleUser.authentication;
+    final idToken = account.authentication.idToken;
+    if (idToken == null) {
+      throw Exception('Google sign-in did not return an ID token.');
+    }
 
     final response = await _supabase.auth.signInWithIdToken(
       provider: OAuthProvider.google,
-      idToken: googleAuth.idToken!,
-      accessToken: googleAuth.accessToken,
+      idToken: idToken,
+      nonce: rawNonce,
     );
 
     final uid = response.user!.id;
-    final email = googleUser.email;
-    final displayName = googleUser.displayName ?? email.split('@').first;
+    final email = account.email;
+    final displayName = account.displayName ?? email.split('@').first;
 
     return _provisionSocialProfile(uid: uid, email: email, displayName: displayName);
   }

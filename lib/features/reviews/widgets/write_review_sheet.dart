@@ -5,14 +5,20 @@ import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../auth/providers/auth_provider.dart';
-import '../providers/reviews_provider.dart';
 import '../models/review.dart';
+import '../providers/reviews_provider.dart';
 
 /// Call via showModalBottomSheet. Passes back `true` on successful submit.
 class WriteReviewSheet extends ConsumerStatefulWidget {
-  const WriteReviewSheet({super.key, required this.truckId, this.existing});
+  const WriteReviewSheet({
+    super.key,
+    required this.truckId,
+    required this.truckOwnerId,
+    this.existing,
+  });
 
   final String truckId;
+  final String truckOwnerId;
   final Review? existing; // pre-fill if editing
 
   @override
@@ -52,13 +58,12 @@ class _WriteReviewSheetState extends ConsumerState<WriteReviewSheet> {
       final displayName = user?.displayName ?? 'Anonymous';
       await ref.read(reviewsRepositoryProvider).submitReview(
             truckId: widget.truckId,
+            truckOwnerId: widget.truckOwnerId,
             userDisplayName: displayName,
             userAvatarUrl: user?.avatarUrl,
             rating: _rating,
             comment: _commentCtrl.text,
           );
-      ref.invalidate(truckReviewsProvider(widget.truckId));
-      ref.invalidate(myReviewProvider(widget.truckId));
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       if (mounted) {

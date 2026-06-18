@@ -71,7 +71,10 @@ async function sendFCM(
   body: string,
   projectId: string,
   accessToken: string,
+  data: Record<string, string> = {},
 ): Promise<void> {
+  const msg: Record<string, unknown> = { token: fcmToken, notification: { title, body } };
+  if (Object.keys(data).length > 0) msg.data = data;
   const res = await fetch(
     `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`,
     {
@@ -80,7 +83,7 @@ async function sendFCM(
         Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ message: { token: fcmToken, notification: { title, body } } }),
+      body: JSON.stringify({ message: msg }),
     },
   );
   if (!res.ok) console.error('FCM error:', await res.text());
@@ -93,11 +96,6 @@ async function sendFCM(
 Deno.serve(async (req: Request) => {
   if (req.method !== 'POST') {
     return new Response('Method not allowed', { status: 405 });
-  }
-
-  const saJson = Deno.env.get('FIREBASE_SERVICE_ACCOUNT_JSON');
-  if (!saJson) {
-    return new Response(JSON.stringify({ sent: 0, reason: 'not_configured' }), { status: 200 });
   }
 
   // Verify caller owns this truck
@@ -140,53 +138,69 @@ Deno.serve(async (req: Request) => {
 
   const followerIds: string[] = favs?.map((f: { user_id: string }) => f.user_id) ?? [];
   if (followerIds.length === 0) {
-    return new Response(JSON.stringify({ sent: 0 }), { status: 200 });
+    return new Response(JSON.stringify({ sent: 0 }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 
-  // Find followers who have explicitly disabled push
-  const { data: disabledPrefs } = await supabase
-    .from('notification_preferences')
-    .select('user_id')
-    .in('user_id', followerIds)
-    .eq('push_enabled', false);
-
-  const disabledIds = new Set<string>(
-    disabledPrefs?.map((p: { user_id: string }) => p.user_id) ?? [],
+  // Fan-out to in-app inbox for every follower regardless of push preference.
+  await supabase.from('notifications').insert(
+    followerIds.map((userId) => ({
+      user_id: userId,
+      type: 'announcement',
+      title,
+      body: message,
+      related_id: truckId,
+    })),
   );
-  const enabledIds = followerIds.filter((id) => !disabledIds.has(id));
 
-  if (enabledIds.length === 0) {
-    return new Response(JSON.stringify({ sent: 0 }), { status: 200 });
-  }
+  // FCM push — only if Firebase is configured.
+  const saJson = Deno.env.get('FIREBASE_SERVICE_ACCOUNT_JSON');
+  if (saJson) {
+    // Find followers who have explicitly disabled push
+    const { data: disabledPrefs } = await supabase
+      .from('notification_preferences')
+      .select('user_id')
+      .in('user_id', followerIds)
+      .eq('push_enabled', false);
 
-  // Get one push token per enabled follower (most recently updated)
-  const { data: tokenRows } = await supabase
-    .from('push_tokens')
-    .select('user_id, token')
-    .in('user_id', enabledIds)
-    .order('updated_at', { ascending: false });
+    const disabledIds = new Set<string>(
+      disabledPrefs?.map((p: { user_id: string }) => p.user_id) ?? [],
+    );
+    const enabledIds = followerIds.filter((id) => !disabledIds.has(id));
 
-  // Deduplicate: one token per user (latest)
-  const seen = new Set<string>();
-  const tokens: string[] = [];
-  for (const row of (tokenRows ?? []) as { user_id: string; token: string }[]) {
-    if (!seen.has(row.user_id)) {
-      seen.add(row.user_id);
-      tokens.push(row.token);
+    if (enabledIds.length > 0) {
+      // Get one push token per enabled follower (most recently updated)
+      const { data: tokenRows } = await supabase
+        .from('push_tokens')
+        .select('user_id, token')
+        .in('user_id', enabledIds)
+        .order('updated_at', { ascending: false });
+
+      // Deduplicate: one token per user (latest)
+      const seen = new Set<string>();
+      const tokens: string[] = [];
+      for (const row of (tokenRows ?? []) as { user_id: string; token: string }[]) {
+        if (!seen.has(row.user_id)) {
+          seen.add(row.user_id);
+          tokens.push(row.token);
+        }
+      }
+
+      if (tokens.length > 0) {
+        const sa = JSON.parse(saJson);
+        const accessToken = await getFCMAccessToken(sa);
+        await Promise.allSettled(
+          tokens.map((t) => sendFCM(t, title, message, sa.project_id, accessToken, { type: 'announcement', related_id: truckId })),
+        );
+      }
     }
   }
 
-  if (tokens.length === 0) {
-    return new Response(JSON.stringify({ sent: 0 }), { status: 200 });
-  }
-
-  const sa = JSON.parse(saJson);
-  const accessToken = await getFCMAccessToken(sa);
-
-  // Send to each follower (fire and collect, don't fail on individual errors)
-  await Promise.allSettled(
-    tokens.map((t) => sendFCM(t, title, message, sa.project_id, accessToken)),
-  );
-
-  return new Response(JSON.stringify({ sent: tokens.length }), { status: 200 });
+  // sent = inbox fan-out count (always reflects followers who got the in-app notification)
+  return new Response(JSON.stringify({ sent: followerIds.length }), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+  });
 });

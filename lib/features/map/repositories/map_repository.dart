@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/food_truck.dart';
 import '../../../core/constants/supabase_constants.dart';
@@ -19,17 +20,38 @@ class MapRepository {
   }
 
   Stream<List<FoodTruck>> streamActiveTrucks() {
-    return _supabase
-        .from(SupabaseConstants.foodTrucksTable)
-        .stream(primaryKey: ['id'])
-        .eq('is_active', true)
-        .map((rows) => rows
-            .where((e) =>
-                e['is_open'] == true &&
-                e['latitude'] != null &&
-                e['longitude'] != null)
-            .map((e) => FoodTruck.fromMap(e))
-            .toList());
+    StreamController<List<FoodTruck>>? controller;
+    RealtimeChannel? channel;
+
+    Future<void> refresh() async {
+      try {
+        final trucks = await fetchActiveTrucks();
+        final c = controller;
+        if (c != null && !c.isClosed) c.add(trucks);
+      } catch (_) {}
+    }
+
+    controller = StreamController<List<FoodTruck>>(
+      onListen: () {
+        refresh();
+        channel = _supabase
+            .channel('active-trucks')
+            .onPostgresChanges(
+              event: PostgresChangeEvent.all,
+              schema: 'public',
+              table: SupabaseConstants.foodTrucksTable,
+              callback: (_) => refresh(),
+            )
+            .subscribe();
+      },
+      onCancel: () {
+        channel?.unsubscribe();
+        channel = null;
+        controller?.close();
+      },
+    );
+
+    return controller.stream;
   }
 
   Future<List<FoodTruck>> searchTrucks(String query) async {

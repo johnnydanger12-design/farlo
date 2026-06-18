@@ -23,7 +23,7 @@ class ManageMenuScreen extends ConsumerWidget {
         surfaceTintColor: Colors.transparent,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/dashboard'),
+          onPressed: () => context.pop(),
         ),
         actions: [
           IconButton(
@@ -60,15 +60,44 @@ class ManageMenuScreen extends ConsumerWidget {
               ),
             );
           }
-          return ListView.separated(
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            itemCount: truck.menuItems.length,
-            separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.sm),
-            itemBuilder: (_, i) => _MenuItemTile(
-              item: truck.menuItems[i],
-              onEdit: () => _showEditSheet(context, ref, truck.menuItems[i]),
-              onDelete: () => _confirmDelete(context, ref, truck.menuItems[i].id),
+          final grouped = <String, List<MenuItem>>{};
+          for (final item in truck.menuItems) {
+            grouped.putIfAbsent(item.category, () => []).add(item);
+          }
+          final List<Object> rows = [];
+          for (final entry in grouped.entries) {
+            rows.add(entry.key);
+            rows.addAll(entry.value);
+          }
+
+          return ListView.builder(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, AppSpacing.xl,
             ),
+            itemCount: rows.length,
+            itemBuilder: (_, i) {
+              final row = rows[i];
+              if (row is String) {
+                return _CategoryHeader(
+                  category: row,
+                  count: grouped[row]!.length,
+                );
+              }
+              final item = row as MenuItem;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                child: _MenuItemTile(
+                  item: item,
+                  onEdit: () => _showEditSheet(context, ref, item),
+                  onDelete: () => _confirmDelete(context, ref, item.id),
+                  onToggleAvailable: (val) {
+                    ref.read(foodTruckRepositoryProvider)
+                        .updateMenuItem(item.id, {'is_available': val})
+                        .then((_) => ref.read(ownerTruckProvider.notifier).refresh());
+                  },
+                ),
+              );
+            },
           );
         },
       ),
@@ -145,41 +174,85 @@ class ManageMenuScreen extends ConsumerWidget {
   }
 }
 
+class _CategoryHeader extends StatelessWidget {
+  const _CategoryHeader({required this.category, required this.count});
+
+  final String category;
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpacing.lg, bottom: AppSpacing.sm),
+      child: Row(
+        children: [
+          Text(category, style: AppTextStyles.label),
+          const SizedBox(width: 6),
+          Text(
+            '$count ${count == 1 ? 'item' : 'items'}',
+            style: AppTextStyles.caption,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _MenuItemTile extends StatelessWidget {
-  const _MenuItemTile({required this.item, required this.onEdit, required this.onDelete});
+  const _MenuItemTile({
+    required this.item,
+    required this.onEdit,
+    required this.onDelete,
+    required this.onToggleAvailable,
+  });
 
   final MenuItem item;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
+  final ValueChanged<bool> onToggleAvailable;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 4),
-        title: Text(item.name, style: AppTextStyles.label),
-        subtitle: Text(
-          '${item.category} · ${item.priceDisplay}',
-          style: AppTextStyles.caption,
+    return Opacity(
+      opacity: item.isAvailable ? 1.0 : 0.45,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: BorderRadius.circular(12),
         ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              icon: const Icon(Icons.edit_outlined, size: 20),
-              color: AppColors.textSecondary,
-              onPressed: onEdit,
-            ),
-            IconButton(
-              icon: const Icon(Icons.delete_outline, size: 20),
-              color: AppColors.error,
-              onPressed: onDelete,
-            ),
-          ],
+        child: ListTile(
+          contentPadding: const EdgeInsets.fromLTRB(AppSpacing.md, 4, 4, 4),
+          title: Text(item.name, style: AppTextStyles.label),
+          subtitle: Text(
+            item.description != null && item.description!.isNotEmpty
+                ? '${item.priceDisplay} · ${item.description}'
+                : item.priceDisplay,
+            style: AppTextStyles.caption,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Switch(
+                value: item.isAvailable,
+                onChanged: onToggleAvailable,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              IconButton(
+                icon: const Icon(Icons.edit_outlined, size: 18),
+                color: AppColors.textSecondary,
+                onPressed: onEdit,
+                visualDensity: VisualDensity.compact,
+              ),
+              IconButton(
+                icon: const Icon(Icons.delete_outline, size: 18),
+                color: AppColors.error,
+                onPressed: onDelete,
+                visualDensity: VisualDensity.compact,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -208,12 +281,18 @@ class _MenuItemSheetState extends State<_MenuItemSheet> {
   late final TextEditingController _nameCtrl;
   late final TextEditingController _descCtrl;
   late final TextEditingController _priceCtrl;
-  String _category = 'Mains';
+  late final TextEditingController _customCategoryCtrl;
+  String _dropdownCategory = 'Mains';
+  bool _isCustomCategory = false;
   bool _saving = false;
 
-  static const List<String> _categories = [
+  static const List<String> _defaultCategories = [
     'Mains', 'Sides', 'Drinks', 'Desserts', 'Specials',
   ];
+  static const String _otherOption = 'Other…';
+
+  String get _effectiveCategory =>
+      _isCustomCategory ? _customCategoryCtrl.text.trim() : _dropdownCategory;
 
   @override
   void initState() {
@@ -225,7 +304,12 @@ class _MenuItemSheetState extends State<_MenuItemSheet> {
           ? widget.existing!.price.toStringAsFixed(2)
           : '',
     );
-    _category = widget.existing?.category ?? 'Mains';
+    final existingCat = widget.existing?.category ?? 'Mains';
+    _isCustomCategory = !_defaultCategories.contains(existingCat);
+    _dropdownCategory = _isCustomCategory ? _otherOption : existingCat;
+    _customCategoryCtrl = TextEditingController(
+      text: _isCustomCategory ? existingCat : '',
+    );
   }
 
   @override
@@ -233,6 +317,7 @@ class _MenuItemSheetState extends State<_MenuItemSheet> {
     _nameCtrl.dispose();
     _descCtrl.dispose();
     _priceCtrl.dispose();
+    _customCategoryCtrl.dispose();
     super.dispose();
   }
 
@@ -244,7 +329,7 @@ class _MenuItemSheetState extends State<_MenuItemSheet> {
         _nameCtrl.text.trim(),
         _descCtrl.text.trim(),
         double.parse(_priceCtrl.text.trim()),
-        _category,
+        _effectiveCategory,
       );
       if (mounted) Navigator.pop(context);
     } catch (e) {
@@ -322,16 +407,36 @@ class _MenuItemSheetState extends State<_MenuItemSheet> {
                   const SizedBox(width: AppSpacing.sm),
                   Expanded(
                     child: DropdownButtonFormField<String>(
-                      initialValue: _category,
+                      initialValue: _dropdownCategory,
                       decoration: _inputDecoration('Category', context),
-                      items: _categories
-                          .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                          .toList(),
-                      onChanged: (v) => setState(() => _category = v ?? _category),
+                      items: [
+                        ..._defaultCategories.map(
+                          (c) => DropdownMenuItem(value: c, child: Text(c)),
+                        ),
+                        const DropdownMenuItem(
+                          value: _otherOption,
+                          child: Text(_otherOption),
+                        ),
+                      ],
+                      onChanged: (v) => setState(() {
+                        _dropdownCategory = v ?? _dropdownCategory;
+                        _isCustomCategory = v == _otherOption;
+                      }),
                     ),
                   ),
                 ],
               ),
+              if (_isCustomCategory) ...[
+                const SizedBox(height: AppSpacing.sm),
+                TextFormField(
+                  controller: _customCategoryCtrl,
+                  decoration: _inputDecoration('Category name', context),
+                  textCapitalization: TextCapitalization.words,
+                  autofocus: true,
+                  validator: (v) =>
+                      (v == null || v.trim().isEmpty) ? 'Required' : null,
+                ),
+              ],
               const SizedBox(height: AppSpacing.lg),
               AppButton(
                 label: widget.existing == null ? 'Add Item' : 'Save Changes',

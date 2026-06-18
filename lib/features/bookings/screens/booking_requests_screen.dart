@@ -5,10 +5,17 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../auth/providers/auth_provider.dart';
 import '../../food_trucks/providers/food_truck_provider.dart';
+import '../models/booking_deposit.dart';
+import '../models/booking_quote.dart';
 import '../models/booking_request.dart';
 import '../providers/bookings_provider.dart';
+import '../screens/booking_chat_screen.dart';
 import '../widgets/book_truck_sheet.dart';
+import '../widgets/request_deposit_sheet.dart';
+import '../widgets/send_estimate_sheet.dart';
+import '../widgets/send_invoice_sheet.dart';
 
 const _months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const _monthsFull = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -261,17 +268,56 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
+// ─── Message count badge ──────────────────────────────────────────────────────
+
+class _MsgBadge extends StatelessWidget {
+  const _MsgBadge({required this.count});
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: AppColors.primary,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.chat_bubble_outline, size: 10, color: Colors.white),
+          const SizedBox(width: 3),
+          Text(
+            '$count',
+            style: AppTextStyles.caption.copyWith(color: Colors.white, fontWeight: FontWeight.w700),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 // ─── Pending tile ─────────────────────────────────────────────────────────────
 
-class _PendingTile extends StatelessWidget {
+class _PendingTile extends ConsumerWidget {
   const _PendingTile({required this.request});
   final BookingRequest request;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     const amber = Color(0xFFB45309);
+    final userId = ref.watch(authProvider).asData?.value?.id ?? '';
+    final msgCount = ref.watch(bookingMessageCountProvider((request.id, userId))).asData?.value ?? 0;
     return GestureDetector(
-      onTap: () => _openDetail(context),
+      onTap: () async {
+        await showModalBottomSheet(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: Colors.transparent,
+          builder: (_) => _RequestDetailSheet(request: request),
+        );
+        if (context.mounted) ref.invalidate(bookingMessageCountProvider((request.id, userId)));
+      },
       child: Container(
         margin: const EdgeInsets.only(bottom: AppSpacing.sm),
         decoration: BoxDecoration(
@@ -299,6 +345,10 @@ class _PendingTile extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
+              if (msgCount > 0) ...[
+                _MsgBadge(count: msgCount),
+                const SizedBox(width: 6),
+              ],
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
@@ -316,28 +366,32 @@ class _PendingTile extends StatelessWidget {
     );
   }
 
-  void _openDetail(BuildContext context) => showModalBottomSheet(
-        context: context,
-        isScrollControlled: true,
-        backgroundColor: Colors.transparent,
-        builder: (_) => _RequestDetailSheet(request: request),
-      );
 }
 
 // ─── Upcoming card ────────────────────────────────────────────────────────────
 
-class _UpcomingCard extends StatelessWidget {
+class _UpcomingCard extends ConsumerWidget {
   const _UpcomingCard({required this.request});
   final BookingRequest request;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     const green = AppColors.openGreen;
     final days = _daysUntil(request.eventDate);
     final dayColor = days == 0 ? AppColors.closedRed : green;
+    final userId = ref.watch(authProvider).asData?.value?.id ?? '';
+    final msgCount = ref.watch(bookingMessageCountProvider((request.id, userId))).asData?.value ?? 0;
 
     return GestureDetector(
-      onTap: () => _openDetail(context),
+      onTap: () async {
+        await showModalBottomSheet(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: Colors.transparent,
+          builder: (_) => _RequestDetailSheet(request: request),
+        );
+        if (context.mounted) ref.invalidate(bookingMessageCountProvider((request.id, userId)));
+      },
       child: Container(
         margin: const EdgeInsets.only(bottom: AppSpacing.sm),
         decoration: BoxDecoration(
@@ -393,12 +447,15 @@ class _UpcomingCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 8),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: Text(
-                        _daysLabel(days),
-                        style: AppTextStyles.caption.copyWith(color: dayColor, fontWeight: FontWeight.w600),
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        if (msgCount > 0) _MsgBadge(count: msgCount) else const SizedBox.shrink(),
+                        Text(
+                          _daysLabel(days),
+                          style: AppTextStyles.caption.copyWith(color: dayColor, fontWeight: FontWeight.w600),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -411,12 +468,6 @@ class _UpcomingCard extends StatelessWidget {
     );
   }
 
-  void _openDetail(BuildContext context) => showModalBottomSheet(
-        context: context,
-        isScrollControlled: true,
-        backgroundColor: Colors.transparent,
-        builder: (_) => _RequestDetailSheet(request: request),
-      );
 }
 
 // ─── Collapsible section (Past / Declined) ────────────────────────────────────
@@ -600,6 +651,14 @@ class _RequestDetailSheetState extends ConsumerState<_RequestDetailSheet> {
     if (addCalendar) _addToCalendar(widget.request);
   }
 
+  Future<void> _declinePending() async {
+    final result = await showDialog<(bool, String?)>(
+      context: context,
+      builder: (_) => _DeclineReasonDialog(contactName: widget.request.contactName),
+    );
+    if (result?.$1 == true) await _updateStatus('declined', cancellationReason: result?.$2);
+  }
+
   Future<void> _cancelAccepted() async {
     final result = await showDialog<(bool, String?)>(
       context: context,
@@ -685,7 +744,7 @@ class _RequestDetailSheetState extends ConsumerState<_RequestDetailSheet> {
                   ),
                   const SizedBox(height: AppSpacing.lg),
                   _DetailSection(
-                    title: 'Contact',
+                    title: 'Requester',
                     rows: [
                       ('Name', widget.request.contactName),
                       ('Email', widget.request.contactEmail),
@@ -702,6 +761,10 @@ class _RequestDetailSheetState extends ConsumerState<_RequestDetailSheet> {
                       ('Type', widget.request.eventType),
                       ('Location', widget.request.eventLocation),
                       if (widget.request.guestCount != null) ('Guests', '${widget.request.guestCount}'),
+                      if (widget.request.otherTrucksPresent == true)
+                        ('Other trucks', widget.request.otherTrucksCount != null
+                            ? 'Yes (${widget.request.otherTrucksCount})'
+                            : 'Yes'),
                     ],
                   ),
                   if (widget.request.notes?.isNotEmpty ?? false) ...[
@@ -709,6 +772,24 @@ class _RequestDetailSheetState extends ConsumerState<_RequestDetailSheet> {
                     Text('Notes', style: AppTextStyles.label.copyWith(color: AppColors.textSecondary)),
                     const SizedBox(height: 4),
                     Text(widget.request.notes!, style: AppTextStyles.bodySmall),
+                  ],
+                  const SizedBox(height: AppSpacing.lg),
+                  _MessagesRow(
+                    bookingId: widget.request.id,
+                    contactName: widget.request.contactName,
+                    subtitle: '${widget.request.eventType}  ·  ${_fmtShort(widget.request.eventDate)}',
+                    msgCount: ref.watch(bookingMessageCountProvider((
+                      widget.request.id,
+                      ref.watch(authProvider).asData?.value?.id ?? '',
+                    ))).asData?.value ?? 0,
+                    onChatReturned: () => ref.invalidate(bookingMessageCountProvider((
+                      widget.request.id,
+                      ref.read(authProvider).asData?.value?.id ?? '',
+                    ))),
+                  ),
+                  if (widget.request.status == 'accepted') ...[
+                    const SizedBox(height: AppSpacing.lg),
+                    _OwnerFinancialSection(request: widget.request),
                   ],
                   if (widget.request.status == 'pending') ...[
                     const SizedBox(height: AppSpacing.xl),
@@ -722,7 +803,7 @@ class _RequestDetailSheetState extends ConsumerState<_RequestDetailSheet> {
                               padding: const EdgeInsets.symmetric(vertical: 14),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                             ),
-                            onPressed: _updating ? null : () => _updateStatus('declined'),
+                            onPressed: _updating ? null : _declinePending,
                             child: const Text('Decline'),
                           ),
                         ),
@@ -769,6 +850,184 @@ class _RequestDetailSheetState extends ConsumerState<_RequestDetailSheet> {
   }
 }
 
+// ─── Owner financial section ──────────────────────────────────────────────────
+
+class _OwnerFinancialSection extends ConsumerWidget {
+  const _OwnerFinancialSection({required this.request});
+  final BookingRequest request;
+
+  Future<void> _openEstimateSheet(BuildContext context, WidgetRef ref) async {
+    await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => SendEstimateSheet(bookingId: request.id),
+    );
+    ref.invalidate(bookingQuotesProvider(request.id));
+  }
+
+  Future<void> _openDepositSheet(BuildContext context, WidgetRef ref) async {
+    await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => RequestDepositSheet(bookingId: request.id),
+    );
+    ref.invalidate(bookingDepositProvider(request.id));
+  }
+
+  Future<void> _openInvoiceSheet(BuildContext context, WidgetRef ref, BookingQuote? estimate, BookingDeposit? deposit) async {
+    await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => SendInvoiceSheet(bookingId: request.id, estimate: estimate, deposit: deposit),
+    );
+    ref.invalidate(bookingQuotesProvider(request.id));
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final quotesAsync = ref.watch(bookingQuotesProvider(request.id));
+    final depositAsync = ref.watch(bookingDepositProvider(request.id));
+    final quotes = quotesAsync.asData?.value ?? [];
+    final deposit = depositAsync.asData?.value;
+
+    final estimate = quotes.where((q) => q.type == QuoteType.estimate).lastOrNull;
+    final invoice = quotes.where((q) => q.type == QuoteType.invoice).lastOrNull;
+    final eventOver = _isOver(request);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text('Financials', style: AppTextStyles.label.copyWith(color: AppColors.textSecondary)),
+        const SizedBox(height: AppSpacing.sm),
+
+        // ── Estimate ────────────────────────────────────────────────────────
+        if (estimate == null)
+          OutlinedButton.icon(
+            onPressed: () => _openEstimateSheet(context, ref),
+            icon: const Icon(Icons.request_quote_outlined, size: 16),
+            label: const Text('Send Estimate'),
+            style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(44)),
+          )
+        else ...[
+          _FinancialStatusRow(
+            label: 'Estimate',
+            amount: estimate.amount,
+            status: switch (estimate.status) {
+              QuoteStatus.sent => 'Awaiting response',
+              QuoteStatus.accepted => 'Accepted',
+              QuoteStatus.declined => 'Declined',
+              QuoteStatus.paid => 'Paid',
+            },
+            color: switch (estimate.status) {
+              QuoteStatus.accepted => AppColors.openGreen,
+              QuoteStatus.declined => AppColors.closedRed,
+              _ => AppColors.textSecondary,
+            },
+          ),
+          if (estimate.status == QuoteStatus.declined) ...[
+            const SizedBox(height: AppSpacing.sm),
+            OutlinedButton.icon(
+              onPressed: () => _openEstimateSheet(context, ref),
+              icon: const Icon(Icons.refresh, size: 16),
+              label: const Text('Resend Estimate'),
+              style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(44)),
+            ),
+          ],
+        ],
+
+        // ── Deposit ─────────────────────────────────────────────────────────
+        if (estimate?.status == QuoteStatus.accepted) ...[
+          const SizedBox(height: AppSpacing.sm),
+          if (deposit == null)
+            OutlinedButton.icon(
+              onPressed: () => _openDepositSheet(context, ref),
+              icon: const Icon(Icons.payments_outlined, size: 16),
+              label: const Text('Request Deposit'),
+              style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(44)),
+            )
+          else
+            _FinancialStatusRow(
+              label: 'Deposit',
+              amount: deposit.amount,
+              status: switch (deposit.status) {
+                DepositStatus.requested => 'Awaiting payment',
+                DepositStatus.paid => 'Paid',
+                DepositStatus.refunded => 'Refunded',
+              },
+              color: deposit.status == DepositStatus.paid ? AppColors.openGreen : AppColors.textSecondary,
+            ),
+        ],
+
+        // ── Invoice ─────────────────────────────────────────────────────────
+        if (eventOver) ...[
+          const SizedBox(height: AppSpacing.sm),
+          if (invoice == null)
+            OutlinedButton.icon(
+              onPressed: () => _openInvoiceSheet(context, ref, estimate, deposit),
+              icon: const Icon(Icons.receipt_long_outlined, size: 16),
+              label: const Text('Send Invoice'),
+              style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(44)),
+            )
+          else
+            _FinancialStatusRow(
+              label: 'Invoice',
+              amount: invoice.amount,
+              status: switch (invoice.status) {
+                QuoteStatus.sent => 'Awaiting payment',
+                QuoteStatus.paid => 'Paid',
+                _ => '',
+              },
+              color: invoice.status == QuoteStatus.paid ? AppColors.openGreen : AppColors.textSecondary,
+            ),
+        ],
+      ],
+    );
+  }
+}
+
+class _FinancialStatusRow extends StatelessWidget {
+  const _FinancialStatusRow({required this.label, required this.amount, required this.status, required this.color});
+  final String label;
+  final double amount;
+  final String status;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(label, style: AppTextStyles.label),
+          ),
+          Text('\$${amount.toStringAsFixed(2)}', style: AppTextStyles.label),
+          const SizedBox(width: AppSpacing.sm),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(status, style: AppTextStyles.caption.copyWith(color: color, fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _AddToCalendarDialog extends StatelessWidget {
   const _AddToCalendarDialog({required this.request});
   final BookingRequest request;
@@ -805,6 +1064,72 @@ class _AddToCalendarDialog extends StatelessWidget {
         FilledButton(
           onPressed: () => Navigator.pop(context, true),
           child: const Text('Add to Calendar'),
+        ),
+      ],
+    );
+  }
+}
+
+class _DeclineReasonDialog extends StatefulWidget {
+  const _DeclineReasonDialog({required this.contactName});
+  final String contactName;
+
+  @override
+  State<_DeclineReasonDialog> createState() => _DeclineReasonDialogState();
+}
+
+class _DeclineReasonDialogState extends State<_DeclineReasonDialog> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: Theme.of(context).brightness == Brightness.light
+          ? Colors.white
+          : Theme.of(context).colorScheme.surface,
+      title: const Text('Decline Request?'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '${widget.contactName} will be notified. You can add a short note to let them know why.',
+            style: AppTextStyles.bodySmall,
+          ),
+          const SizedBox(height: AppSpacing.md),
+          TextField(
+            controller: _controller,
+            maxLines: 3,
+            maxLength: 200,
+            textCapitalization: TextCapitalization.sentences,
+            decoration: InputDecoration(
+              hintText: 'e.g. We\'re already booked for that date…',
+              hintStyle: AppTextStyles.caption.copyWith(color: AppColors.textHint),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              counterStyle: AppTextStyles.caption.copyWith(color: AppColors.textHint),
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, (false, null)),
+          child: const Text('Go Back'),
+        ),
+        TextButton(
+          onPressed: () {
+            final reason = _controller.text.trim();
+            Navigator.pop(context, (true, reason.isEmpty ? null : reason));
+          },
+          style: TextButton.styleFrom(foregroundColor: AppColors.closedRed),
+          child: const Text('Decline'),
         ),
       ],
     );
@@ -873,6 +1198,65 @@ class _CancelMessageDialogState extends State<_CancelMessageDialog> {
           child: const Text('Cancel Event'),
         ),
       ],
+    );
+  }
+}
+
+class _MessagesRow extends StatelessWidget {
+  const _MessagesRow({
+    required this.bookingId,
+    required this.contactName,
+    required this.subtitle,
+    required this.msgCount,
+    this.onChatReturned,
+  });
+  final String bookingId;
+  final String contactName;
+  final String subtitle;
+  final int msgCount;
+  final VoidCallback? onChatReturned;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () async {
+          await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => BookingChatScreen(
+                bookingId: bookingId,
+                title: contactName,
+                subtitle: subtitle,
+              ),
+            ),
+          );
+          onChatReturned?.call();
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 14),
+          decoration: BoxDecoration(
+            color: AppColors.primary.withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.chat_bubble_outline, color: AppColors.primary, size: 20),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Text('Messages', style: AppTextStyles.bodySmall.copyWith(fontWeight: FontWeight.w600)),
+              ),
+              if (msgCount > 0) ...[
+                _MsgBadge(count: msgCount),
+                const SizedBox(width: 6),
+              ],
+              const Icon(Icons.chevron_right, size: 18, color: AppColors.textHint),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

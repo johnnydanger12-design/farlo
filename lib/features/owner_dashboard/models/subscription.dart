@@ -26,6 +26,10 @@ class Subscription {
   final String id;
   final String ownerId;
   final SubscriptionStatus status;
+
+  // True during free trial OR active paid subscription — both grant full access.
+  bool get hasAccess =>
+      status == SubscriptionStatus.active || status == SubscriptionStatus.trialing;
   final String? revenuecatCustomerId;
   final String? productIdentifier;
   final DateTime? currentPeriodEnd;

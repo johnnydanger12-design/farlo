@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_stripe/flutter_stripe.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app_shell.dart';
@@ -13,9 +14,15 @@ const _supabaseUrl = String.fromEnvironment('SUPABASE_URL');
 const _supabasePublishableKey = String.fromEnvironment('SUPABASE_PUBLISHABLE_KEY');
 const _rcAppleKey = String.fromEnvironment('REVENUECAT_APPLE_KEY');
 const _rcGoogleKey = String.fromEnvironment('REVENUECAT_GOOGLE_KEY');
+const _stripePublishableKey = String.fromEnvironment('STRIPE_PUBLISHABLE_KEY');
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  if (_stripePublishableKey.isNotEmpty) {
+    Stripe.publishableKey = _stripePublishableKey;
+    await Stripe.instance.applySettings();
+  }
 
   assert(
     _supabaseUrl.isNotEmpty && _supabasePublishableKey.isNotEmpty,

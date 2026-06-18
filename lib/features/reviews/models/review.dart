@@ -8,6 +8,8 @@ class Review {
     required this.rating,
     this.comment,
     required this.createdAt,
+    this.ownerResponse,
+    this.ownerRespondedAt,
   });
 
   final String id;
@@ -18,6 +20,8 @@ class Review {
   final int rating;
   final String? comment;
   final DateTime createdAt;
+  final String? ownerResponse;
+  final DateTime? ownerRespondedAt;
 
   factory Review.fromMap(Map<String, dynamic> map) {
     return Review(
@@ -29,6 +33,10 @@ class Review {
       rating: (map['rating'] as num).toInt(),
       comment: map['comment'] as String?,
       createdAt: DateTime.parse(map['created_at'] as String),
+      ownerResponse: map['owner_response'] as String?,
+      ownerRespondedAt: map['owner_responded_at'] != null
+          ? DateTime.parse(map['owner_responded_at'] as String)
+          : null,
     );
   }
 }

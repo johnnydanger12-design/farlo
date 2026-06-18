@@ -9,7 +9,9 @@ import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_text_field.dart';
+import '../../bookings/widgets/places_autocomplete_field.dart';
 import '../providers/auth_provider.dart';
+import '../widgets/business_type_picker.dart';
 import '../widgets/social_auth_buttons.dart';
 
 class RegisterOwnerScreen extends ConsumerStatefulWidget {
@@ -24,7 +26,11 @@ class _RegisterOwnerScreenState extends ConsumerState<RegisterOwnerScreen> {
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _truckNameController = TextEditingController();
+  final _businessNameController = TextEditingController();
+  final _addressController = TextEditingController();
+  String _businessType = 'mobile';
+  double? _lat;
+  double? _lng;
   bool _obscurePassword = true;
   bool _isLoading = false;
 
@@ -33,23 +39,34 @@ class _RegisterOwnerScreenState extends ConsumerState<RegisterOwnerScreen> {
     _nameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
-    _truckNameController.dispose();
+    _businessNameController.dispose();
+    _addressController.dispose();
     super.dispose();
   }
 
-  String? get _truckName {
-    final v = _truckNameController.text.trim();
+  String? get _businessName {
+    final v = _businessNameController.text.trim();
     return v.isEmpty ? null : v;
   }
 
+  bool get _isFixed => _businessType == 'fixed';
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
+    if (_isFixed && _lat == null) {
+      _showError('Select your business address from the suggestions.');
+      return;
+    }
     setState(() => _isLoading = true);
     await ref.read(authProvider.notifier).signUpOwner(
           email: _emailController.text.trim(),
           password: _passwordController.text,
           displayName: _nameController.text.trim(),
-          truckName: _truckNameController.text.trim(),
+          truckName: _businessNameController.text.trim(),
+          businessType: _businessType,
+          address: _isFixed ? _addressController.text.trim() : null,
+          lat: _isFixed ? _lat : null,
+          lng: _isFixed ? _lng : null,
         );
     final error = ref.read(authProvider).error;
     TextInput.finishAutofillContext(shouldSave: error == null);
@@ -60,8 +77,12 @@ class _RegisterOwnerScreenState extends ConsumerState<RegisterOwnerScreen> {
   }
 
   Future<void> _socialSignUp(Future<void> Function() action) async {
-    if (_truckName == null) {
-      _showError('Enter your truck name first.');
+    if (_businessName == null) {
+      _showError('Enter your business name first.');
+      return;
+    }
+    if (_isFixed && _lat == null) {
+      _showError('Select your business address from the suggestions.');
       return;
     }
     setState(() => _isLoading = true);
@@ -120,7 +141,7 @@ class _RegisterOwnerScreenState extends ConsumerState<RegisterOwnerScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('List your truck', style: AppTextStyles.heading1),
+                    const Text('List your business', style: AppTextStyles.heading1),
                     const SizedBox(height: AppSpacing.sm),
                     const Text(
                       'Create your owner account and start advertising your location.',
@@ -149,21 +170,52 @@ class _RegisterOwnerScreenState extends ConsumerState<RegisterOwnerScreen> {
                     ),
                     const SizedBox(height: AppSpacing.xl),
 
-                    // ── Truck name (required for all sign-up paths) ──────────
-                    const Text('Your truck', style: AppTextStyles.label),
+                    // ── Business type picker ─────────────────────────────────
+                    const Text('Business type', style: AppTextStyles.label),
+                    const SizedBox(height: AppSpacing.sm),
+                    BusinessTypePicker(
+                      selected: _businessType,
+                      onChanged: (t) => setState(() {
+                        _businessType = t;
+                        _lat = null;
+                        _lng = null;
+                        _addressController.clear();
+                      }),
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+
+                    // ── Business name ────────────────────────────────────────
+                    const Text('Your business', style: AppTextStyles.label),
                     const SizedBox(height: AppSpacing.sm),
                     AppTextField(
-                      label: 'Truck name',
-                      controller: _truckNameController,
+                      label: 'Business name',
+                      controller: _businessNameController,
                       textInputAction: TextInputAction.next,
-                      validator: (v) => (v == null || v.trim().isEmpty) ? 'Enter your truck name' : null,
+                      validator: (v) => (v == null || v.trim().isEmpty)
+                          ? 'Enter your business name'
+                          : null,
                     ),
+                    if (_isFixed) ...[
+                      const SizedBox(height: AppSpacing.md),
+                      PlacesAutocompleteField(
+                        controller: _addressController,
+                        label: '* Business address',
+                        onCoordinatesSelected: (lat, lng) => setState(() { _lat = lat; _lng = lng; }),
+                        validator: (v) => (v == null || v.trim().isEmpty) ? 'Enter your business address' : null,
+                      ),
+                    ],
                     const SizedBox(height: AppSpacing.xl),
 
                     // ── Social sign-up ───────────────────────────────────────
                     SignInWithAppleButton(
                       onPressed: () => _socialSignUp(
-                        () => ref.read(authProvider.notifier).signUpOwnerWithApple(_truckName!),
+                        () => ref.read(authProvider.notifier).signUpOwnerWithApple(
+                          _businessName!,
+                          businessType: _businessType,
+                          address: _isFixed ? _addressController.text.trim() : null,
+                          lat: _isFixed ? _lat : null,
+                          lng: _isFixed ? _lng : null,
+                        ),
                       ),
                       style: SignInWithAppleButtonStyle.black,
                       borderRadius: BorderRadius.circular(12),
@@ -172,7 +224,13 @@ class _RegisterOwnerScreenState extends ConsumerState<RegisterOwnerScreen> {
                     const SizedBox(height: 12),
                     _GoogleButton(
                       onPressed: () => _socialSignUp(
-                        () => ref.read(authProvider.notifier).signUpOwnerWithGoogle(_truckName!),
+                        () => ref.read(authProvider.notifier).signUpOwnerWithGoogle(
+                          _businessName!,
+                          businessType: _businessType,
+                          address: _isFixed ? _addressController.text.trim() : null,
+                          lat: _isFixed ? _lat : null,
+                          lng: _isFixed ? _lng : null,
+                        ),
                       ),
                       isDark: isDark,
                     ),
@@ -290,3 +348,4 @@ class _GoogleButton extends StatelessWidget {
     );
   }
 }
+

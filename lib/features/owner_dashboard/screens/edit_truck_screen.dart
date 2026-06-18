@@ -13,6 +13,7 @@ import '../../../core/constants/supabase_constants.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_text_field.dart';
 import '../../../services/storage_service.dart';
+import '../../bookings/widgets/places_autocomplete_field.dart';
 import '../../food_trucks/providers/food_truck_provider.dart';
 
 class EditTruckScreen extends ConsumerStatefulWidget {
@@ -34,6 +35,13 @@ class _EditTruckScreenState extends ConsumerState<EditTruckScreen> {
   late final TextEditingController _youtubeCtrl;
   late final TextEditingController _websiteCtrl;
 
+  late final TextEditingController _addressCtrl;
+  late final TextEditingController _otherCuisineCtrl;
+  int? _cancellationPolicyHours;
+  bool _ordersEnabled = false;
+  String _businessType = 'mobile';
+  double? _staticLat;
+  double? _staticLng;
   bool _loading = false;
   bool _initialized = false;
 
@@ -43,8 +51,8 @@ class _EditTruckScreenState extends ConsumerState<EditTruckScreen> {
 
   // Newly picked local files (null = no change for that slot)
   File? _newLogo;
-  // Up to 3 photo slots; null = keep existing
-  final List<File?> _newPhotos = [null, null, null];
+  // Up to 10 photo slots; null = keep existing
+  final List<File?> _newPhotos = List.filled(10, null);
 
   static const List<String> _cuisineOptions = [
     'American', 'Mexican', 'Asian', 'BBQ', 'Pizza', 'Burgers',
@@ -57,6 +65,7 @@ class _EditTruckScreenState extends ConsumerState<EditTruckScreen> {
     super.initState();
     _nameCtrl = TextEditingController();
     _cuisineCtrl = TextEditingController();
+    _otherCuisineCtrl = TextEditingController();
     _descCtrl = TextEditingController();
     _instagramCtrl = TextEditingController();
     _tiktokCtrl = TextEditingController();
@@ -64,6 +73,7 @@ class _EditTruckScreenState extends ConsumerState<EditTruckScreen> {
     _twitterCtrl = TextEditingController();
     _youtubeCtrl = TextEditingController();
     _websiteCtrl = TextEditingController();
+    _addressCtrl = TextEditingController();
   }
 
   @override
@@ -77,6 +87,8 @@ class _EditTruckScreenState extends ConsumerState<EditTruckScreen> {
     _twitterCtrl.dispose();
     _youtubeCtrl.dispose();
     _websiteCtrl.dispose();
+    _addressCtrl.dispose();
+    _otherCuisineCtrl.dispose();
     super.dispose();
   }
 
@@ -85,7 +97,12 @@ class _EditTruckScreenState extends ConsumerState<EditTruckScreen> {
     final truck = ref.read(ownerTruckProvider).asData?.value;
     if (truck == null) return;
     _nameCtrl.text = truck.name;
-    _cuisineCtrl.text = truck.cuisineType;
+    if (_cuisineOptions.contains(truck.cuisineType)) {
+      _cuisineCtrl.text = truck.cuisineType;
+    } else {
+      _cuisineCtrl.text = 'Other';
+      _otherCuisineCtrl.text = truck.cuisineType;
+    }
     _descCtrl.text = truck.description ?? '';
     _existingLogoUrl = truck.logoUrl;
     _existingPhotoUrls = List<String>.from(truck.photoUrls);
@@ -95,6 +112,12 @@ class _EditTruckScreenState extends ConsumerState<EditTruckScreen> {
     _twitterCtrl.text = truck.socialTwitter ?? '';
     _youtubeCtrl.text = truck.socialYoutube ?? '';
     _websiteCtrl.text = truck.websiteUrl ?? '';
+    _cancellationPolicyHours = truck.cancellationPolicyHours;
+    _ordersEnabled = truck.ordersEnabled;
+    _businessType = truck.businessType;
+    _addressCtrl.text = truck.address ?? '';
+    _staticLat = truck.latitude;
+    _staticLng = truck.longitude;
     _initialized = true;
   }
 
@@ -117,6 +140,10 @@ class _EditTruckScreenState extends ConsumerState<EditTruckScreen> {
     });
   }
 
+  void _toggleOrdersEnabled(bool val) {
+    setState(() => _ordersEnabled = val);
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _loading = true);
@@ -131,7 +158,9 @@ class _EditTruckScreenState extends ConsumerState<EditTruckScreen> {
 
       final fields = <String, dynamic>{
         'name': _nameCtrl.text.trim(),
-        'cuisine_type': _cuisineCtrl.text.trim(),
+        'cuisine_type': _cuisineCtrl.text == 'Other'
+            ? (_otherCuisineCtrl.text.trim().isEmpty ? 'Other' : _otherCuisineCtrl.text.trim())
+            : _cuisineCtrl.text.trim(),
         'description': _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
         'social_instagram': handle(_instagramCtrl),
         'social_tiktok': handle(_tiktokCtrl),
@@ -139,6 +168,14 @@ class _EditTruckScreenState extends ConsumerState<EditTruckScreen> {
         'social_twitter': handle(_twitterCtrl),
         'social_youtube': handle(_youtubeCtrl),
         'website_url': _websiteCtrl.text.trim().isEmpty ? null : _websiteCtrl.text.trim(),
+        'cancellation_policy_hours': _cancellationPolicyHours,
+        'orders_enabled': _ordersEnabled,
+        'business_type': _businessType,
+        if (_businessType == 'fixed') ...{
+          'address': _addressCtrl.text.trim().isEmpty ? null : _addressCtrl.text.trim(),
+          'latitude': _staticLat,
+          'longitude': _staticLng,
+        },
       };
 
       // Upload logo if changed
@@ -180,7 +217,7 @@ class _EditTruckScreenState extends ConsumerState<EditTruckScreen> {
             duration: Duration(seconds: 2),
           ),
         );
-        context.go('/dashboard');
+        context.pop();
       }
     } catch (e) {
       if (mounted) {
@@ -205,7 +242,7 @@ class _EditTruckScreenState extends ConsumerState<EditTruckScreen> {
         surfaceTintColor: Colors.transparent,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/dashboard'),
+          onPressed: () => context.pop(),
         ),
       ),
       body: asyncTruck.when(
@@ -244,9 +281,23 @@ class _EditTruckScreenState extends ConsumerState<EditTruckScreen> {
                   value: _cuisineCtrl.text.isEmpty ? 'Other' : _cuisineCtrl.text,
                   options: _cuisineOptions,
                   onChanged: (val) {
-                    if (val != null) setState(() => _cuisineCtrl.text = val);
+                    if (val != null) {
+                      setState(() {
+                        _cuisineCtrl.text = val;
+                        if (val != 'Other') _otherCuisineCtrl.clear();
+                      });
+                    }
                   },
                 ),
+                if (_cuisineCtrl.text == 'Other') ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  AppTextField(
+                    controller: _otherCuisineCtrl,
+                    label: 'Specify your business type',
+                    hint: 'e.g. Coffee Shop, Bakery, Thai Fusion…',
+                    textInputAction: TextInputAction.next,
+                  ),
+                ],
                 const SizedBox(height: AppSpacing.md),
 
                 // Description
@@ -257,8 +308,8 @@ class _EditTruckScreenState extends ConsumerState<EditTruckScreen> {
                 ),
                 const SizedBox(height: AppSpacing.lg),
 
-                // Photos (up to 3)
-                Text('Photos (up to 3)', style: AppTextStyles.heading3),
+                // Photos (up to 10)
+                Text('Photos (up to 10)', style: AppTextStyles.heading3),
                 const SizedBox(height: AppSpacing.sm),
                 _PhotoGrid(
                   existingUrls: _existingPhotoUrls,
@@ -288,6 +339,44 @@ class _EditTruckScreenState extends ConsumerState<EditTruckScreen> {
                   label: 'Website',
                   hint: 'https://yoursite.com',
                   keyboardType: TextInputType.url,
+                ),
+                const SizedBox(height: AppSpacing.lg),
+
+                // Business address (fixed businesses only)
+                if (_businessType == 'fixed') ...[
+                  Text('Business Address', style: AppTextStyles.heading3),
+                  const SizedBox(height: 4),
+                  const Text('Your permanent location shown to customers on the map.', style: AppTextStyles.caption),
+                  const SizedBox(height: AppSpacing.sm),
+                  PlacesAutocompleteField(
+                    controller: _addressCtrl,
+                    label: 'Business address',
+                    onCoordinatesSelected: (lat, lng) => setState(() { _staticLat = lat; _staticLng = lng; }),
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+                ],
+
+                // Cancellation policy
+                Text('Cancellation Policy', style: AppTextStyles.heading3),
+                const SizedBox(height: 4),
+                Text('Blocks online cancellation inside this window. Informational only — no automatic charge.', style: AppTextStyles.caption),
+                const SizedBox(height: AppSpacing.sm),
+                _CancellationPolicyDropdown(
+                  value: _cancellationPolicyHours,
+                  onChanged: (val) => setState(() => _cancellationPolicyHours = val),
+                ),
+                const SizedBox(height: AppSpacing.lg),
+
+                // Order Ahead toggle
+                Text('Order Ahead', style: AppTextStyles.heading3),
+                const SizedBox(height: 4),
+                Text('Let customers order and pay directly. Requires an active subscription and a connected Stripe account.', style: AppTextStyles.caption),
+                const SizedBox(height: AppSpacing.sm),
+                SwitchListTile(
+                  value: _ordersEnabled,
+                  onChanged: _toggleOrdersEnabled,
+                  title: const Text('Accept orders'),
+                  contentPadding: EdgeInsets.zero,
                 ),
                 const SizedBox(height: AppSpacing.xl),
 
@@ -327,9 +416,9 @@ class _LogoPicker extends StatelessWidget {
       child = ClipOval(child: Image.file(newFile!, fit: BoxFit.cover, width: 88, height: 88));
     } else if (existingUrl != null) {
       child = ClipOval(child: Image.network(existingUrl!, fit: BoxFit.cover, width: 88, height: 88,
-          errorBuilder: (_, _, _) => const Icon(Icons.lunch_dining, size: 40, color: Colors.white54)));
+          errorBuilder: (_, _, _) => const Icon(Icons.storefront_outlined, size: 40, color: Colors.white54)));
     } else {
-      child = const Icon(Icons.lunch_dining, size: 40, color: Colors.white54);
+      child = const Icon(Icons.storefront_outlined, size: 40, color: Colors.white54);
     }
 
     return GestureDetector(
@@ -381,67 +470,59 @@ class _PhotoGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final primary = Theme.of(context).colorScheme.primary;
-    // 3 fixed slots
-    return Row(
-      children: List.generate(3, (i) {
+    // 10 fixed slots in a 5-column grid (2 rows)
+    return GridView.count(
+      crossAxisCount: 5,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisSpacing: AppSpacing.sm,
+      mainAxisSpacing: AppSpacing.sm,
+      children: List.generate(10, (i) {
         final newFile = newFiles[i];
         final existingUrl = i < existingUrls.length ? existingUrls[i] : null;
         final hasContent = newFile != null || existingUrl != null;
 
-        return Expanded(
-          child: Padding(
-            padding: EdgeInsets.only(right: i < 2 ? AppSpacing.sm : 0),
-            child: AspectRatio(
-              aspectRatio: 1,
-              child: GestureDetector(
-                onTap: () => onPick(i),
-                child: Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    color: primary.withValues(alpha: 0.08),
-                    border: Border.all(
-                      color: hasContent ? primary.withValues(alpha: 0.4) : AppColors.divider,
-                    ),
-                  ),
-                  child: hasContent
-                      ? Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(11),
-                              child: newFile != null
-                                  ? Image.file(newFile, fit: BoxFit.cover)
-                                  : Image.network(existingUrl!, fit: BoxFit.cover,
-                                      errorBuilder: (_, _, _) => const SizedBox()),
-                            ),
-                            Positioned(
-                              top: 4,
-                              right: 4,
-                              child: GestureDetector(
-                                onTap: () => onRemove(i),
-                                child: Container(
-                                  padding: const EdgeInsets.all(3),
-                                  decoration: const BoxDecoration(
-                                    color: Colors.black54,
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: const Icon(Icons.close, size: 14, color: Colors.white),
-                                ),
-                              ),
-                            ),
-                          ],
-                        )
-                      : Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.add_photo_alternate_outlined, color: primary, size: 28),
-                            const SizedBox(height: 4),
-                            Text('Add', style: TextStyle(color: primary, fontSize: 12)),
-                          ],
-                        ),
-                ),
+        return GestureDetector(
+          onTap: () => onPick(i),
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(10),
+              color: primary.withValues(alpha: 0.08),
+              border: Border.all(
+                color: hasContent ? primary.withValues(alpha: 0.4) : AppColors.divider,
               ),
             ),
+            child: hasContent
+                ? Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(9),
+                        child: newFile != null
+                            ? Image.file(newFile, fit: BoxFit.cover)
+                            : Image.network(existingUrl!, fit: BoxFit.cover,
+                                errorBuilder: (_, _, _) => const SizedBox()),
+                      ),
+                      Positioned(
+                        top: 2,
+                        right: 2,
+                        child: GestureDetector(
+                          onTap: () => onRemove(i),
+                          child: Container(
+                            padding: const EdgeInsets.all(2),
+                            decoration: const BoxDecoration(
+                              color: Colors.black54,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.close, size: 12, color: Colors.white),
+                          ),
+                        ),
+                      ),
+                    ],
+                  )
+                : Center(
+                    child: Icon(Icons.add_photo_alternate_outlined, color: primary, size: 22),
+                  ),
           ),
         );
       }),
@@ -490,6 +571,42 @@ class _CuisineDropdown extends StatelessWidget {
       items: options
           .map((o) => DropdownMenuItem(value: o, child: Text(o)))
           .toList(),
+      onChanged: onChanged,
+    );
+  }
+}
+
+class _CancellationPolicyDropdown extends StatelessWidget {
+  const _CancellationPolicyDropdown({required this.value, required this.onChanged});
+
+  final int? value;
+  final ValueChanged<int?> onChanged;
+
+  static const _options = <int?>[null, 24, 48, 72, 168, 336];
+
+  static String _label(int? hours) {
+    if (hours == null) return 'No cancellation policy';
+    if (hours < 24) return '$hours hours';
+    final days = hours ~/ 24;
+    return days == 1 ? '1 day' : '$days days';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DropdownButtonFormField<int?>(
+      initialValue: value,
+      decoration: InputDecoration(
+        filled: true,
+        fillColor: Theme.of(context).colorScheme.surface,
+        contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.md),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Theme.of(context).colorScheme.outline)),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Theme.of(context).colorScheme.outline)),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Theme.of(context).colorScheme.primary, width: 2)),
+      ),
+      items: _options.map((h) => DropdownMenuItem(value: h, child: Text(_label(h)))).toList(),
       onChanged: onChanged,
     );
   }

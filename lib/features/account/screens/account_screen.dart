@@ -12,6 +12,8 @@ import '../../../core/constants/app_text_styles.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/providers/theme_provider.dart';
 import '../../auth/providers/auth_provider.dart';
+import '../../auth/widgets/business_type_picker.dart';
+import '../../bookings/widgets/places_autocomplete_field.dart';
 import '../providers/notification_prefs_provider.dart';
 import '../providers/transfer_provider.dart';
 import '../widgets/transfer_truck_sheet.dart';
@@ -38,14 +40,18 @@ class AccountScreen extends ConsumerWidget {
         data: (user) {
           if (user == null) return Center(child: CircularProgressIndicator(color: Theme.of(context).colorScheme.primary));
           final incomingTransfer = ref.watch(incomingTransferProvider).asData?.value;
+          final hasEmailIdentity = Supabase.instance.client.auth.currentUser
+              ?.identities
+              ?.any((i) => i.provider == 'email') ?? true;
           return ListView(
             padding: const EdgeInsets.all(AppSpacing.md),
             children: [
               _ProfileTile(
                 name: user.displayName,
                 email: user.email,
-                role: user.isOwner ? 'Food Truck Owner' : 'Consumer',
+                role: user.isOwner ? 'Business Owner' : 'Consumer',
                 avatarUrl: user.avatarUrl,
+                onEditName: () => _showChangeNameDialog(context, ref, user.displayName),
               ),
               if (incomingTransfer != null) ...[
                 const SizedBox(height: AppSpacing.lg),
@@ -56,6 +62,30 @@ class AccountScreen extends ConsumerWidget {
                 ),
               ],
               const SizedBox(height: AppSpacing.lg),
+              if (user.isOwner) ...[
+                const _SectionHeader('My Truck'),
+                _SettingsTile(
+                  icon: Icons.edit_outlined,
+                  label: 'Edit Business Profile',
+                  onTap: () => context.push('/owner-account/edit-truck'),
+                ),
+                _SettingsTile(
+                  icon: Icons.restaurant_menu_outlined,
+                  label: 'Menu',
+                  onTap: () => context.push('/owner-account/manage-menu'),
+                ),
+                _SettingsTile(
+                  icon: Icons.people_outline,
+                  label: 'Employees',
+                  onTap: () => context.push('/owner-account/employees'),
+                ),
+                _SettingsTile(
+                  icon: Icons.star_outline,
+                  label: 'Subscription',
+                  onTap: () => context.push('/owner-account/subscription'),
+                ),
+                const SizedBox(height: AppSpacing.lg),
+              ],
               if (!user.isOwner) ...[
                 const _SectionHeader('Bookings'),
                 _SettingsTile(
@@ -84,18 +114,26 @@ class AccountScreen extends ConsumerWidget {
                 label: 'Privacy Policy',
                 onTap: () => launchUrl(Uri.parse(_privacyUrl), mode: LaunchMode.externalApplication),
               ),
+              _SettingsTile(
+                icon: Icons.support_agent_outlined,
+                label: 'Contact Support',
+                onTap: () async {
+                  final uri = Uri(
+                    scheme: 'mailto',
+                    path: 'support@farlo.app',
+                    query: 'subject=Farlo%20Support%20Request',
+                  );
+                  if (await canLaunchUrl(uri)) await launchUrl(uri);
+                },
+              ),
               const SizedBox(height: AppSpacing.lg),
               const _SectionHeader('Account'),
-              _SettingsTile(
-                icon: Icons.edit_outlined,
-                label: 'Change Name',
-                onTap: () => _showChangeNameDialog(context, ref, user.displayName),
-              ),
-              _SettingsTile(
-                icon: Icons.lock_outline,
-                label: 'Change Password',
-                onTap: () => _showChangePasswordDialog(context, ref),
-              ),
+              if (hasEmailIdentity)
+                _SettingsTile(
+                  icon: Icons.lock_outline,
+                  label: 'Change Password',
+                  onTap: () => _showChangePasswordDialog(context, ref),
+                ),
               _SettingsTile(
                 icon: Icons.logout,
                 label: 'Sign Out',
@@ -186,7 +224,7 @@ class AccountScreen extends ConsumerWidget {
         backgroundColor: Theme.of(context).brightness == Brightness.light ? Colors.white : null,
         title: const Text('Accept Transfer?', textAlign: TextAlign.center),
         content: const Text(
-          'You will become the owner of this truck. Your account role will change to Owner.',
+          'You will become the owner of this truck and inherit its active subscription. Your account role will change to Owner.',
           textAlign: TextAlign.center,
         ),
         actionsAlignment: MainAxisAlignment.center,
@@ -296,10 +334,10 @@ class AccountSettingsScreen extends ConsumerWidget {
         padding: const EdgeInsets.all(AppSpacing.md),
         children: [
           if (user?.isOwner ?? false) ...[
-            const _SectionHeader('Truck Ownership'),
+            const _SectionHeader('Business Ownership'),
             _SettingsTile(
               icon: Icons.swap_horiz,
-              label: 'Transfer Truck Ownership',
+              label: 'Transfer Business Ownership',
               onTap: () => _showTransferSheet(context),
             ),
             if (outgoingTransfer != null) ...[
@@ -309,6 +347,20 @@ class AccountSettingsScreen extends ConsumerWidget {
                 onCancel: () => _cancelTransfer(context, ref, outgoingTransfer.id),
               ),
             ],
+            const SizedBox(height: AppSpacing.lg),
+          ],
+          if (!(user?.isOwner ?? false)) ...[
+            const _SectionHeader('Business'),
+            _SettingsTile(
+              icon: Icons.storefront_outlined,
+              label: 'Start a Business',
+              onTap: () => showModalBottomSheet<void>(
+                context: context,
+                isScrollControlled: true,
+                backgroundColor: Colors.transparent,
+                builder: (_) => _UpgradeToOwnerSheet(ref: ref),
+              ),
+            ),
             const SizedBox(height: AppSpacing.lg),
           ],
           const _SectionHeader('Danger Zone'),
@@ -362,11 +414,18 @@ class AccountSettingsScreen extends ConsumerWidget {
 }
 
 class _ProfileTile extends ConsumerStatefulWidget {
-  const _ProfileTile({required this.name, required this.email, required this.role, this.avatarUrl});
+  const _ProfileTile({
+    required this.name,
+    required this.email,
+    required this.role,
+    this.avatarUrl,
+    required this.onEditName,
+  });
   final String name;
   final String email;
   final String role;
   final String? avatarUrl;
+  final VoidCallback onEditName;
 
   @override
   ConsumerState<_ProfileTile> createState() => _ProfileTileState();
@@ -474,7 +533,18 @@ class _ProfileTileState extends ConsumerState<_ProfileTile> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(widget.name, style: AppTextStyles.heading3),
+                Row(
+                  children: [
+                    Expanded(child: Text(widget.name, style: AppTextStyles.heading3)),
+                    GestureDetector(
+                      onTap: widget.onEditName,
+                      child: const Padding(
+                        padding: EdgeInsets.only(left: 4),
+                        child: Icon(Icons.edit_outlined, size: 16, color: AppColors.textHint),
+                      ),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 2),
                 Text(widget.email, style: AppTextStyles.bodySmall),
                 const SizedBox(height: 4),
@@ -525,24 +595,25 @@ class _AppearanceTile extends ConsumerWidget {
       _ => Icons.brightness_auto_outlined,
     };
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 2),
-      decoration: BoxDecoration(
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 2),
+      child: Material(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
-      ),
-      child: ListTile(
-        leading: Icon(modeIcon, color: AppColors.textSecondary),
-        title: Text('Appearance', style: AppTextStyles.label),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(modeLabel, style: AppTextStyles.bodySmall),
-            const SizedBox(width: 4),
-            const Icon(Icons.chevron_right, color: AppColors.textHint),
-          ],
+        clipBehavior: Clip.antiAlias,
+        child: ListTile(
+          leading: Icon(modeIcon, color: AppColors.textSecondary),
+          title: Text('Appearance', style: AppTextStyles.label),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(modeLabel, style: AppTextStyles.bodySmall),
+              const SizedBox(width: 4),
+              const Icon(Icons.chevron_right, color: AppColors.textHint),
+            ],
+          ),
+          onTap: () => _showPicker(context, ref, mode),
         ),
-        onTap: () => _showPicker(context, ref, mode),
       ),
     );
   }
@@ -629,17 +700,18 @@ class _SettingsTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 2),
-      decoration: BoxDecoration(
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 2),
+      child: Material(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
-      ),
-      child: ListTile(
-        leading: Icon(icon, color: textColor ?? AppColors.textSecondary),
-        title: Text(label, style: AppTextStyles.label.copyWith(color: textColor)),
-        trailing: const Icon(Icons.chevron_right, color: AppColors.textHint),
-        onTap: onTap,
+        clipBehavior: Clip.antiAlias,
+        child: ListTile(
+          leading: Icon(icon, color: textColor ?? AppColors.textSecondary),
+          title: Text(label, style: AppTextStyles.label.copyWith(color: textColor)),
+          trailing: const Icon(Icons.chevron_right, color: AppColors.textHint),
+          onTap: onTap,
+        ),
       ),
     );
   }
@@ -736,8 +808,8 @@ class _NotificationsDialog extends ConsumerWidget {
           if (isOwner)
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
-              title: Text('Live Status Alerts', style: AppTextStyles.label),
-              subtitle: Text('Notify me when my truck goes live or offline', style: AppTextStyles.caption),
+              title: Text('Open/Closed Alerts', style: AppTextStyles.label),
+              subtitle: Text('Notify me when my business opens or closes', style: AppTextStyles.caption),
               value: openAlert && pushEnabled,
               onChanged: pushEnabled ? (v) => notifier.setOpenAlert(v) : null,
             ),
@@ -1107,6 +1179,11 @@ class _IncomingTransferCard extends StatelessWidget {
             'From ${transfer.otherUserName} · Expires in $daysLeft day${daysLeft == 1 ? '' : 's'}',
             style: AppTextStyles.bodySmall,
           ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            'Includes the active subscription — you\'ll keep the remaining paid period and manage your own billing after it ends.',
+            style: AppTextStyles.caption,
+          ),
           const SizedBox(height: AppSpacing.md),
           Row(
             children: [
@@ -1175,6 +1252,137 @@ class _OutgoingTransferBanner extends StatelessWidget {
             child: const Text('Cancel'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ─── Upgrade to owner sheet ───────────────────────────────────────────────────
+
+class _UpgradeToOwnerSheet extends StatefulWidget {
+  const _UpgradeToOwnerSheet({required this.ref});
+  final WidgetRef ref;
+
+  @override
+  State<_UpgradeToOwnerSheet> createState() => _UpgradeToOwnerSheetState();
+}
+
+class _UpgradeToOwnerSheetState extends State<_UpgradeToOwnerSheet> {
+  final _nameCtrl = TextEditingController();
+  final _addressCtrl = TextEditingController();
+  String _businessType = 'mobile';
+  double? _lat;
+  double? _lng;
+  bool _loading = false;
+  String? _error;
+
+  bool get _isFixed => _businessType == 'fixed';
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _addressCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final name = _nameCtrl.text.trim();
+    if (name.isEmpty) {
+      setState(() => _error = 'Enter a name for your business.');
+      return;
+    }
+    if (_isFixed && _lat == null) {
+      setState(() => _error = 'Select your business address from the suggestions.');
+      return;
+    }
+    setState(() { _loading = true; _error = null; });
+    try {
+      await widget.ref.read(authProvider.notifier).upgradeToOwner(
+        name,
+        businessType: _businessType,
+        address: _isFixed ? _addressCtrl.text.trim() : null,
+        lat: _isFixed ? _lat : null,
+        lng: _isFixed ? _lng : null,
+      );
+    } catch (e) {
+      if (mounted) setState(() { _error = 'Something went wrong. Please try again.'; _loading = false; });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isLight = Theme.of(context).brightness == Brightness.light;
+    final bottom = MediaQuery.of(context).viewInsets.bottom;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: isLight ? Colors.white : Theme.of(context).colorScheme.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      padding: EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.lg + bottom),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
+                width: 36, height: 4,
+                decoration: BoxDecoration(color: AppColors.textHint, borderRadius: BorderRadius.circular(2)),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            Text('Start a Business', style: AppTextStyles.heading3),
+            const SizedBox(height: 4),
+            Text(
+              'Create an owner account. You\'ll be able to set up your profile, open for business on the map, and accept orders.',
+              style: AppTextStyles.caption,
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            Text('Business type', style: AppTextStyles.label),
+            const SizedBox(height: AppSpacing.sm),
+            BusinessTypePicker(
+              selected: _businessType,
+              onChanged: (t) => setState(() {
+                _businessType = t;
+                _lat = null;
+                _lng = null;
+                _addressCtrl.clear();
+              }),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            TextField(
+              controller: _nameCtrl,
+              autofocus: true,
+              textCapitalization: TextCapitalization.words,
+              decoration: const InputDecoration(
+                labelText: 'Business name',
+                hintText: 'e.g. Smoky\'s BBQ',
+              ),
+              onSubmitted: _isFixed ? null : (_) => _submit(),
+            ),
+            if (_isFixed) ...[
+              const SizedBox(height: AppSpacing.md),
+              PlacesAutocompleteField(
+                controller: _addressCtrl,
+                label: '* Business address',
+                onCoordinatesSelected: (lat, lng) => setState(() { _lat = lat; _lng = lng; }),
+              ),
+            ],
+            if (_error != null) ...[
+              const SizedBox(height: AppSpacing.sm),
+              Text(_error!, style: AppTextStyles.caption.copyWith(color: AppColors.error)),
+            ],
+            const SizedBox(height: AppSpacing.lg),
+            FilledButton(
+              onPressed: _loading ? null : _submit,
+              style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
+              child: _loading
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Text('Create Owner Account', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+            ),
+          ],
+        ),
       ),
     );
   }

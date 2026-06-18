@@ -22,8 +22,29 @@ class AuthNotifier extends AsyncNotifier<AppUser?> {
   @override
   Future<AppUser?> build() async {
     final user = await ref.read(authRepositoryProvider).fetchCurrentUser();
-    if (user != null) await _rcLogIn(user.id);
+    if (user != null) {
+      await _rcLogIn(user.id);
+      _subscribeToProfileChanges(user.id);
+    }
     return user;
+  }
+
+  void _subscribeToProfileChanges(String userId) {
+    final channel = Supabase.instance.client
+        .channel('profile-role-$userId')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
+          schema: 'public',
+          table: 'profiles',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'id',
+            value: userId,
+          ),
+          callback: (_) => refreshUser(),
+        )
+        .subscribe();
+    ref.onDispose(() => Supabase.instance.client.removeChannel(channel));
   }
 
   Future<void> signInWithEmail(String email, String password) async {
@@ -59,6 +80,10 @@ class AuthNotifier extends AsyncNotifier<AppUser?> {
     required String password,
     required String displayName,
     required String truckName,
+    String businessType = 'mobile',
+    String? address,
+    double? lat,
+    double? lng,
   }) async {
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
@@ -67,6 +92,10 @@ class AuthNotifier extends AsyncNotifier<AppUser?> {
             password: password,
             displayName: displayName,
             truckName: truckName,
+            businessType: businessType,
+            address: address,
+            latitude: lat,
+            longitude: lng,
           );
       await _rcLogIn(user.id);
       await _claimInvites(user.id, user.email);
@@ -106,7 +135,12 @@ class AuthNotifier extends AsyncNotifier<AppUser?> {
     }
   }
 
-  Future<void> signUpOwnerWithApple(String truckName) async {
+  Future<void> signUpOwnerWithApple(String truckName, {
+    String businessType = 'mobile',
+    String? address,
+    double? lat,
+    double? lng,
+  }) async {
     final prev = state;
     state = const AsyncLoading();
     try {
@@ -114,6 +148,10 @@ class AuthNotifier extends AsyncNotifier<AppUser?> {
       final ownerUser = await ref.read(authRepositoryProvider).upgradeToOwner(
         uid: socialUser.id,
         truckName: truckName,
+        businessType: businessType,
+        address: address,
+        latitude: lat,
+        longitude: lng,
       );
       await _rcLogIn(ownerUser.id);
       await _claimInvites(ownerUser.id, ownerUser.email);
@@ -127,7 +165,12 @@ class AuthNotifier extends AsyncNotifier<AppUser?> {
     }
   }
 
-  Future<void> signUpOwnerWithGoogle(String truckName) async {
+  Future<void> signUpOwnerWithGoogle(String truckName, {
+    String businessType = 'mobile',
+    String? address,
+    double? lat,
+    double? lng,
+  }) async {
     final prev = state;
     state = const AsyncLoading();
     try {
@@ -135,6 +178,10 @@ class AuthNotifier extends AsyncNotifier<AppUser?> {
       final ownerUser = await ref.read(authRepositoryProvider).upgradeToOwner(
         uid: socialUser.id,
         truckName: truckName,
+        businessType: businessType,
+        address: address,
+        latitude: lat,
+        longitude: lng,
       );
       await _rcLogIn(ownerUser.id);
       await _claimInvites(ownerUser.id, ownerUser.email);
@@ -144,6 +191,26 @@ class AuthNotifier extends AsyncNotifier<AppUser?> {
     } catch (e, st) {
       state = AsyncError(e, st);
     }
+  }
+
+  Future<void> upgradeToOwner(String truckName, {
+    String businessType = 'mobile',
+    String? address,
+    double? lat,
+    double? lng,
+  }) async {
+    final user = state.asData?.value;
+    if (user == null) throw Exception('Not signed in');
+    final ownerUser = await ref.read(authRepositoryProvider).upgradeToOwner(
+      uid: user.id,
+      truckName: truckName,
+      businessType: businessType,
+      address: address,
+      latitude: lat,
+      longitude: lng,
+    );
+    await _rcLogIn(ownerUser.id);
+    state = AsyncData(ownerUser);
   }
 
   Future<void> changePassword({

@@ -19,14 +19,23 @@ import 'features/employees/screens/employees_screen.dart';
 import 'features/bookings/screens/booking_requests_screen.dart';
 import 'features/bookings/screens/my_requests_screen.dart';
 import 'features/food_trucks/screens/truck_profile_screen.dart';
+import 'features/notifications/screens/notifications_screen.dart';
+import 'features/orders/screens/my_orders_screen.dart';
+import 'features/orders/screens/order_queue_screen.dart';
+import 'features/orders/screens/stripe_connect_screen.dart';
 import 'shells/consumer_shell.dart';
 import 'shells/owner_shell.dart';
+
+GoRouter? _sharedRouter;
+
+// Accessible from push_notification_service for tap routing.
+GoRouter? get sharedRouter => _sharedRouter;
 
 // Router is created ONCE. The _AuthListenable triggers redirect re-evaluation
 // when auth state changes. The redirect uses ref.read (not watch) so the router
 // itself is never recreated — only its redirect logic re-runs.
 final routerProvider = Provider<GoRouter>((ref) {
-  return GoRouter(
+  final router = GoRouter(
     initialLocation: '/map',
     refreshListenable: _AuthListenable(ref),
     redirect: (context, state) {
@@ -51,7 +60,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         return user.isOwner ? '/dashboard' : '/map';
       }
       if (isAuthenticated && user.isOwner) {
-        const ownerRoutes = ['/dashboard', '/owner-map', '/owner-account'];
+        const ownerRoutes = ['/dashboard', '/owner-bookings', '/owner-account', '/owner-notifications'];
         final onOwnerRoute = ownerRoutes.any((r) => loc.startsWith(r));
         if (!onOwnerRoute) return '/dashboard';
       }
@@ -87,10 +96,21 @@ final routerProvider = Provider<GoRouter>((ref) {
           ]),
           StatefulShellBranch(routes: [
             GoRoute(
+              path: '/notifications',
+              builder: (c, s) => const NotificationsScreen(),
+              routes: [
+                GoRoute(path: 'my-requests', builder: (c, s) => const MyRequestsScreen()),
+                GoRoute(path: 'my-orders', builder: (c, s) => const MyOrdersScreen()),
+              ],
+            ),
+          ]),
+          StatefulShellBranch(routes: [
+            GoRoute(
               path: '/account',
               builder: (c, s) => const AccountScreen(),
               routes: [
                 GoRoute(path: 'my-requests', builder: (c, s) => const MyRequestsScreen()),
+                GoRoute(path: 'my-orders', builder: (c, s) => const MyOrdersScreen()),
                 GoRoute(path: 'settings', builder: (c, s) => const AccountSettingsScreen()),
               ],
             ),
@@ -107,6 +127,13 @@ final routerProvider = Provider<GoRouter>((ref) {
               path: '/dashboard',
               builder: (c, s) => const DashboardScreen(),
               routes: [
+                GoRoute(
+                  path: 'truck/:id',
+                  builder: (c, s) => TruckProfileScreen(
+                    truckId: s.pathParameters['id']!,
+                    scrollToReviews: s.extra == true,
+                  ),
+                ),
                 GoRoute(
                   path: 'edit-truck',
                   builder: (c, s) => const EditTruckScreen(),
@@ -131,23 +158,25 @@ final routerProvider = Provider<GoRouter>((ref) {
                   path: 'bookings',
                   builder: (c, s) => const BookingRequestsScreen(),
                 ),
+                GoRoute(
+                  path: 'orders',
+                  builder: (c, s) => const OrderQueueScreen(),
+                ),
+                GoRoute(
+                  path: 'stripe-connect',
+                  builder: (c, s) => const StripeConnectScreen(),
+                ),
               ],
             ),
           ]),
           StatefulShellBranch(routes: [
             GoRoute(
-              path: '/owner-map',
-              builder: (c, s) => const MapScreen(),
-              routes: [
-                GoRoute(
-                  path: 'truck/:id',
-                  builder: (c, s) => TruckProfileScreen(
-                    truckId: s.pathParameters['id']!,
-                    scrollToReviews: s.extra == true,
-                  ),
-                ),
-              ],
+              path: '/owner-bookings',
+              builder: (c, s) => const BookingRequestsScreen(),
             ),
+          ]),
+          StatefulShellBranch(routes: [
+            GoRoute(path: '/owner-notifications', builder: (c, s) => const NotificationsScreen()),
           ]),
           StatefulShellBranch(routes: [
             GoRoute(
@@ -155,6 +184,11 @@ final routerProvider = Provider<GoRouter>((ref) {
               builder: (c, s) => const AccountScreen(),
               routes: [
                 GoRoute(path: 'settings', builder: (c, s) => const AccountSettingsScreen()),
+                GoRoute(path: 'edit-truck', builder: (c, s) => const EditTruckScreen()),
+                GoRoute(path: 'manage-hours', builder: (c, s) => const ManageHoursScreen()),
+                GoRoute(path: 'manage-menu', builder: (c, s) => const ManageMenuScreen()),
+                GoRoute(path: 'subscription', builder: (c, s) => const SubscriptionScreen()),
+                GoRoute(path: 'employees', builder: (c, s) => const EmployeesScreen()),
               ],
             ),
           ]),
@@ -162,6 +196,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
     ],
   );
+  _sharedRouter = router;
+  return router;
 });
 
 // Notifies go_router to re-run redirect when auth or onboarding state changes.

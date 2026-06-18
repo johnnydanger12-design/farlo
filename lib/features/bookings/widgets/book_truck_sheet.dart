@@ -51,37 +51,24 @@ class BookTruckSheet extends ConsumerStatefulWidget {
 
 class _BookTruckSheetState extends ConsumerState<BookTruckSheet> {
   final _formKey = GlobalKey<FormState>();
-  final _nameCtrl = TextEditingController();
-  final _emailCtrl = TextEditingController();
-  final _phoneCtrl = TextEditingController();
   final _locationCtrl = TextEditingController();
   final _guestCtrl = TextEditingController();
   final _notesCtrl = TextEditingController();
+  final _otherTrucksCountCtrl = TextEditingController();
 
   DateTime? _eventDate;
   TimeOfDay? _eventTime;
   String? _duration;
   String _eventType = eventTypes.first;
+  bool _otherTrucksPresent = false;
   bool _submitting = false;
 
   @override
-  void initState() {
-    super.initState();
-    final user = ref.read(authProvider).asData?.value;
-    if (user != null) {
-      _nameCtrl.text = user.displayName;
-      _emailCtrl.text = user.email;
-    }
-  }
-
-  @override
   void dispose() {
-    _nameCtrl.dispose();
-    _emailCtrl.dispose();
-    _phoneCtrl.dispose();
     _locationCtrl.dispose();
     _guestCtrl.dispose();
     _notesCtrl.dispose();
+    _otherTrucksCountCtrl.dispose();
     super.dispose();
   }
 
@@ -96,6 +83,7 @@ class _BookTruckSheetState extends ConsumerState<BookTruckSheet> {
   }
 
   Future<void> _pickSchedule() async {
+    final minDate = DateTime.now().add(const Duration(days: 7));
     final result = await showModalBottomSheet<_ScheduleResult>(
       context: context,
       isScrollControlled: true,
@@ -105,6 +93,7 @@ class _BookTruckSheetState extends ConsumerState<BookTruckSheet> {
         initialTime: _eventTime,
         initialDuration: _duration,
         topPadding: widget.topPadding,
+        minDate: minDate,
       ),
     );
     if (result != null) {
@@ -128,6 +117,18 @@ class _BookTruckSheetState extends ConsumerState<BookTruckSheet> {
       return;
     }
 
+    final today = DateTime.now();
+    final minDate = DateTime(today.year, today.month, today.day).add(const Duration(days: 7));
+    if (_eventDate!.isBefore(minDate)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Event date must be at least 7 days from today.'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
     final user = ref.read(authProvider).asData?.value;
     if (user == null) return;
 
@@ -136,9 +137,9 @@ class _BookTruckSheetState extends ConsumerState<BookTruckSheet> {
       await ref.read(bookingsRepositoryProvider).submitRequest(
         truckId: widget.truckId,
         requesterId: user.id,
-        contactName: _nameCtrl.text.trim(),
-        contactEmail: _emailCtrl.text.trim(),
-        contactPhone: _phoneCtrl.text.trim(),
+        contactName: user.displayName,
+        contactEmail: user.email,
+        contactPhone: null,
         eventDate: _eventDate!,
         eventTime: _fmtTime(_eventTime!),
         duration: _duration,
@@ -146,6 +147,8 @@ class _BookTruckSheetState extends ConsumerState<BookTruckSheet> {
         eventLocation: _locationCtrl.text.trim(),
         eventType: _eventType,
         notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
+        otherTrucksPresent: _otherTrucksPresent,
+        otherTrucksCount: _otherTrucksPresent ? int.tryParse(_otherTrucksCountCtrl.text.trim()) : null,
       );
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
@@ -209,32 +212,6 @@ class _BookTruckSheetState extends ConsumerState<BookTruckSheet> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      _sectionLabel('Contact Info'),
-                      _field(
-                        controller: _nameCtrl,
-                        label: '* Your name',
-                        validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
-                      ),
-                      const SizedBox(height: AppSpacing.sm),
-                      _field(
-                        controller: _emailCtrl,
-                        label: '* Email address',
-                        keyboardType: TextInputType.emailAddress,
-                        validator: (v) {
-                          if (v == null || v.trim().isEmpty) return 'Required';
-                          if (!v.contains('@')) return 'Enter a valid email';
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: AppSpacing.sm),
-                      _field(
-                        controller: _phoneCtrl,
-                        label: '* Phone number',
-                        keyboardType: TextInputType.phone,
-                        inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[\d\s\-\(\)\+]'))],
-                        validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
-                      ),
-                      const SizedBox(height: AppSpacing.lg),
                       _sectionLabel('Event Details'),
                       // Combined schedule picker
                       _PickerTile(
@@ -264,6 +241,15 @@ class _BookTruckSheetState extends ConsumerState<BookTruckSheet> {
                         onChanged: (v) { if (v != null) setState(() => _eventType = v); },
                       ),
                       const SizedBox(height: AppSpacing.sm),
+                      _OtherTrucksField(
+                        present: _otherTrucksPresent,
+                        countCtrl: _otherTrucksCountCtrl,
+                        onChanged: (v) => setState(() {
+                          _otherTrucksPresent = v;
+                          if (!v) _otherTrucksCountCtrl.clear();
+                        }),
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
                       _field(controller: _notesCtrl, label: 'Additional details (optional)', maxLines: 3),
                       const SizedBox(height: AppSpacing.lg),
                       FilledButton(
@@ -278,7 +264,7 @@ class _BookTruckSheetState extends ConsumerState<BookTruckSheet> {
                       ),
                       const SizedBox(height: AppSpacing.sm),
                       Text(
-                        'The truck owner will review your request and reach out to confirm.',
+                        'The business owner will review your request and reach out to confirm.',
                         style: AppTextStyles.caption,
                         textAlign: TextAlign.center,
                       ),
@@ -320,11 +306,12 @@ class _BookTruckSheetState extends ConsumerState<BookTruckSheet> {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _SchedulePickerSheet extends StatefulWidget {
-  const _SchedulePickerSheet({this.initialDate, this.initialTime, this.initialDuration, this.topPadding = 0});
+  const _SchedulePickerSheet({this.initialDate, this.initialTime, this.initialDuration, this.topPadding = 0, this.minDate});
   final DateTime? initialDate;
   final TimeOfDay? initialTime;
   final String? initialDuration;
   final double topPadding;
+  final DateTime? minDate;
 
   @override
   State<_SchedulePickerSheet> createState() => _SchedulePickerSheetState();
@@ -338,7 +325,8 @@ class _SchedulePickerSheetState extends State<_SchedulePickerSheet> {
   @override
   void initState() {
     super.initState();
-    _date = widget.initialDate ?? DateTime.now().add(const Duration(days: 7));
+    final min = widget.minDate ?? DateTime.now();
+    _date = widget.initialDate ?? min;
     _time = widget.initialTime ?? const TimeOfDay(hour: 12, minute: 0);
     _duration = widget.initialDuration;
   }
@@ -389,7 +377,7 @@ class _SchedulePickerSheetState extends State<_SchedulePickerSheet> {
                     // Calendar
                     CalendarDatePicker(
                       initialDate: _date,
-                      firstDate: DateTime.now(),
+                      firstDate: widget.minDate ?? DateTime.now(),
                       lastDate: DateTime.now().add(const Duration(days: 365 * 2)),
                       onDateChanged: (d) => setState(() => _date = d),
                     ),
@@ -509,11 +497,13 @@ class _ManualBookingSheetState extends ConsumerState<ManualBookingSheet> {
   final _locationCtrl = TextEditingController();
   final _guestCtrl = TextEditingController();
   final _notesCtrl = TextEditingController();
+  final _otherTrucksCountCtrl = TextEditingController();
 
   DateTime? _eventDate;
   TimeOfDay? _eventTime;
   String? _duration;
   String _eventType = eventTypes.first;
+  bool _otherTrucksPresent = false;
   bool _submitting = false;
 
   @override
@@ -524,6 +514,7 @@ class _ManualBookingSheetState extends ConsumerState<ManualBookingSheet> {
     _locationCtrl.dispose();
     _guestCtrl.dispose();
     _notesCtrl.dispose();
+    _otherTrucksCountCtrl.dispose();
     super.dispose();
   }
 
@@ -581,6 +572,8 @@ class _ManualBookingSheetState extends ConsumerState<ManualBookingSheet> {
         eventLocation: _locationCtrl.text.trim(),
         eventType: _eventType,
         notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
+        otherTrucksPresent: _otherTrucksPresent,
+        otherTrucksCount: _otherTrucksPresent ? int.tryParse(_otherTrucksCountCtrl.text.trim()) : null,
       );
     } catch (e) {
       if (mounted) {
@@ -759,6 +752,15 @@ class _ManualBookingSheetState extends ConsumerState<ManualBookingSheet> {
                       onChanged: (v) { if (v != null) setState(() => _eventType = v); },
                     ),
                     const SizedBox(height: AppSpacing.sm),
+                    _OtherTrucksField(
+                      present: _otherTrucksPresent,
+                      countCtrl: _otherTrucksCountCtrl,
+                      onChanged: (v) => setState(() {
+                        _otherTrucksPresent = v;
+                        if (!v) _otherTrucksCountCtrl.clear();
+                      }),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
                     _field(controller: _notesCtrl, label: 'Notes (optional)', maxLines: 3),
                     const SizedBox(height: AppSpacing.lg),
                     FilledButton(
@@ -811,6 +813,58 @@ class _ManualBookingSheetState extends ConsumerState<ManualBookingSheet> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+
+class _OtherTrucksField extends StatelessWidget {
+  const _OtherTrucksField({
+    required this.present,
+    required this.countCtrl,
+    required this.onChanged,
+  });
+
+  final bool present;
+  final TextEditingController countCtrl;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final primary = Theme.of(context).colorScheme.primary;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text('Other businesses at this event?', style: Theme.of(context).textTheme.bodyMedium),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            SegmentedButton<bool>(
+              segments: const [
+                ButtonSegment(value: false, label: Text('No')),
+                ButtonSegment(value: true, label: Text('Yes')),
+              ],
+              selected: {present},
+              onSelectionChanged: (v) => onChanged(v.first),
+              style: ButtonStyle(
+                visualDensity: VisualDensity.compact,
+                textStyle: WidgetStateProperty.all(const TextStyle(fontSize: 13)),
+                side: WidgetStateProperty.all(BorderSide(color: primary.withValues(alpha: 0.4))),
+              ),
+            ),
+          ],
+        ),
+        if (present) ...[
+          const SizedBox(height: AppSpacing.sm),
+          TextFormField(
+            controller: countCtrl,
+            keyboardType: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            decoration: const InputDecoration(labelText: 'Approx. how many other trucks?'),
+          ),
+        ],
+      ],
+    );
+  }
+}
 
 class _PickerTile extends StatelessWidget {
   const _PickerTile({

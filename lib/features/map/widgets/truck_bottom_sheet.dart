@@ -20,22 +20,55 @@ class TruckBottomSheet extends ConsumerWidget {
   static const double _avatarRadius = 30.0;
   static const double _avatarLeft = AppSpacing.md;
 
-  static void _showPhoto(BuildContext context, String url) {
+  static void _showPhotoGallery(BuildContext context, List<String> urls, int initialIndex) {
     showDialog<void>(
       context: context,
       barrierColor: Colors.black87,
       barrierDismissible: true,
-      builder: (dialogContext) => GestureDetector(
-        onTap: () => Navigator.pop(dialogContext),
-        behavior: HitTestBehavior.opaque,
-        child: SafeArea(
-          child: InteractiveViewer(
-            child: Center(
-              child: Image.network(url, fit: BoxFit.contain),
+      builder: (dialogContext) {
+        final pageCtrl = PageController(initialPage: initialIndex);
+        int current = initialIndex;
+        return StatefulBuilder(
+          builder: (_, setState) => GestureDetector(
+            onTap: () => Navigator.pop(dialogContext),
+            behavior: HitTestBehavior.opaque,
+            child: SafeArea(
+              child: Stack(
+                children: [
+                  PageView.builder(
+                    controller: pageCtrl,
+                    itemCount: urls.length,
+                    onPageChanged: (i) => setState(() => current = i),
+                    itemBuilder: (_, i) => Center(
+                      child: Image.network(urls[i], fit: BoxFit.contain,
+                          errorBuilder: (_, _, _) => const SizedBox.shrink()),
+                    ),
+                  ),
+                  if (urls.length > 1)
+                    Positioned(
+                      bottom: 20,
+                      left: 0,
+                      right: 0,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: List.generate(urls.length, (i) => AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          margin: const EdgeInsets.symmetric(horizontal: 3),
+                          width: current == i ? 16 : 6,
+                          height: 6,
+                          decoration: BoxDecoration(
+                            color: current == i ? Colors.white : Colors.white38,
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                        )),
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -99,10 +132,11 @@ class TruckBottomSheet extends ConsumerWidget {
                               onTap: () => ref.read(favoritedTruckIdsProvider.notifier).toggle(truck.id),
                             ),
                           if (isAuthenticated) const SizedBox(width: AppSpacing.sm),
-                          _TakeMeThereButton(
-                            latitude: truck.latitude,
-                            longitude: truck.longitude,
-                          ),
+                          if (truck.latitude != null && truck.longitude != null)
+                            _TakeMeThereButton(
+                              latitude: truck.latitude!,
+                              longitude: truck.longitude!,
+                            ),
                         ],
                       ),
                     ],
@@ -134,8 +168,7 @@ class TruckBottomSheet extends ConsumerWidget {
                       const SizedBox(height: AppSpacing.sm),
                       GestureDetector(
                         onTap: () {
-                          final prefix = (user?.isOwner ?? false) ? '/owner-map' : '/map';
-                          context.push('$prefix/truck/${truck.id}', extra: true);
+                          context.push('/map/truck/${truck.id}', extra: true);
                         },
                         child: Row(
                           children: [
@@ -165,26 +198,9 @@ class TruckBottomSheet extends ConsumerWidget {
                       ],
                       if (truck.photoUrls.isNotEmpty) ...[
                         const SizedBox(height: AppSpacing.sm),
-                        SizedBox(
-                          height: 72,
-                          child: ListView.separated(
-                            scrollDirection: Axis.horizontal,
-                            itemCount: truck.photoUrls.length,
-                            separatorBuilder: (_, _) => const SizedBox(width: 6),
-                            itemBuilder: (context, i) => GestureDetector(
-                              onTap: () => _showPhoto(context, truck.photoUrls[i]),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: Image.network(
-                                  truck.photoUrls[i],
-                                  width: 96,
-                                  height: 72,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (_, _, _) => const SizedBox.shrink(),
-                                ),
-                              ),
-                            ),
-                          ),
+                        _PhotoCarousel(
+                          photoUrls: truck.photoUrls,
+                          onTap: (i) => _showPhotoGallery(context, truck.photoUrls, i),
                         ),
                       ],
                       const SizedBox(height: AppSpacing.sm),
@@ -192,8 +208,7 @@ class TruckBottomSheet extends ConsumerWidget {
                         width: double.infinity,
                         child: OutlinedButton(
                           onPressed: () {
-                            final prefix = (user?.isOwner ?? false) ? '/owner-map' : '/map';
-                            context.push('$prefix/truck/${truck.id}');
+                            context.push('/map/truck/${truck.id}');
                           },
                           child: const Text('View Full Profile'),
                         ),
@@ -328,7 +343,73 @@ class _TruckIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Icon(Icons.lunch_dining, color: Colors.white, size: radius * 1.1);
+    return Icon(Icons.storefront_outlined, color: Colors.white, size: radius * 1.1);
+  }
+}
+
+class _PhotoCarousel extends StatefulWidget {
+  const _PhotoCarousel({required this.photoUrls, required this.onTap});
+
+  final List<String> photoUrls;
+  final void Function(int index) onTap;
+
+  @override
+  State<_PhotoCarousel> createState() => _PhotoCarouselState();
+}
+
+class _PhotoCarouselState extends State<_PhotoCarousel> {
+  final _ctrl = PageController();
+  int _current = 0;
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final primary = Theme.of(context).colorScheme.primary;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          height: 160,
+          child: PageView.builder(
+            controller: _ctrl,
+            itemCount: widget.photoUrls.length,
+            onPageChanged: (i) => setState(() => _current = i),
+            itemBuilder: (_, i) => GestureDetector(
+              onTap: () => widget.onTap(i),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Image.network(
+                  widget.photoUrls[i],
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                ),
+              ),
+            ),
+          ),
+        ),
+        if (widget.photoUrls.length > 1) ...[
+          const SizedBox(height: 6),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(widget.photoUrls.length, (i) => AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              margin: const EdgeInsets.symmetric(horizontal: 3),
+              width: _current == i ? 16 : 6,
+              height: 6,
+              decoration: BoxDecoration(
+                color: _current == i ? primary : AppColors.textHint,
+                borderRadius: BorderRadius.circular(3),
+              ),
+            )),
+          ),
+        ],
+      ],
+    );
   }
 }
 
