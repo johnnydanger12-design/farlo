@@ -70,6 +70,11 @@ class AccountScreen extends ConsumerWidget {
                   onTap: () => context.push('/owner-account/edit-truck'),
                 ),
                 _SettingsTile(
+                  icon: Icons.schedule_outlined,
+                  label: 'Business Hours',
+                  onTap: () => context.push('/owner-account/manage-hours'),
+                ),
+                _SettingsTile(
                   icon: Icons.restaurant_menu_outlined,
                   label: 'Menu',
                   onTap: () => context.push('/owner-account/manage-menu'),

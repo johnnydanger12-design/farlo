@@ -122,13 +122,17 @@ Deno.serve(async (req: Request) => {
 
   const { data: truck } = await supabase
     .from('food_trucks')
-    .select('owner_id')
+    .select('owner_id, name')
     .eq('id', truckId)
     .single();
 
   if (!truck || truck.owner_id !== user.id) {
     return new Response('Forbidden', { status: 403 });
   }
+
+  const truckName = (truck.name as string) ?? 'A business you follow';
+  // Push title shows who sent it + the headline; body has the detail.
+  const pushTitle = `${truckName} — ${title}`;
 
   // Get all followers of this truck
   const { data: favs } = await supabase
@@ -144,12 +148,12 @@ Deno.serve(async (req: Request) => {
     });
   }
 
-  // Fan-out to in-app inbox for every follower regardless of push preference.
+  // Fan-out to in-app inbox — title shows truck name so consumers know the sender.
   await supabase.from('notifications').insert(
     followerIds.map((userId) => ({
       user_id: userId,
       type: 'announcement',
-      title,
+      title: pushTitle,
       body: message,
       related_id: truckId,
     })),
@@ -192,7 +196,7 @@ Deno.serve(async (req: Request) => {
         const sa = JSON.parse(saJson);
         const accessToken = await getFCMAccessToken(sa);
         await Promise.allSettled(
-          tokens.map((t) => sendFCM(t, title, message, sa.project_id, accessToken, { type: 'announcement', related_id: truckId })),
+          tokens.map((t) => sendFCM(t, pushTitle, message, sa.project_id, accessToken, { type: 'announcement', related_id: truckId })),
         );
       }
     }

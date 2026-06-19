@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/booking_deposit.dart';
@@ -7,6 +9,16 @@ import '../models/booking_request.dart';
 class BookingsRepository {
   BookingsRepository(this._supabase);
   final SupabaseClient _supabase;
+
+  Future<void> expirePendingBookings(String truckId) async {
+    final today = DateTime.now().toIso8601String().substring(0, 10);
+    await _supabase
+        .from('event_booking_requests')
+        .update({'status': 'expired'})
+        .eq('truck_id', truckId)
+        .eq('status', 'pending')
+        .lt('event_date', today);
+  }
 
   Future<List<BookingRequest>> fetchOwnerRequests(String truckId) async {
     final rows = await _supabase
@@ -235,6 +247,20 @@ class BookingsRepository {
         .single();
     _invokeNotification('deposit_requested', bookingId);
     return BookingDeposit.fromMap(row);
+  }
+
+  // ── PDF generation ───────────────────────────────────────────────────────────
+
+  Future<({Uint8List bytes, String filename})> generateInvoicePdf(String bookingId) async {
+    final res = await _supabase.functions.invoke(
+      'generate-booking-invoice',
+      body: {'booking_id': bookingId},
+    );
+    final data = res.data as Map<String, dynamic>;
+    if (data['error'] != null) throw Exception(data['error']);
+    final bytes = base64Decode(data['pdf_base64'] as String);
+    final filename = (data['filename'] as String?) ?? 'Invoice.pdf';
+    return (bytes: Uint8List.fromList(bytes), filename: filename);
   }
 
   // ── Payments ─────────────────────────────────────────────────────────────────

@@ -1,11 +1,16 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../core/constants/supabase_constants.dart';
 import '../../../core/widgets/app_button.dart';
+import '../../../services/storage_service.dart';
 import '../../food_trucks/models/menu_item.dart';
 import '../../food_trucks/providers/food_truck_provider.dart';
 
@@ -112,7 +117,7 @@ class ManageMenuScreen extends ConsumerWidget {
       builder: (_) => _MenuItemSheet(
         truckId: truckId,
         nextSortOrder: nextSort,
-        onSave: (name, desc, price, category) async {
+        onSave: (name, desc, price, category, imageUrl) async {
           await ref.read(foodTruckRepositoryProvider).addMenuItem(
             truckId,
             name: name,
@@ -120,6 +125,7 @@ class ManageMenuScreen extends ConsumerWidget {
             price: price,
             category: category,
             sortOrder: nextSort,
+            imageUrl: imageUrl,
           );
           await ref.read(ownerTruckProvider.notifier).refresh();
         },
@@ -136,12 +142,13 @@ class ManageMenuScreen extends ConsumerWidget {
         truckId: item.truckId,
         nextSortOrder: item.sortOrder,
         existing: item,
-        onSave: (name, desc, price, category) async {
+        onSave: (name, desc, price, category, imageUrl) async {
           await ref.read(foodTruckRepositoryProvider).updateMenuItem(item.id, {
             'name': name,
             'description': desc.isEmpty ? null : desc,
             'price': price,
             'category': category,
+            'image_url': imageUrl,
           });
           await ref.read(ownerTruckProvider.notifier).refresh();
         },
@@ -222,6 +229,18 @@ class _MenuItemTile extends StatelessWidget {
         ),
         child: ListTile(
           contentPadding: const EdgeInsets.fromLTRB(AppSpacing.md, 4, 4, 4),
+          leading: item.imageUrl != null
+              ? ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.network(
+                    item.imageUrl!,
+                    width: 48,
+                    height: 48,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, _, _) => const SizedBox(width: 48, height: 48),
+                  ),
+                )
+              : null,
           title: Text(item.name, style: AppTextStyles.label),
           subtitle: Text(
             item.description != null && item.description!.isNotEmpty
@@ -270,7 +289,7 @@ class _MenuItemSheet extends StatefulWidget {
   final String truckId;
   final int nextSortOrder;
   final MenuItem? existing;
-  final Future<void> Function(String name, String desc, double price, String category) onSave;
+  final Future<void> Function(String name, String desc, double price, String category, String? imageUrl) onSave;
 
   @override
   State<_MenuItemSheet> createState() => _MenuItemSheetState();
@@ -285,6 +304,9 @@ class _MenuItemSheetState extends State<_MenuItemSheet> {
   String _dropdownCategory = 'Mains';
   bool _isCustomCategory = false;
   bool _saving = false;
+  File? _pickedImage;
+  String? _existingImageUrl;
+  bool _removeImage = false;
 
   static const List<String> _defaultCategories = [
     'Mains', 'Sides', 'Drinks', 'Desserts', 'Specials',
@@ -300,16 +322,13 @@ class _MenuItemSheetState extends State<_MenuItemSheet> {
     _nameCtrl = TextEditingController(text: widget.existing?.name ?? '');
     _descCtrl = TextEditingController(text: widget.existing?.description ?? '');
     _priceCtrl = TextEditingController(
-      text: widget.existing != null
-          ? widget.existing!.price.toStringAsFixed(2)
-          : '',
+      text: widget.existing != null ? widget.existing!.price.toStringAsFixed(2) : '',
     );
     final existingCat = widget.existing?.category ?? 'Mains';
     _isCustomCategory = !_defaultCategories.contains(existingCat);
     _dropdownCategory = _isCustomCategory ? _otherOption : existingCat;
-    _customCategoryCtrl = TextEditingController(
-      text: _isCustomCategory ? existingCat : '',
-    );
+    _customCategoryCtrl = TextEditingController(text: _isCustomCategory ? existingCat : '');
+    _existingImageUrl = widget.existing?.imageUrl;
   }
 
   @override
@@ -321,22 +340,42 @@ class _MenuItemSheetState extends State<_MenuItemSheet> {
     super.dispose();
   }
 
+  Future<void> _pickImage() async {
+    final xfile = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 80);
+    if (xfile != null) setState(() { _pickedImage = File(xfile.path); _removeImage = false; });
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _saving = true);
     try {
+      String? imageUrl = _existingImageUrl;
+
+      if (_removeImage || (_pickedImage != null && _existingImageUrl != null)) {
+        await storageServiceInstance.deleteByUrl(
+            SupabaseConstants.menuItemPhotosBucket, _existingImageUrl!);
+        imageUrl = null;
+      }
+      if (_pickedImage != null) {
+        imageUrl = await storageServiceInstance.uploadImage(
+          SupabaseConstants.menuItemPhotosBucket,
+          _pickedImage!,
+          ownerId: widget.truckId,
+        );
+      }
+      if (_removeImage && _pickedImage == null) imageUrl = null;
+
       await widget.onSave(
         _nameCtrl.text.trim(),
         _descCtrl.text.trim(),
         double.parse(_priceCtrl.text.trim()),
         _effectiveCategory,
+        imageUrl,
       );
       if (mounted) Navigator.pop(context);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -372,6 +411,63 @@ class _MenuItemSheetState extends State<_MenuItemSheet> {
               Text(
                 widget.existing == null ? 'Add Menu Item' : 'Edit Menu Item',
                 style: AppTextStyles.heading3,
+              ),
+              const SizedBox(height: AppSpacing.md),
+
+              // ── Photo picker ─────────────────────────────────────────────
+              GestureDetector(
+                onTap: _pickImage,
+                child: Container(
+                  height: 130,
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Theme.of(context).colorScheme.outline),
+                  ),
+                  child: Builder(builder: (_) {
+                    final showPicked = _pickedImage != null;
+                    final showExisting = !showPicked && _existingImageUrl != null && !_removeImage;
+                    if (showPicked) {
+                      return ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.file(_pickedImage!, fit: BoxFit.cover, width: double.infinity),
+                      );
+                    }
+                    if (showExisting) {
+                      return Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: Image.network(_existingImageUrl!, fit: BoxFit.cover),
+                          ),
+                          Positioned(
+                            top: 6, right: 6,
+                            child: GestureDetector(
+                              onTap: () => setState(() => _removeImage = true),
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: const BoxDecoration(
+                                  color: Colors.black54, shape: BoxShape.circle),
+                                child: const Icon(Icons.close, size: 14, color: Colors.white),
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    }
+                    return Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.add_photo_alternate_outlined,
+                            color: AppColors.textHint, size: 32),
+                        const SizedBox(height: 6),
+                        Text('Add photo (optional)', style: AppTextStyles.caption),
+                      ],
+                    );
+                  }),
+                ),
               ),
               const SizedBox(height: AppSpacing.md),
               TextFormField(

@@ -38,6 +38,7 @@ class FoodTruckRepository {
           'is_open': isOpen,
           'session_started_at': isOpen ? DateTime.now().toUtc().toIso8601String() : null,
           'opened_by_user_id': isOpen ? userId : null,
+          if (isOpen) 'has_ever_opened': true,
         })
         .eq('id', id);
   }
@@ -85,6 +86,7 @@ class FoodTruckRepository {
     required double price,
     required String category,
     required int sortOrder,
+    String? imageUrl,
   }) async {
     await _supabase.from(SupabaseConstants.menuItemsTable).insert({
       'truck_id': truckId,
@@ -94,6 +96,7 @@ class FoodTruckRepository {
       'category': category,
       'sort_order': sortOrder,
       'is_available': true,
+      'image_url': ?imageUrl,
     });
   }
 

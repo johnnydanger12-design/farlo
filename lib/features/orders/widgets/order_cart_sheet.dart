@@ -5,7 +5,6 @@ import 'package:flutter_stripe/flutter_stripe.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
-import '../../food_trucks/models/menu_item.dart';
 import '../../map/models/food_truck.dart';
 import '../models/order_item.dart';
 import '../providers/orders_provider.dart';
@@ -23,15 +22,6 @@ class OrderCartSheet extends ConsumerStatefulWidget {
 class _OrderCartSheetState extends ConsumerState<OrderCartSheet> {
   final _pickupNoteCtrl = TextEditingController();
   bool _paying = false;
-
-  @override
-  void initState() {
-    super.initState();
-    // Clear any stale cart from a previous truck
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(cartProvider.notifier).clear();
-    });
-  }
 
   @override
   void dispose() {
@@ -104,14 +94,13 @@ class _OrderCartSheetState extends ConsumerState<OrderCartSheet> {
     final cartNotifier = ref.read(cartProvider.notifier);
     final total = cartNotifier.total;
     final hasItems = cart.isNotEmpty;
-
-    final availableItems = widget.truck.menuItems.where((i) => i.isAvailable).toList();
-    final categories = availableItems.map((i) => i.category).toSet().toList()..sort();
+    final cartItems = cart.values.toList();
+    final bottomPad = MediaQuery.of(context).viewPadding.bottom;
 
     return DraggableScrollableSheet(
-      initialChildSize: 0.88,
-      minChildSize: 0.5,
-      maxChildSize: 0.95,
+      initialChildSize: 0.6,
+      minChildSize: 0.4,
+      maxChildSize: 0.92,
       expand: false,
       builder: (context, scrollController) {
         return Container(
@@ -121,49 +110,30 @@ class _OrderCartSheetState extends ConsumerState<OrderCartSheet> {
           ),
           child: Column(
             children: [
-              // Drag handle + title
               Container(
                 margin: const EdgeInsets.only(top: 12, bottom: 4),
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: AppColors.divider,
-                  borderRadius: BorderRadius.circular(2),
-                ),
+                width: 40, height: 4,
+                decoration: BoxDecoration(color: AppColors.divider, borderRadius: BorderRadius.circular(2)),
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.sm),
-                child: Text(
-                  'Order from ${widget.truck.name}',
-                  style: AppTextStyles.heading3,
+                child: Row(
+                  children: [
+                    Expanded(child: Text('Your Bag', style: AppTextStyles.heading3)),
+                    Text(widget.truck.name, style: AppTextStyles.caption),
+                  ],
                 ),
               ),
               const Divider(height: 1),
-
-              // Menu
               Expanded(
-                child: availableItems.isEmpty
-                    ? Center(
-                        child: Text('No menu items available', style: AppTextStyles.bodySmall.copyWith(color: AppColors.textSecondary)),
-                      )
+                child: !hasItems
+                    ? Center(child: Text('Your bag is empty', style: AppTextStyles.bodySmall.copyWith(color: AppColors.textSecondary)))
                     : ListView(
                         controller: scrollController,
-                        padding: const EdgeInsets.only(bottom: 160),
+                        padding: const EdgeInsets.only(bottom: 120),
                         children: [
-                          for (final category in categories) ...[
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, AppSpacing.sm),
-                              child: Text(
-                                category,
-                                style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.w700, letterSpacing: 0.8),
-                              ),
-                            ),
-                            ...availableItems
-                                .where((i) => i.category == category)
-                                .map((item) => _MenuItemRow(item: item, cartItem: cart[item.id])),
-                          ],
-
-                          // Pickup note
+                          ...cartItems.map((ci) => _CartItemRow(cartItem: ci)),
+                          const Divider(height: 1),
                           Padding(
                             padding: const EdgeInsets.all(AppSpacing.lg),
                             child: TextField(
@@ -179,15 +149,8 @@ class _OrderCartSheetState extends ConsumerState<OrderCartSheet> {
                         ],
                       ),
               ),
-
-              // Sticky bottom bar
               Container(
-                padding: EdgeInsets.fromLTRB(
-                  AppSpacing.lg,
-                  AppSpacing.md,
-                  AppSpacing.lg,
-                  AppSpacing.md + MediaQuery.of(context).viewInsets.bottom + MediaQuery.of(context).viewPadding.bottom,
-                ),
+                padding: EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.md + bottomPad),
                 decoration: BoxDecoration(
                   color: Theme.of(context).colorScheme.surface,
                   border: Border(top: BorderSide(color: AppColors.divider)),
@@ -200,7 +163,7 @@ class _OrderCartSheetState extends ConsumerState<OrderCartSheet> {
                     child: _paying
                         ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                         : Text(
-                            hasItems ? 'Pay \$${total.toStringAsFixed(2)}' : 'Add items to order',
+                            hasItems ? 'Place Order · \$${total.toStringAsFixed(2)}' : 'Add items to order',
                             style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                           ),
                   ),
@@ -214,112 +177,39 @@ class _OrderCartSheetState extends ConsumerState<OrderCartSheet> {
   }
 }
 
-class _MenuItemRow extends ConsumerStatefulWidget {
-  const _MenuItemRow({required this.item, required this.cartItem});
-  final MenuItem item;
-  final CartItem? cartItem;
+class _CartItemRow extends ConsumerWidget {
+  const _CartItemRow({required this.cartItem});
+  final CartItem cartItem;
 
   @override
-  ConsumerState<_MenuItemRow> createState() => _MenuItemRowState();
-}
-
-class _MenuItemRowState extends ConsumerState<_MenuItemRow> {
-  bool _noteExpanded = false;
-  late final TextEditingController _noteCtrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _noteCtrl = TextEditingController(text: widget.cartItem?.specialRequest);
-  }
-
-  @override
-  void dispose() {
-    _noteCtrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final item = widget.item;
-    final cartItem = widget.cartItem;
-    final qty = cartItem?.quantity ?? 0;
+  Widget build(BuildContext context, WidgetRef ref) {
     final notifier = ref.read(cartProvider.notifier);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        ListTile(
-          title: Text(item.name, style: AppTextStyles.label),
-          subtitle: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (item.description != null && item.description!.isNotEmpty)
-                Text(item.description!, style: AppTextStyles.caption, maxLines: 2, overflow: TextOverflow.ellipsis),
-              Text(item.priceDisplay, style: AppTextStyles.caption.copyWith(color: Theme.of(context).colorScheme.primary)),
-            ],
-          ),
-          trailing: qty == 0
-              ? IconButton(
-                  icon: const Icon(Icons.add_circle_outline),
-                  onPressed: () => notifier.add(CartItem(
-                    menuItemId: item.id,
-                    name: item.name,
-                    price: item.price,
-                    quantity: 1,
-                  )),
-                )
-              : Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.remove_circle_outline),
-                      onPressed: () {
-                        notifier.remove(item.id);
-                        if (qty <= 1) setState(() => _noteExpanded = false);
-                      },
-                    ),
-                    Text('$qty', style: AppTextStyles.label),
-                    IconButton(
-                      icon: const Icon(Icons.add_circle_outline),
-                      onPressed: () => notifier.add(CartItem(
-                        menuItemId: item.id,
-                        name: item.name,
-                        price: item.price,
-                        quantity: 1,
-                      )),
-                    ),
-                  ],
-                ),
-        ),
-
-        // Per-item special request
-        if (qty > 0) ...[
-          Padding(
-            padding: const EdgeInsets.only(left: AppSpacing.lg, right: AppSpacing.lg, bottom: AppSpacing.sm),
-            child: GestureDetector(
-              onTap: () => setState(() => _noteExpanded = !_noteExpanded),
-              child: Text(
-                _noteExpanded ? 'Hide note' : (cartItem?.specialRequest?.isNotEmpty == true ? 'Note: ${cartItem!.specialRequest}' : '+ Add special request'),
-                style: AppTextStyles.caption.copyWith(color: Theme.of(context).colorScheme.primary),
-              ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: 10),
+      child: Row(
+        children: [
+          GestureDetector(
+            onTap: () => notifier.remove(cartItem.menuItemId),
+            child: Icon(
+              cartItem.quantity == 1 ? Icons.delete_outline : Icons.remove_circle_outline,
+              size: 20,
+              color: cartItem.quantity == 1 ? AppColors.error : AppColors.textSecondary,
             ),
           ),
-          if (_noteExpanded)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.sm),
-              child: TextField(
-                controller: _noteCtrl,
-                decoration: const InputDecoration(
-                  hintText: 'e.g. no onions, extra sauce…',
-                  border: OutlineInputBorder(),
-                  isDense: true,
-                ),
-                onChanged: (val) => notifier.setSpecialRequest(item.id, val.trim().isEmpty ? null : val.trim()),
-              ),
-            ),
+          const SizedBox(width: 10),
+          Text('${cartItem.quantity}', style: AppTextStyles.label),
+          const SizedBox(width: 10),
+          GestureDetector(
+            onTap: () => notifier.add(cartItem),
+            child: const Icon(Icons.add_circle_outline, size: 20, color: AppColors.textSecondary),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(child: Text(cartItem.name, style: AppTextStyles.bodySmall)),
+          Text('\$${cartItem.lineTotal.toStringAsFixed(2)}',
+              style: AppTextStyles.bodySmall.copyWith(fontWeight: FontWeight.w600)),
         ],
-      ],
+      ),
     );
   }
 }
+

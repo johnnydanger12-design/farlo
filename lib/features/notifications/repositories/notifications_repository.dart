@@ -33,6 +33,21 @@ class NotificationsRepository {
         .eq('read', false);
   }
 
+  Future<void> markBookingNotificationsRead(String userId) async {
+    await _supabase
+        .from('notifications')
+        .update({'read': true})
+        .eq('user_id', userId)
+        .eq('read', false)
+        .inFilter('type', const [
+          'booking_created',
+          'estimate_responded',
+          'deposit_paid',
+          'invoice_paid',
+          'booking_cancelled_by_consumer',
+        ]);
+  }
+
   Future<void> deleteNotification(String notificationId) async {
     await _supabase
         .from('notifications')

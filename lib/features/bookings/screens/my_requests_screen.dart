@@ -142,6 +142,7 @@ class _MyRequestsScreenState extends ConsumerState<MyRequestsScreen> {
           final closed = requests
               .where((r) =>
                   r.status == 'declined' ||
+                  r.status == 'expired' ||
                   r.status == 'cancelled' ||
                   (r.status == 'pending' && _isOver(r)))
               .toList()
@@ -559,7 +560,7 @@ class _MyCompactTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isExpired = request.status == 'pending' && _isOver(request);
+    final isExpired = request.status == 'expired' || (request.status == 'pending' && _isOver(request));
     final isCancelled = request.status == 'cancelled';
     final isDeclined = request.status == 'declined';
     final isPastAccepted = request.status == 'accepted' && _isOver(request);

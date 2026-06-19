@@ -15,4 +15,5 @@ class SupabaseConstants {
   static const truckLogosBucket = 'truck-logos';
   static const truckPhotosBucket = 'truck-photos';
   static const truckMenusBucket = 'truck-menus';
+  static const menuItemPhotosBucket = 'menu-item-photos';
 }

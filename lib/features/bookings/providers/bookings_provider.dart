@@ -14,11 +14,13 @@ final pendingBookingCountProvider =
 
   Future<void> refresh() async {
     try {
+      final today = DateTime.now().toIso8601String().substring(0, 10);
       final data = await Supabase.instance.client
           .from('event_booking_requests')
           .select('id')
           .eq('truck_id', truckId)
-          .eq('status', 'pending');
+          .eq('status', 'pending')
+          .gte('event_date', today);
       if (!controller.isClosed) controller.add((data as List).length);
     } catch (_) {}
   }

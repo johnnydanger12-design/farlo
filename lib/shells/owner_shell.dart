@@ -6,6 +6,7 @@ import '../features/bookings/providers/bookings_provider.dart';
 import '../features/food_trucks/providers/food_truck_provider.dart';
 import '../features/notifications/providers/notifications_provider.dart';
 
+
 class OwnerShell extends ConsumerWidget {
   const OwnerShell({super.key, required this.shell});
 

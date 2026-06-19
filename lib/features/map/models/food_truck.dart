@@ -34,6 +34,7 @@ class FoodTruck {
     this.ordersAccepting = true,
     this.openedByUserId,
     this.businessType = 'mobile',
+    this.hasEverOpened = false,
   });
 
   final String id;
@@ -57,6 +58,7 @@ class FoodTruck {
   final bool ordersAccepting;
   final String? openedByUserId;
   final String businessType;
+  final bool hasEverOpened;
 
   bool get isFixed => businessType == 'fixed';
   final double? latitude;
@@ -123,6 +125,7 @@ class FoodTruck {
       ordersAccepting: map['orders_accepting'] as bool? ?? true,
       openedByUserId: map['opened_by_user_id'] as String?,
       businessType: map['business_type'] as String? ?? 'mobile',
+      hasEverOpened: map['has_ever_opened'] as bool? ?? false,
     );
   }
 
@@ -146,6 +149,7 @@ class FoodTruck {
     List<OperatingHours>? operatingHours,
     List<MenuItem>? menuItems,
     String? businessType,
+    bool? hasEverOpened,
   }) {
     return FoodTruck(
       id: id,
@@ -177,6 +181,7 @@ class FoodTruck {
       menuItems: menuItems ?? this.menuItems,
       cancellationPolicyHours: cancellationPolicyHours,
       businessType: businessType ?? this.businessType,
+      hasEverOpened: hasEverOpened ?? this.hasEverOpened,
     );
   }
 }

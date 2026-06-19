@@ -1,8 +1,13 @@
+import 'dart:io';
+
 import 'package:add_2_calendar/add_2_calendar.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:flutter/material.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../notifications/providers/notifications_provider.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../auth/providers/auth_provider.dart';
@@ -48,6 +53,7 @@ bool _isOver(BookingRequest r) {
 
 String? _closedSublabel(BookingRequest r) {
   if (r.status == 'declined') return 'Declined';
+  if (r.status == 'expired') return 'Expired — no response';
   if (r.status == 'cancelled') {
     return r.cancelledBy == 'consumer' ? 'Canceled by customer' : 'Canceled by you';
   }
@@ -124,8 +130,13 @@ class _BookingRequestsListState extends ConsumerState<_BookingRequestsList> with
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await ref.read(bookingsRepositoryProvider).expirePendingBookings(widget.truckId);
       ref.read(ownerBookingRequestsProvider.notifier).load(widget.truckId);
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      if (userId != null) {
+        ref.read(notificationsRepositoryProvider).markBookingNotificationsRead(userId);
+      }
     });
     _channel = Supabase.instance.client
         .channel('owner-bookings-${widget.truckId}')
@@ -192,6 +203,7 @@ class _BookingRequestsListState extends ConsumerState<_BookingRequestsList> with
         final closed = requests
             .where((r) =>
                 r.status == 'declined' ||
+                r.status == 'expired' ||
                 r.status == 'cancelled' ||
                 (r.status == 'pending' && _isOver(r)))
             .toList()
@@ -852,64 +864,122 @@ class _RequestDetailSheetState extends ConsumerState<_RequestDetailSheet> {
 
 // ─── Owner financial section ──────────────────────────────────────────────────
 
-class _OwnerFinancialSection extends ConsumerWidget {
+class _OwnerFinancialSection extends ConsumerStatefulWidget {
   const _OwnerFinancialSection({required this.request});
   final BookingRequest request;
 
-  Future<void> _openEstimateSheet(BuildContext context, WidgetRef ref) async {
-    await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (_) => SendEstimateSheet(bookingId: request.id),
-    );
-    ref.invalidate(bookingQuotesProvider(request.id));
+  @override
+  ConsumerState<_OwnerFinancialSection> createState() => _OwnerFinancialSectionState();
+}
+
+class _OwnerFinancialSectionState extends ConsumerState<_OwnerFinancialSection> {
+  bool _generatingPdf = false;
+  final _pdfButtonKey = GlobalKey();
+
+  Future<void> _sharePdf() async {
+    // Capture position and size before any await.
+    final box = _pdfButtonKey.currentContext?.findRenderObject() as RenderBox?;
+    final screenSize = MediaQuery.of(context).size;
+    final shareRect = box != null
+        ? box.localToGlobal(Offset.zero) & box.size
+        : Rect.fromCenter(
+            center: Offset(screenSize.width / 2, screenSize.height * 0.75),
+            width: 1,
+            height: 1,
+          );
+
+    setState(() => _generatingPdf = true);
+    try {
+      final result = await ref.read(bookingsRepositoryProvider).generateInvoicePdf(widget.request.id);
+      final tmpDir = await getTemporaryDirectory();
+      final tmpFile = File('${tmpDir.path}/${result.filename.replaceAll(' ', '_')}');
+      await tmpFile.writeAsBytes(result.bytes);
+      await Share.shareXFiles(
+        [XFile(tmpFile.path, mimeType: 'application/pdf')],
+        sharePositionOrigin: shareRect,
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not generate PDF: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _generatingPdf = false);
+    }
   }
 
-  Future<void> _openDepositSheet(BuildContext context, WidgetRef ref) async {
+  Future<void> _openEstimateSheet() async {
     await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (_) => RequestDepositSheet(bookingId: request.id),
+      builder: (_) => SendEstimateSheet(bookingId: widget.request.id),
     );
-    ref.invalidate(bookingDepositProvider(request.id));
+    ref.invalidate(bookingQuotesProvider(widget.request.id));
   }
 
-  Future<void> _openInvoiceSheet(BuildContext context, WidgetRef ref, BookingQuote? estimate, BookingDeposit? deposit) async {
+  Future<void> _openDepositSheet() async {
     await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (_) => SendInvoiceSheet(bookingId: request.id, estimate: estimate, deposit: deposit),
+      builder: (_) => RequestDepositSheet(bookingId: widget.request.id),
     );
-    ref.invalidate(bookingQuotesProvider(request.id));
+    ref.invalidate(bookingDepositProvider(widget.request.id));
+  }
+
+  Future<void> _openInvoiceSheet(BookingQuote? estimate, BookingDeposit? deposit) async {
+    await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => SendInvoiceSheet(bookingId: widget.request.id, estimate: estimate, deposit: deposit),
+    );
+    ref.invalidate(bookingQuotesProvider(widget.request.id));
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final quotesAsync = ref.watch(bookingQuotesProvider(request.id));
-    final depositAsync = ref.watch(bookingDepositProvider(request.id));
+  Widget build(BuildContext context) {
+    final quotesAsync = ref.watch(bookingQuotesProvider(widget.request.id));
+    final depositAsync = ref.watch(bookingDepositProvider(widget.request.id));
     final quotes = quotesAsync.asData?.value ?? [];
     final deposit = depositAsync.asData?.value;
 
     final estimate = quotes.where((q) => q.type == QuoteType.estimate).lastOrNull;
     final invoice = quotes.where((q) => q.type == QuoteType.invoice).lastOrNull;
-    final eventOver = _isOver(request);
+    final eventOver = _isOver(widget.request);
+    final hasSomethingToShare = estimate != null || invoice != null;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('Financials', style: AppTextStyles.label.copyWith(color: AppColors.textSecondary)),
+        Row(
+          children: [
+            Expanded(child: Text('Financials', style: AppTextStyles.label.copyWith(color: AppColors.textSecondary))),
+            if (hasSomethingToShare)
+              _generatingPdf
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                  : IconButton(
+                      key: _pdfButtonKey,
+                      icon: const Icon(Icons.picture_as_pdf_outlined, size: 20),
+                      color: AppColors.textSecondary,
+                      tooltip: 'Share PDF',
+                      visualDensity: VisualDensity.compact,
+                      padding: EdgeInsets.zero,
+                      onPressed: _sharePdf,
+                    ),
+          ],
+        ),
         const SizedBox(height: AppSpacing.sm),
 
         // ── Estimate ────────────────────────────────────────────────────────
         if (estimate == null)
           OutlinedButton.icon(
-            onPressed: () => _openEstimateSheet(context, ref),
+            onPressed: _openEstimateSheet,
             icon: const Icon(Icons.request_quote_outlined, size: 16),
             label: const Text('Send Estimate'),
             style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(44)),
@@ -933,7 +1003,7 @@ class _OwnerFinancialSection extends ConsumerWidget {
           if (estimate.status == QuoteStatus.declined) ...[
             const SizedBox(height: AppSpacing.sm),
             OutlinedButton.icon(
-              onPressed: () => _openEstimateSheet(context, ref),
+              onPressed: _openEstimateSheet,
               icon: const Icon(Icons.refresh, size: 16),
               label: const Text('Resend Estimate'),
               style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(44)),
@@ -946,7 +1016,7 @@ class _OwnerFinancialSection extends ConsumerWidget {
           const SizedBox(height: AppSpacing.sm),
           if (deposit == null)
             OutlinedButton.icon(
-              onPressed: () => _openDepositSheet(context, ref),
+              onPressed: _openDepositSheet,
               icon: const Icon(Icons.payments_outlined, size: 16),
               label: const Text('Request Deposit'),
               style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(44)),
@@ -969,7 +1039,7 @@ class _OwnerFinancialSection extends ConsumerWidget {
           const SizedBox(height: AppSpacing.sm),
           if (invoice == null)
             OutlinedButton.icon(
-              onPressed: () => _openInvoiceSheet(context, ref, estimate, deposit),
+              onPressed: () => _openInvoiceSheet(estimate, deposit),
               icon: const Icon(Icons.receipt_long_outlined, size: 16),
               label: const Text('Send Invoice'),
               style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(44)),
