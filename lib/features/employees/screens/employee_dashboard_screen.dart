@@ -13,6 +13,7 @@ import '../../../core/constants/app_text_styles.dart';
 import '../../../core/widgets/truck_map_pin.dart';
 import '../../../core/location_tracking_service.dart';
 import '../../../core/push_notification_service.dart';
+import '../../../core/widgets/background_location_disclosure.dart';
 import '../../orders/models/order.dart';
 import '../../orders/providers/orders_provider.dart';
 import '../../orders/screens/order_queue_screen.dart';
@@ -140,17 +141,10 @@ class _EmployeeDashboardScreenState extends ConsumerState<EmployeeDashboardScree
           }
         } else {
           // Mobile business — get location first.
-          LocationPermission permission = await Geolocator.checkPermission();
-          if (permission == LocationPermission.denied) {
-            permission = await Geolocator.requestPermission();
-          }
+          // Shows background-location disclosure on Android (required by Play policy).
+          final locationGranted = await requestLocationForGoLive(context);
           if (!mounted) return;
-          if (permission == LocationPermission.deniedForever ||
-              permission == LocationPermission.denied) {
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                content: Text('Location permission is required')));
-            return;
-          }
+          if (!locationGranted) return;
 
           ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('Getting your location…')));

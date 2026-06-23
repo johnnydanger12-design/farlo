@@ -13,6 +13,7 @@ import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/location_tracking_service.dart';
 import '../../../core/push_notification_service.dart';
+import '../../../core/widgets/background_location_disclosure.dart';
 import '../../account/providers/notification_prefs_provider.dart';
 import '../../favorites/repositories/favorites_repository.dart';
 import '../../food_trucks/providers/food_truck_provider.dart';
@@ -221,20 +222,9 @@ class DashboardScreen extends ConsumerWidget {
     }
 
     // Mobile business — request location and start GPS tracking.
-    LocationPermission permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-    }
-    if (permission == LocationPermission.deniedForever ||
-        permission == LocationPermission.denied) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('Location permission is required')),
-        );
-      }
-      return;
-    }
+    // Shows background-location disclosure on Android (required by Play policy).
+    final locationGranted = await requestLocationForGoLive(context);
+    if (!locationGranted) return;
 
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
