@@ -47,7 +47,7 @@ class _TransferTruckSheetState extends ConsumerState<TransferTruckSheet> {
 
       if (result == null) {
         setState(() {
-          _error = 'No account found with that email. The new owner must sign up for Good Truck Finder first.';
+          _error = 'No account found with that email. The new owner must sign up for Farlo first.';
         });
       } else if ((result['id'] as String) == currentUserId) {
         setState(() { _error = 'You can\'t transfer your business to yourself.'; });

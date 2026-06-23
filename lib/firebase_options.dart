@@ -37,6 +37,6 @@ class DefaultFirebaseOptions {
     messagingSenderId: '469153137408',
     projectId: 'good-truck-finder',
     storageBucket: 'good-truck-finder.firebasestorage.app',
-    iosBundleId: 'com.goodtruckfinder.goodTruckFinder',
+    iosBundleId: 'com.farlo.app',
   );
 }

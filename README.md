@@ -1,6 +1,6 @@
-# good_truck_finder
+# Farlo
 
-A new Flutter project.
+Food truck discovery app by Farlo Technologies LLC.
 
 ## Getting Started
 

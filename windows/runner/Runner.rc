@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.goodtruckfinder" "\0"
-            VALUE "FileDescription", "good_truck_finder" "\0"
+            VALUE "CompanyName", "Farlo Technologies LLC" "\0"
+            VALUE "FileDescription", "Farlo" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "good_truck_finder" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 com.goodtruckfinder. All rights reserved." "\0"
-            VALUE "OriginalFilename", "good_truck_finder.exe" "\0"
-            VALUE "ProductName", "good_truck_finder" "\0"
+            VALUE "InternalName", "farlo" "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 Farlo Technologies LLC. All rights reserved." "\0"
+            VALUE "OriginalFilename", "farlo.exe" "\0"
+            VALUE "ProductName", "Farlo" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END
