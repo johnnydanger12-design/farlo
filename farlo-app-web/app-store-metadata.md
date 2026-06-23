@@ -45,7 +45,7 @@ food truck,local business,map,order,coffee shop,restaurant,catering,pop-up,open 
 - Performance and stability improvements
 
 ## Support URL
-https://farlo.app/support
+mailto:support@farlo.app
 
 ## Marketing URL
 https://farlo.app

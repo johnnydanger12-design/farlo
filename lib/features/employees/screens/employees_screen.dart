@@ -110,6 +110,7 @@ class _EmployeesList extends ConsumerWidget {
     if (sub?.hasAccess != true) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: const Text('Employee management requires an active subscription'),
+        showCloseIcon: true,
         action: SnackBarAction(
           label: 'Upgrade',
           onPressed: () => context.go('/dashboard/subscription'),

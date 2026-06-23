@@ -1,11 +1,11 @@
 # HANDOFF.md — Farlo
-_Last updated: Business expansion, subscription gating, language pass, business_type feature. Read time: ~3 min._
+_Last updated: App Store submitted, live keys swapped, push routing fixed, booking email added. Read time: ~2 min._
 
 ---
 
 ## Interrupted Task
 
-None — session ended cleanly. No mid-flight work.
+None — session ended cleanly on App Store submission (Jun 20 2026). No mid-flight work.
 
 ---
 
@@ -13,66 +13,74 @@ None — session ended cleanly. No mid-flight work.
 
 | Feature | Status |
 |---|---|
-| Subscription gates | ✓ Go live, announcements, add employee, booking requests all gated |
-| Stripe status card on dashboard | ✓ Top of dashboard — "Set Up →" / "Dashboard →" |
-| Orders-accepting toggle | ✓ Moved to status card as cascading row; removed duplicate from orders widget |
-| business_type (mobile vs fixed) | ✓ DB column added, model updated, registration/upgrade flow, edit truck screen, go-open branch |
-| Language genericization | ✓ All "food truck" user-facing strings replaced with generic business language |
-| `order_items` RLS for employees | ✓ Fixed — `auth_user_works_for_truck()` added to SELECT policy |
-| Stripe Connect post-onboarding UX | ✓ Auto-refresh on app resume; info banner explains to return to app |
-| Farlo logo on login screen | ✓ `assets/images/Farlo Logo.png`, height 120 |
-| consumer "Start a Business" upgrade | ✓ In Account → Manage Account → Business |
-| Stripe keys | ⚠ Still TEST keys — must swap before App Store submission |
-| RevenueCat key | ⚠ Still test key — needs Farlo App Store key before submission |
-| Stripe live webhook | ⚠ Not configured — payment_status stays unpaid in test mode |
+| App Store submission | ✓ Version 1.0 submitted Jun 20 2026 — Waiting for Review (24-48hr) |
+| Stripe live keys | ✓ sk_live in Supabase secrets, pk_live in .env.json, webhook registered |
+| RevenueCat production key | ✓ appl_... key in .env.json |
+| farlo.app | ✓ privacy, terms, support pages live on Squarespace |
+| Push notification deep-linking | ✓ Fixed — cold-start buffer + role-aware routing |
+| Booking confirmation email | ✓ Edge function deployed, awaiting RESEND_API_KEY + domain setup |
+| Subscription gate snackbars | ✓ showCloseIcon: true added — users can dismiss without upgrading |
+| Map popup overflow | ✓ Fixed — long addresses now truncate with ellipsis |
+| Test accounts | ✓ apple.review@farlo.app (FarloReview2026!) — owner, active sub, full access |
+| Screenshot accounts | ✓ 3 accounts (FarloTest123) — Smoky's BBQ, Taylor's Sweet Treats, The Daily Grind |
+| RESEND_API_KEY | ⚠ Not set — booking emails silently skip |
+| EU/France distribution | ⚠ Excluded from App Store v1 — DSA + encryption docs deferred to v2 |
 
 ---
 
 ## Architecture
 
-Flutter + Riverpod 3.x + GoRouter (StatefulShellRoute for owner/consumer shells). Supabase for auth, Postgres, RLS, realtime. Stripe Connect Express for payments — consumers pay via PaymentSheet, funds transfer to owner's connected account. Edge functions handle Stripe operations. FCM via custom JWT/service-account flow. Employees share the owner's order queue and open/close flow.
-
-**business_type field:** `food_trucks.business_type TEXT NOT NULL DEFAULT 'mobile'`. Mobile = food truck with GPS tracking. Fixed = brick-and-mortar with static address, no GPS. `FoodTruck.isFixed` getter drives branching throughout the codebase. All existing trucks default to 'mobile'.
+Flutter + Riverpod 3.x + GoRouter (StatefulShellRoute — owner shell and consumer shell are separate indexed stacks, redirect enforces role). Supabase for auth, Postgres, RLS, realtime, storage, and edge functions. Stripe Connect Express for payments — funds go direct to owner's connected account, Farlo never holds money. FCM push via custom JWT/service-account flow (no FlutterFire messaging plugin — see push_notification_service.dart). RevenueCat manages iOS subscriptions. `business_type` ('mobile'|'fixed') on food_trucks drives GPS vs. static address branching. Employees are consumers with truck_employees records.
 
 ---
 
 ## Recent Decisions
 
-**Subscription gating model (Option A):** Go live requires active subscription. Also gates: announcements, add employee, booking requests (consumer-side checks truck owner's `owner_subscriptions` row). Order-ahead gating moved from edit-truck toggle (which is now plain on/off) to the dashboard orders cascade row with a Stripe popup.
+**Push notification deep-linking overhaul:** Replaced fragile 300ms one-shot retry with a proper buffer pattern. `_pendingMessage` holds cold-start notifications; `onRouterReady()` (called from router.dart when `_sharedRouter` is set) and `onAuthResolved()` (called from app_shell.dart when auth settles) both attempt to drain it — only fires when BOTH are ready. Also added `_isOwner` flag so owner-role users receiving consumer-type notifications (e.g. announcements, booking_accepted) route to `/owner-notifications` instead of hitting the owner redirect and landing on `/dashboard`.
 
-**Stripe status card at dashboard top:** Always visible — "Set Up →" when not connected, "Dashboard →" when connected (uses login_links for Express dashboard access). The "orders accepting" toggle is a cascading row inside the status card, only visible when live + ordersEnabled.
+**Booking confirmation email uses Resend:** No email service was previously configured. Chose Resend (simple REST API, standard for Supabase edge functions). Function fails gracefully with `{ sent: false, reason: 'no_resend_key' }` if key not set — won't surface errors to users. From address is `bookings@farlo.app` — requires domain verification in Resend dashboard before emails actually send.
 
-**business_type onboarding:** Two-card picker (Mobile / Fixed Location) on both registration and consumer upgrade sheet. Fixed businesses set a static Google Places address; that lat/lng is stored permanently. Edit Truck screen shows a Places address field for fixed businesses only.
+**ITSAppUsesNonExemptEncryption added to Info.plist:** Prevents Apple's encryption compliance dialog from appearing on every future build. App only uses standard HTTPS/TLS via OS networking stack — qualifies as non-exempt.
 
-**Go-open branching:** `_handleToggle` in dashboard and `handleGoLive` in employees_provider both branch on `truck.isFixed`. Fixed: just `setOpenStatus(true)`, no GPS. Mobile: full permission → get position → updateLocation → start tracking flow.
+**App Store submitted without EU:** DSA (Digital Services Act) trader info required for all EU App Store territories. Skipped for v1 — user deferred to v2. Availability set to all countries except EU. Info.plist encryption fix means v2 build won't need the compliance dialog for France either.
 
-**Language:** All user-visible "food truck/truck" strings replaced with "business/local businesses". Class names, variable names, route names, DB columns unchanged. `business_type_picker.dart` still says "Food truck or pop-up" for the mobile type description — intentional.
+**Test account subscription set manually via SQL:** apple.review@farlo.app was created through the app (normal flow), then subscription status was manually updated to 'active' with `current_period_end = NOW() + 1 year` so Apple's reviewer has full access without going through RevenueCat sandbox.
+
+**3 screenshot accounts created via SQL:** Auth users can be created directly via SQL (auth.users + auth.identities + profiles + food_trucks + subscriptions). Critical: must set `raw_app_meta_data = '{"provider":"email","providers":["email"]}'` and `raw_user_meta_data` with sub/email/email_verified — without these, login silently fails. Also token fields (confirmation_token, recovery_token, etc.) must be empty string `''` not NULL.
 
 ---
 
 ## Traps / Dead Ends
 
-- **`ownerTruckProvider` for employees**: Queries `food_trucks WHERE owner_id = auth.uid()` — always null for employees. Use `employeeGoLiveProvider(truckId)` instead.
-- **stripe-webhook verify_jwt**: Must be `false`. Stripe sends no JWT.
-- **`profiles.display_name`**: Correct column (not `full_name`, not `name`).
-- **Stripe test accounts on live keys**: Delete `stripe_account_id` from profiles to reset. Recovery: `UPDATE profiles SET stripe_account_id = NULL WHERE stripe_account_id IS NOT NULL` then re-onboard.
-- **Hot reload vs hot restart for env changes**: `.env.json` key changes only take effect on full stop + rebuild.
-- **Fixed business GPS**: Never start `LocationTrackingService` for fixed businesses. `food_truck_provider.build()` already guards re-attach on app restart.
-- **`_activeOrdersProvider` silent errors**: Uses `ordersAsync.asData?.value ?? []` — parse errors show as "No active orders."
-- **PlacesAutocompleteField coordinates**: The widget calls `onCoordinatesSelected(lat, lng)` only when the user picks from autocomplete dropdown. If they type a full address and don't pick from the list, `_lat`/`_lng` stays null. The registration validation guards against this.
+- **SQL-created auth users won't log in** if `raw_app_meta_data`, `raw_user_meta_data`, or token fields are NULL. Must be set explicitly — see recent decisions above.
+- **`Directory.systemTemp` on iOS** — not writable. Use `getTemporaryDirectory()` from `path_provider`.
+- **`Share.shareXFiles` without `sharePositionOrigin`** — crashes on iOS. Always capture RenderBox position BEFORE any `await`.
+- **`ownerTruckProvider` for employees** — always null for employees. Use `employeeGoLiveProvider(truckId)` instead.
+- **`profiles.display_name`** — correct column. Not `full_name`, not `name`.
+- **Stripe webhook `verify_jwt: false`** — Stripe sends no Supabase JWT. Must be false in `config.toml`.
+- **GoRouter cold-start race** — `getInitialMessage()` can resolve before the router is built OR before auth loads. The 300ms retry was insufficient. Fixed with buffer + dual drain gates.
+- **Owner redirect overrides notification routing** — owners navigated to consumer routes (`/notifications/my-requests`) get redirected to `/dashboard`. Fixed by routing owner-role users receiving consumer notifications to `/owner-notifications` instead.
+- **Base64 encoding large arrays in Deno** — `String.fromCharCode(...new Uint8Array(bytes))` stack overflows. Use `.reduce()`.
+- **`auth.identities.email` is a generated column** — cannot insert it directly. Omit from INSERT; it's derived from `identity_data`.
 
 ---
 
-## Modified Files (this session — highlights)
+## Modified Files (this session)
 
-| Area | Key Files |
+| File | Change |
 |---|---|
-| Subscription gates | `dashboard_screen.dart`, `employees_screen.dart`, `truck_profile_screen.dart`, `account_screen.dart` |
-| Stripe dashboard | `dashboard_screen.dart` (`_StripeStatusCard`), `stripe_connect_screen.dart` (auto-refresh), `stripe-connect-onboard/index.ts` (login_links) |
-| business_type | `food_truck.dart` (model), `auth_repository.dart`, `auth_provider.dart`, `register_owner_screen.dart`, `account_screen.dart`, `edit_truck_screen.dart`, `dashboard_screen.dart`, `employees_provider.dart`, `employee_dashboard_screen.dart`, `food_truck_provider.dart` |
-| Language pass | 12 Flutter files + `send-booking-notification`, `send-order-notification` edge functions |
-| RLS | `order_items_employee_select` migration |
-| Shared widgets | `lib/features/auth/widgets/business_type_picker.dart` (new), `places_autocomplete_field.dart` (label + coordinates callback) |
+| `lib/core/push_notification_service.dart` | Full rewrite of tap routing — buffer pattern, role-aware routing, `onRouterReady` + `onAuthResolved` drain gates |
+| `lib/router.dart` | Added `PushNotificationService.onRouterReady()` call after `_sharedRouter` is assigned |
+| `lib/app_shell.dart` | Added `PushNotificationService.onAuthResolved(user)` in auth listener to drain pending notifications |
+| `lib/features/owner_dashboard/screens/dashboard_screen.dart` | Added `showCloseIcon: true` to 2 subscription gate snackbars |
+| `lib/features/employees/screens/employees_screen.dart` | Added `showCloseIcon: true` to subscription gate snackbar |
+| `lib/features/map/widgets/truck_bottom_sheet.dart` | Wrapped address Text in `Flexible` — fixes right overflow on long addresses |
+| `ios/Runner/Info.plist` | Added `ITSAppUsesNonExemptEncryption = false` — bypasses encryption compliance dialog on all future builds |
+| `supabase/functions/send-booking-confirmation-email/index.ts` | New — HTML email via Resend; accepts booking_id, fetches truck name, sends to contact_email |
+| `farlo-app-web/privacy.html` | Added `<style>` block with mobile-responsive CSS for Squarespace Code Block |
+| `farlo-app-web/terms.html` | Same as privacy.html |
+| `farlo-app-web/support.html` | New — support page with iOS + Android cancel instructions, responsive CSS |
+| `farlo-app-web/app-store-metadata.md` | Updated Support URL to `mailto:support@farlo.app` |
 
 ---
 
@@ -80,33 +88,34 @@ Flutter + Riverpod 3.x + GoRouter (StatefulShellRoute for owner/consumer shells)
 
 | Issue | Severity |
 |---|---|
-| Stripe keys are TEST — `pk_test_...` in `.env.json`, `sk_test_...` in Supabase secrets | High — must swap before App Store submission |
-| RevenueCat `REVENUECAT_APPLE_KEY` is `test_VuvKGy...` in `.env.json` | High — needs Farlo App Store key |
-| Stripe live webhook not configured — `payment_status` stays `unpaid` | Medium — orders work, webhook just never fires in test mode |
-| After Stripe Connect onboarding, user lands on farlo.app | Medium — auto-refresh on resume handles status update, but no branded landing page |
-| Subscription screen `trialing` status treated as inactive | Low — owner in trial period can't go live; intentional but may be too aggressive for launch |
+| RESEND_API_KEY not set — booking confirmation emails silently skip | Medium — run `supabase secrets set RESEND_API_KEY=re_...` after Resend setup |
+| bookings@farlo.app not verified as Resend sender domain | Medium — blocks emails even when key is set |
+| EU territories excluded from App Store | Low — DSA trader info required; fill out in App Store Connect → App Information |
+| Stripe live payment flow untested end-to-end | Low — webhook registered but real booking payment not verified in production |
+| No LLC formed | Low — ToS and Privacy Policy note this; update both docs once formed |
+| farlo.app download buttons are href="#" placeholders | Low — update once app is live in App Store |
 
 ---
 
 ## Next Steps
 
-1. **Swap Stripe keys**: `STRIPE_SECRET_KEY` → `sk_live_...`, `STRIPE_WEBHOOK_SECRET` → live `whsec_...`, `.env.json` → `pk_live_...`. Full stop + rebuild.
-2. **Swap RevenueCat key**: Replace `test_VuvKGy...` in `.env.json` `REVENUECAT_APPLE_KEY` with production key.
-3. **Configure Stripe test webhook**: Register `https://weflrxyerxpsafcdetya.supabase.co/functions/v1/stripe-webhook` in Stripe test dashboard. Test deposit/invoice paid flow end-to-end.
-4. **Trialing subscription decision**: Decide if owners in `trialing` status should be able to go live (currently blocked). If yes, update the subscription check to allow `trialing` as well as `active`.
-5. **App Store metadata**: Screenshots, description, and keywords still reference "food trucks" — update before submission to reflect the multi-business positioning.
-6. **farlo.app landing page**: Build a simple page at `farlo.app/stripe-connect/return` that explains "Return to the Farlo app to continue setup."
+1. **Wait for Apple review** — watch email. If rejected, fix same day. Common first-rejection reasons: missing demo video, sign-in credentials not working, subscription not testable.
+2. **Set up Resend** — create account at resend.com → add farlo.app domain → verify DNS → copy API key → `supabase secrets set RESEND_API_KEY=re_...`
+3. **Test live Stripe payment** — make a real booking payment end-to-end; confirm webhook fires and `payment_status` updates correctly in Supabase.
+4. **EU expansion (v2)** — complete DSA trader info in App Store Connect → App Information → add EU territories to Pricing and Availability.
+5. **Update App Store download buttons on farlo.app** — replace href="#" placeholders with real App Store link once approved.
 
 ---
 
 ## Setup Gotchas
 
-- **`.env.json`** at project root — not committed. Contains `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `STRIPE_PUBLISHABLE_KEY`, `REVENUECAT_APPLE_KEY`, `GOOGLE_PLACES_API_KEY`, `GOOGLE_SIGN_IN_WEB_CLIENT_ID`.
-- **Supabase project**: `weflrxyerxpsafcdetya.supabase.co`.
-- **Stripe Connect**: Platform mode. Requires completing platform profile at `dashboard.stripe.com/settings/connect/platform-profile`.
+- **`.env.json`** at project root (gitignored). Keys: `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `STRIPE_PUBLISHABLE_KEY` (pk_live), `REVENUECAT_APPLE_KEY` (appl_...), `GOOGLE_PLACES_API_KEY`, `GOOGLE_SIGN_IN_WEB_CLIENT_ID`.
+- **Key changes in `.env.json` require full stop + rebuild**, not hot restart.
+- **Supabase project**: `weflrxyerxpsafcdetya.supabase.co`. Deploy edge functions with `supabase functions deploy <name>`.
+- **Stripe Connect**: Platform mode. Live webhook at `https://weflrxyerxpsafcdetya.supabase.co/functions/v1/stripe-webhook`. Events: `payment_intent.succeeded`, `charge.refunded`.
 - **`stripe-webhook` must have `verify_jwt: false`** in `supabase/functions/stripe-webhook/config.toml`.
-- **Employee flow**: Employees are consumer-role users with `truck_employees` records. `employeeGoLiveProvider(truckId)` is the entry point.
-- **`profiles.display_name`** is the correct column.
-- **Realtime**: `orders` table is in the `supabase_realtime` publication.
-- **Fixed business address**: Set via Google Places autocomplete in registration or Edit Business screen. Stored as `address`, `latitude`, `longitude` on the `food_trucks` row. Never updated by GPS.
-- **business_type_picker.dart**: Shared widget at `lib/features/auth/widgets/business_type_picker.dart`. Used in both registration and consumer upgrade sheet.
+- **Employee flow**: Employees are consumer-role users with `truck_employees` records. Entry point is `employeeGoLiveProvider(truckId)`, not `ownerTruckProvider`.
+- **Fixed business address**: Set via Google Places autocomplete. Stored as `address`, `latitude`, `longitude` on `food_trucks`. Never updated by GPS.
+- **Realtime**: `orders` table is in `supabase_realtime` publication.
+- **Apple review account**: `apple.review@farlo.app` / `FarloReview2026!` — owner role, active subscription set directly in DB, business "Farlo Test Kitchen" (Restaurant, fixed address).
+- **Screenshot accounts**: `jwinburndcso@gmail.com`, `taylor.winburn94@gmail.com`, `johnny@peakdesignspace.com` — all password `FarloTest123`, all have active subscriptions and mobile food truck businesses.

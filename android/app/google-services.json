@@ -7,31 +7,25 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:469153137408:android:2bfc5c744faf7c5e68e9e5",
-        "android_client_info": {
-          "package_name": "com.example.goodTruckFinder"
-        }
-      },
-      "oauth_client": [],
-      "api_key": [
-        {
-          "current_key": "AIzaSyA2EMaJfDkWqIkQ31zhJUWR_GItv6zCYwE"
-        }
-      ],
-      "services": {
-        "appinvite_service": {
-          "other_platform_oauth_client": []
-        }
-      }
-    },
-    {
-      "client_info": {
         "mobilesdk_app_id": "1:469153137408:android:fbf18959fc3b428668e9e5",
         "android_client_info": {
           "package_name": "com.farlo.app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "469153137408-ah1cbd4paq3uq5kceasb3hhj8dt8kn68.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.farlo.app",
+            "certificate_hash": "47c41e1d6d6b5296e5c3fa1ada72258426e7e3a4"
+          }
+        },
+        {
+          "client_id": "469153137408-77ba35mifkp0bkhe1g1fa4hctmmf6gi2.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyA2EMaJfDkWqIkQ31zhJUWR_GItv6zCYwE"
@@ -39,26 +33,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
-        }
-      }
-    },
-    {
-      "client_info": {
-        "mobilesdk_app_id": "1:469153137408:android:8183147264e9c75568e9e5",
-        "android_client_info": {
-          "package_name": "com.goodtruckfinder.good_truck_finder"
-        }
-      },
-      "oauth_client": [],
-      "api_key": [
-        {
-          "current_key": "AIzaSyA2EMaJfDkWqIkQ31zhJUWR_GItv6zCYwE"
-        }
-      ],
-      "services": {
-        "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "469153137408-77ba35mifkp0bkhe1g1fa4hctmmf6gi2.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "469153137408-f1r9qm65q3ale2frmsdfic1ch8vfo2c4.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.farlo.app"
+              }
+            }
+          ]
         }
       }
     }

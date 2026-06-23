@@ -158,10 +158,14 @@ class TruckBottomSheet extends ConsumerWidget {
                         children: [
                           Text(truck.cuisineType, style: AppTextStyles.bodySmall),
                           if (truck.address != null && truck.address!.isNotEmpty)
-                            Text(
-                              truck.address!,
-                              style: AppTextStyles.caption,
-                              textAlign: TextAlign.end,
+                            Flexible(
+                              child: Text(
+                                truck.address!,
+                                style: AppTextStyles.caption,
+                                textAlign: TextAlign.end,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
                         ],
                       ),

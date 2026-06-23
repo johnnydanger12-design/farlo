@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../features/auth/models/app_user.dart';
 import '../router.dart';
 
 // Top-level handler required by Firebase for background messages.
@@ -13,6 +14,35 @@ Future<void> _firebaseBackgroundHandler(RemoteMessage message) async {
 
 class PushNotificationService {
   PushNotificationService._();
+
+  // ── Cold-start deep-link buffer ─────────────────────────────────────────────
+  // getInitialMessage() can resolve before the router is built or before auth
+  // loads. We buffer the message and drain it only once both are ready so that
+  // the redirect logic doesn't override the intended deep-link destination.
+
+  static RemoteMessage? _pendingMessage;
+  static bool _isOwner = false;
+  static bool _authResolved = false;
+
+  // Called from router.dart immediately after _sharedRouter is assigned.
+  static void onRouterReady() {
+    if (_authResolved) _drainPending();
+  }
+
+  // Called from app_shell.dart whenever the auth state settles (user or null).
+  static void onAuthResolved(AppUser? user) {
+    _isOwner = user?.isOwner ?? false;
+    _authResolved = user != null;
+    _drainPending();
+  }
+
+  static void _drainPending() {
+    final msg = _pendingMessage;
+    if (msg != null && sharedRouter != null) {
+      _pendingMessage = null;
+      _handleNotificationTap(msg);
+    }
+  }
 
   static Future<int> sendTruckAnnouncement({
     required String truckId,
@@ -122,9 +152,9 @@ static Future<void> sendTruckClosedAlert(String truckName) async {
     // Tap routing: app in background → user taps notification banner
     FirebaseMessaging.onMessageOpenedApp.listen(_handleNotificationTap);
 
-    // Tap routing: app was terminated → user taps notification to launch
-    // By the time getInitialMessage resolves (after permission request above),
-    // the first frame has rendered and sharedRouter is set.
+    // Tap routing: app was terminated → user taps notification to launch.
+    // _handleNotificationTap buffers the message if the router or auth aren't
+    // ready yet; it's drained by onRouterReady() + onAuthResolved() in order.
     final initial = await FirebaseMessaging.instance.getInitialMessage();
     if (initial != null) _handleNotificationTap(initial);
   }
@@ -132,20 +162,25 @@ static Future<void> sendTruckClosedAlert(String truckName) async {
   static void _handleNotificationTap(RemoteMessage message) {
     final router = sharedRouter;
     if (router == null) {
-      // Router not yet initialized (rare cold-start race) — retry after first frame.
-      Future.delayed(const Duration(milliseconds: 300), () => _handleNotificationTap(message));
+      // Router not yet ready — buffer until onRouterReady() + onAuthResolved() both fire.
+      _pendingMessage = message;
       return;
     }
 
     final type = message.data['type'] as String?;
     switch (type) {
+      // ── Consumer-side booking notifications ───────────────────────────────
+      // These are sent to the person who made the booking. If that person is
+      // also an owner-role user, the consumer shell would redirect them to
+      // /dashboard, so we send owner-role users to their notifications inbox.
       case 'booking_accepted':
       case 'booking_declined':
       case 'booking_cancelled_by_owner':
       case 'estimate_sent':
       case 'deposit_requested':
       case 'invoice_sent':
-        router.go('/notifications/my-requests');
+        router.go(_isOwner ? '/owner-notifications' : '/notifications/my-requests');
+      // ── Owner-side booking notifications ──────────────────────────────────
       case 'booking_created':
       case 'booking_cancelled_by_consumer':
       case 'estimate_responded':
@@ -153,17 +188,20 @@ static Future<void> sendTruckClosedAlert(String truckName) async {
       case 'invoice_paid':
         router.go('/owner-bookings');
       case 'new_message':
-        final isOwner = message.data['recipient_is_owner'] == 'true';
-        router.go(isOwner ? '/owner-bookings' : '/notifications/my-requests');
+        final recipientIsOwner = message.data['recipient_is_owner'] == 'true';
+        router.go(recipientIsOwner ? '/owner-bookings' : '/notifications/my-requests');
+      // ── Announcements (fan-out to all followers) ───────────────────────────
       case 'announcement':
-        router.go('/notifications');
+        router.go(_isOwner ? '/owner-notifications' : '/notifications');
+      // ── Owner-side order notifications ────────────────────────────────────
       case 'order_placed':
       case 'order_cancelled':
         router.go('/dashboard/orders');
+      // ── Consumer-side order notifications ─────────────────────────────────
       case 'order_accepted':
       case 'order_ready':
       case 'order_declined':
-        router.go('/notifications/my-orders');
+        router.go(_isOwner ? '/owner-notifications' : '/notifications/my-orders');
       default:
         break;
     }

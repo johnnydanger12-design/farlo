@@ -123,6 +123,7 @@ class DashboardScreen extends ConsumerWidget {
                   if (sub?.hasAccess != true) {
                     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                       content: const Text('Announcements require an active subscription'),
+                      showCloseIcon: true,
                       action: SnackBarAction(
                         label: 'Upgrade',
                         onPressed: () => context.go('/dashboard/subscription'),
@@ -178,6 +179,7 @@ class DashboardScreen extends ConsumerWidget {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: const Text('An active subscription is required to open'),
+          showCloseIcon: true,
           action: SnackBarAction(
             label: 'Upgrade',
             onPressed: () => context.go('/dashboard/subscription'),

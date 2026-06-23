@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'core/push_notification_service.dart';
 import 'features/auth/providers/auth_provider.dart';
 import 'features/auth/screens/login_screen.dart';
 import 'features/onboarding/providers/onboarding_provider.dart';
@@ -197,6 +198,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     ],
   );
   _sharedRouter = router;
+  PushNotificationService.onRouterReady();
   return router;
 });
 

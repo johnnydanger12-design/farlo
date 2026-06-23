@@ -2,6 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CLIENT_ID</key>
+	<string>469153137408-f1r9qm65q3ale2frmsdfic1ch8vfo2c4.apps.googleusercontent.com</string>
+	<key>REVERSED_CLIENT_ID</key>
+	<string>com.googleusercontent.apps.469153137408-f1r9qm65q3ale2frmsdfic1ch8vfo2c4</string>
+	<key>ANDROID_CLIENT_ID</key>
+	<string>469153137408-ah1cbd4paq3uq5kceasb3hhj8dt8kn68.apps.googleusercontent.com</string>
 	<key>API_KEY</key>
 	<string>AIzaSyBUVH-fEgaJfLZxl6RN7GPGLGCkwJODZME</string>
 	<key>GCM_SENDER_ID</key>
@@ -9,7 +15,7 @@
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>com.goodtruckfinder.goodTruckFinder</string>
+	<string>com.farlo.app</string>
 	<key>PROJECT_ID</key>
 	<string>good-truck-finder</string>
 	<key>STORAGE_BUCKET</key>
@@ -25,6 +31,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:469153137408:ios:69fe81a9056ba8d668e9e5</string>
+	<string>1:469153137408:ios:3cbdfc0d84003eaa68e9e5</string>
 </dict>
 </plist>
