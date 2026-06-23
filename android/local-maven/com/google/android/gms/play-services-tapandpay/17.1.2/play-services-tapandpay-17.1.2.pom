@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project>
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.google.android.gms</groupId>
+  <artifactId>play-services-tapandpay</artifactId>
+  <version>17.1.2</version>
+  <packaging>aar</packaging>
+  <name>Play Services Tap and Pay (stub)</name>
+</project>

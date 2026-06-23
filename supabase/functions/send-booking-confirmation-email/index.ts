@@ -162,6 +162,9 @@ Deno.serve(async (req: Request) => {
   const businessName = (truck.name as string) ?? 'Your vendor';
   const contactEmail = booking.contact_email as string;
 
+  const { data: ownerData } = await supabase.auth.admin.getUserById(truck.owner_id as string);
+  const ownerEmail = ownerData?.user?.email;
+
   if (!contactEmail) {
     return new Response(JSON.stringify({ error: 'no_contact_email' }), {
       status: 422,
@@ -201,6 +204,7 @@ Deno.serve(async (req: Request) => {
     body: JSON.stringify({
       from: 'Farlo Bookings <bookings@farlo.app>',
       to: [contactEmail],
+      ...(ownerEmail ? { reply_to: [ownerEmail] } : {}),
       subject: `Booking Confirmed — ${businessName}`,
       html,
     }),
