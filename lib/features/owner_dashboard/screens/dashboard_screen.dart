@@ -17,14 +17,8 @@ import '../../../core/widgets/background_location_disclosure.dart';
 import '../../account/providers/notification_prefs_provider.dart';
 import '../../favorites/repositories/favorites_repository.dart';
 import '../../food_trucks/providers/food_truck_provider.dart';
-import '../../bookings/models/booking_request.dart';
-import '../../bookings/repositories/bookings_repository.dart';
-import '../../employees/models/employee_shift.dart';
-import '../../employees/models/scheduled_shift.dart';
-import '../../employees/providers/employees_provider.dart';
 import '../../employees/providers/shifts_provider.dart';
-import '../../employees/widgets/assign_shift_sheet.dart';
-import '../../employees/widgets/shift_calendar_widget.dart';
+import '../../employees/widgets/shift_week_card.dart';
 import '../../map/models/food_truck.dart';
 import '../../../core/widgets/truck_map_pin.dart';
 import '../../food_trucks/screens/truck_profile_screen.dart';
@@ -45,12 +39,6 @@ final _stripeConnectedProvider = FutureProvider.autoDispose<bool>((ref) async {
   return (row['stripe_account_id'] as String?) != null;
 });
 
-final _acceptedBookingsForMonthProvider = FutureProvider.family<
-    List<BookingRequest>, (String, int, int)>((ref, key) async {
-  final (truckId, year, month) = key;
-  return BookingsRepository(Supabase.instance.client)
-      .fetchAcceptedBookingsForMonth(truckId, year, month);
-});
 
 final _activeOrdersProvider =
     FutureProvider.family<List<Order>, String>((ref, truckId) async {
@@ -148,7 +136,7 @@ class DashboardScreen extends ConsumerWidget {
                 _OrdersWidget(truckId: truck.id),
                 const SizedBox(height: AppSpacing.md),
               ],
-              _OwnerCalendarSection(truckId: truck.id),
+              _OwnerCalendarSection(truckId: truck.id, truckName: truck.name),
             ],
           );
         },
@@ -1238,8 +1226,9 @@ class _DashboardOrderRow extends StatelessWidget {
 // ─── Owner Calendar Section ───────────────────────────────────────────────────
 
 class _OwnerCalendarSection extends ConsumerStatefulWidget {
-  const _OwnerCalendarSection({required this.truckId});
+  const _OwnerCalendarSection({required this.truckId, required this.truckName});
   final String truckId;
+  final String truckName;
 
   @override
   ConsumerState<_OwnerCalendarSection> createState() =>
@@ -1248,14 +1237,13 @@ class _OwnerCalendarSection extends ConsumerStatefulWidget {
 
 class _OwnerCalendarSectionState
     extends ConsumerState<_OwnerCalendarSection> {
-  int _year = DateTime.now().year;
-  int _month = DateTime.now().month;
   RealtimeChannel? _workedChannel;
   RealtimeChannel? _scheduledChannel;
 
   @override
   void initState() {
     super.initState();
+    final now = DateTime.now();
     _workedChannel = Supabase.instance.client
         .channel('owner-worked-${widget.truckId}')
         .onPostgresChanges(
@@ -1268,7 +1256,7 @@ class _OwnerCalendarSectionState
             value: widget.truckId,
           ),
           callback: (_) => ref.invalidate(
-              truckShiftsProvider((widget.truckId, _year, _month))),
+              truckShiftsProvider((widget.truckId, now.year, now.month))),
         )
         .subscribe();
 
@@ -1283,8 +1271,15 @@ class _OwnerCalendarSectionState
             column: 'truck_id',
             value: widget.truckId,
           ),
-          callback: (_) => ref.invalidate(
-              truckScheduledShiftsProvider((widget.truckId, _year, _month))),
+          callback: (_) {
+            // Invalidate current month AND next month so shifts assigned near
+            // month-end refresh immediately wherever the calendar is viewing.
+            ref.invalidate(truckScheduledShiftsProvider(
+                (widget.truckId, now.year, now.month)));
+            final next = DateTime(now.year, now.month + 1);
+            ref.invalidate(truckScheduledShiftsProvider(
+                (widget.truckId, next.year, next.month)));
+          },
         )
         .subscribe();
   }
@@ -1300,90 +1295,9 @@ class _OwnerCalendarSectionState
     super.dispose();
   }
 
-  void _showAssignSheet(DateTime date) {
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) =>
-          AssignShiftSheet(truckId: widget.truckId, initialDate: date),
-    ).then((_) => ref.invalidate(
-        truckScheduledShiftsProvider((widget.truckId, _year, _month))));
-  }
-
-  void _showEditWorkedDialog(EmployeeShift shift) {
-    showDialog<void>(
-      context: context,
-      builder: (_) =>
-          EditWorkedShiftDialog(shift: shift, truckId: widget.truckId),
-    ).then((_) => ref
-        .invalidate(truckShiftsProvider((widget.truckId, _year, _month))));
-  }
-
-  Future<void> _confirmDeleteScheduled(ScheduledShift shift) async {
-    final isLight = Theme.of(context).brightness == Brightness.light;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: isLight ? Colors.white : null,
-        title: const Text('Delete Shift?', textAlign: TextAlign.center),
-        content: const Text(
-          'This will remove the scheduled shift and notify the employee.',
-          textAlign: TextAlign.center,
-        ),
-        actionsAlignment: MainAxisAlignment.center,
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Delete',
-                style: TextStyle(color: AppColors.error)),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
-    try {
-      await ref
-          .read(employeesRepositoryProvider)
-          .deleteScheduledShift(shift.id);
-      ref.invalidate(
-          truckScheduledShiftsProvider((widget.truckId, _year, _month)));
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Could not delete shift: $e')));
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    final key = (widget.truckId, _year, _month);
-    final worked = ref.watch(truckShiftsProvider(key)).asData?.value ?? [];
-    final scheduled =
-        ref.watch(truckScheduledShiftsProvider(key)).asData?.value ?? [];
-    final bookings =
-        ref.watch(_acceptedBookingsForMonthProvider(key)).asData?.value ?? [];
-
-    return ShiftCalendarWidget(
-      truckId: widget.truckId,
-      isOwner: true,
-      workedShifts: worked,
-      scheduledShifts: scheduled,
-      bookings: bookings,
-      onMonthChanged: (y, m) => setState(() {
-        _year = y;
-        _month = m;
-      }),
-      onEditWorkedShift: _showEditWorkedDialog,
-      onAssignShift: _showAssignSheet,
-      onDeleteScheduled: _confirmDeleteScheduled,
-      onBookingTap: (_) => context.go('/owner-bookings'),
-    );
+    return ShiftWeekCard(truckId: widget.truckId, truckName: widget.truckName, isOwner: true);
   }
 }
 

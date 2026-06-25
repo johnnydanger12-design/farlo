@@ -331,10 +331,11 @@ class _InputBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bottom = MediaQuery.of(context).viewPadding.bottom;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: AppColors.divider)),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        border: Border(top: BorderSide(color: isDark ? Colors.white12 : AppColors.divider)),
       ),
       padding: EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.sm, AppSpacing.sm, AppSpacing.sm + bottom),
       child: Row(
@@ -351,7 +352,7 @@ class _InputBar extends StatelessWidget {
                 hintText: 'Message…',
                 hintStyle: AppTextStyles.bodySmall.copyWith(color: AppColors.textHint),
                 filled: true,
-                fillColor: const Color(0xFFF3F4F6),
+                fillColor: isDark ? Colors.white10 : const Color(0xFFF3F4F6),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(22),

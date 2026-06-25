@@ -11,6 +11,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/providers/theme_provider.dart';
+import '../../../core/widgets/app_button.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../auth/widgets/business_type_picker.dart';
 import '../../bookings/widgets/places_autocomplete_field.dart';
@@ -167,17 +168,23 @@ class AccountScreen extends ConsumerWidget {
         settings.authorizationStatus == AuthorizationStatus.authorized ||
         settings.authorizationStatus == AuthorizationStatus.provisional;
     if (!context.mounted) return;
-    showDialog<void>(
+    showModalBottomSheet<void>(
       context: context,
-      builder: (dialogContext) =>
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) =>
           _NotificationsDialog(systemGranted: systemGranted, isOwner: isOwner),
     );
   }
 
   Future<void> _showChangeNameDialog(BuildContext context, WidgetRef ref, String currentName) async {
-    await showDialog<void>(
+    await showModalBottomSheet<void>(
       context: context,
-      builder: (dialogContext) => _ChangeNameDialog(
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _ChangeNameDialog(
         currentName: currentName,
         onSubmit: (name) async {
           if (name == currentName) return null;
@@ -193,9 +200,12 @@ class AccountScreen extends ConsumerWidget {
     final newCtrl = TextEditingController();
     final confirmCtrl = TextEditingController();
 
-    await showDialog<void>(
+    await showModalBottomSheet<void>(
       context: context,
-      builder: (dialogContext) => _ChangePasswordDialog(
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _ChangePasswordDialog(
         currentCtrl: currentCtrl,
         newCtrl: newCtrl,
         confirmCtrl: confirmCtrl,
@@ -295,20 +305,52 @@ class AccountScreen extends ConsumerWidget {
   }
 
   Future<void> _signOut(BuildContext context, WidgetRef ref) async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showModalBottomSheet<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: Theme.of(context).brightness == Brightness.light ? Colors.white : null,
-        title: const Text('Sign out?', textAlign: TextAlign.center),
-        actionsAlignment: MainAxisAlignment.center,
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Sign out', style: TextStyle(color: AppColors.error)),
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        final isLight = Theme.of(ctx).brightness == Brightness.light;
+        return Container(
+          decoration: BoxDecoration(
+            color: isLight ? Colors.white : Theme.of(ctx).colorScheme.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
           ),
-        ],
-      ),
+          padding: EdgeInsets.fromLTRB(24, 16, 24, MediaQuery.of(ctx).viewInsets.bottom + 24),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _SheetHandle(),
+                const SizedBox(height: 8),
+                Text('Sign out?', style: AppTextStyles.heading3),
+                const SizedBox(height: 8),
+                Text('You will need to sign back in to access your account.',
+                    style: AppTextStyles.body.copyWith(color: AppColors.textSecondary),
+                    textAlign: TextAlign.center),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: () => Navigator.pop(ctx, true),
+                    style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+                    child: const Text('Sign Out'),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(ctx, false),
+                    child: const Text('Cancel'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
     if (confirmed == true) {
       await ref.read(authProvider.notifier).signOut();
@@ -406,9 +448,12 @@ class AccountSettingsScreen extends ConsumerWidget {
   }
 
   void _showDeleteAccountDialog(BuildContext context, WidgetRef ref) {
-    showDialog<void>(
+    showModalBottomSheet<void>(
       context: context,
-      builder: (dialogContext) => _DeleteAccountDialog(
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _DeleteAccountDialog(
         onConfirm: () async {
           await ref.read(authProvider.notifier).deleteAccount();
           if (context.mounted) context.go('/login');
@@ -624,42 +669,36 @@ class _AppearanceTile extends ConsumerWidget {
   }
 
   void _showPicker(BuildContext context, WidgetRef ref, ThemeMode current) {
-    showDialog<void>(
+    showModalBottomSheet<void>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: Theme.of(context).brightness == Brightness.light ? Colors.white : null,
-        title: const Text('Appearance', textAlign: TextAlign.center),
-        contentPadding: const EdgeInsets.fromLTRB(8, 12, 8, 0),
-        actionsPadding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _ModeOption(
-              label: 'System',
-              icon: Icons.brightness_auto_outlined,
-              selected: current == ThemeMode.system,
-              onTap: () { ref.read(themeModeProvider.notifier).set(ThemeMode.system); Navigator.pop(dialogContext); },
-            ),
-            _ModeOption(
-              label: 'Light',
-              icon: Icons.light_mode_outlined,
-              selected: current == ThemeMode.light,
-              onTap: () { ref.read(themeModeProvider.notifier).set(ThemeMode.light); Navigator.pop(dialogContext); },
-            ),
-            _ModeOption(
-              label: 'Dark',
-              icon: Icons.dark_mode_outlined,
-              selected: current == ThemeMode.dark,
-              onTap: () { ref.read(themeModeProvider.notifier).set(ThemeMode.dark); Navigator.pop(dialogContext); },
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _buildSheetContainer(
+        context: ctx,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const _SheetHandle(),
+              Row(
+                children: [
+                  Text('Appearance', style: AppTextStyles.heading3),
+                  const Spacer(),
+                  IconButton(icon: const Icon(Icons.close), visualDensity: VisualDensity.compact, onPressed: () => Navigator.pop(ctx)),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.md),
+              _ModeOption(label: 'System', icon: Icons.brightness_auto_outlined, selected: current == ThemeMode.system,
+                  onTap: () { ref.read(themeModeProvider.notifier).set(ThemeMode.system); Navigator.pop(ctx); }),
+              _ModeOption(label: 'Light', icon: Icons.light_mode_outlined, selected: current == ThemeMode.light,
+                  onTap: () { ref.read(themeModeProvider.notifier).set(ThemeMode.light); Navigator.pop(ctx); }),
+              _ModeOption(label: 'Dark', icon: Icons.dark_mode_outlined, selected: current == ThemeMode.dark,
+                  onTap: () { ref.read(themeModeProvider.notifier).set(ThemeMode.dark); Navigator.pop(ctx); }),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -756,7 +795,6 @@ class _NotificationsDialog extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isLight = Theme.of(context).brightness == Brightness.light;
     final prefs = ref.watch(notificationPrefsProvider);
     final pushEnabled = prefs.asData?.value.pushEnabled ?? true;
     final openAlert = prefs.asData?.value.openAlert ?? true;
@@ -764,93 +802,78 @@ class _NotificationsDialog extends ConsumerWidget {
     final bookingAlert = prefs.asData?.value.bookingAlert ?? true;
     final notifier = ref.read(notificationPrefsProvider.notifier);
 
-    return AlertDialog(
-      backgroundColor: isLight ? Colors.white : null,
-      title: const Text('Notifications', textAlign: TextAlign.center),
-      contentPadding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (!systemGranted)
-            Container(
-              margin: const EdgeInsets.only(bottom: AppSpacing.sm),
-              padding: const EdgeInsets.all(AppSpacing.sm),
-              decoration: BoxDecoration(
-                color: AppColors.error.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
+    return _buildSheetContainer(
+      context: context,
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const _SheetHandle(),
+            Row(
+              children: [
+                Text('Notifications', style: AppTextStyles.heading3),
+                const Spacer(),
+                IconButton(icon: const Icon(Icons.close), visualDensity: VisualDensity.compact, onPressed: () => Navigator.pop(context)),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            if (!systemGranted)
+              Container(
+                margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+                padding: const EdgeInsets.all(AppSpacing.sm),
+                decoration: BoxDecoration(color: AppColors.error.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
+                child: Row(
+                  children: [
+                    const Icon(Icons.warning_amber_rounded, color: AppColors.error, size: 16),
+                    const SizedBox(width: 6),
+                    Expanded(child: Text('Notifications are off in System Settings.', style: AppTextStyles.caption.copyWith(color: AppColors.error))),
+                  ],
+                ),
               ),
-              child: Row(
-                children: [
-                  const Icon(Icons.warning_amber_rounded, color: AppColors.error, size: 16),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      'Notifications are off in System Settings.',
-                      style: AppTextStyles.caption.copyWith(color: AppColors.error),
-                    ),
-                  ),
-                ],
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text('Push Notifications', style: AppTextStyles.label),
+              subtitle: Text(isOwner ? 'Booking updates and alerts' : 'All notifications', style: AppTextStyles.caption),
+              value: pushEnabled,
+              onChanged: systemGranted ? (v) { if (!v && isOwner) { _confirmDisablePush(context, ref); } else { notifier.setPushEnabled(v); } } : null,
+            ),
+            if (isOwner)
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text('Open/Closed Alerts', style: AppTextStyles.label),
+                subtitle: Text('Notify me when my business opens or closes', style: AppTextStyles.caption),
+                value: openAlert && pushEnabled,
+                onChanged: pushEnabled ? (v) => notifier.setOpenAlert(v) : null,
               ),
-            ),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: Text('Push Notifications', style: AppTextStyles.label),
-            subtitle: Text(
-              isOwner ? 'Booking updates and alerts' : 'All notifications',
-              style: AppTextStyles.caption,
-            ),
-            value: pushEnabled,
-            onChanged: systemGranted
-                ? (v) {
-                    if (!v && isOwner) {
-                      _confirmDisablePush(context, ref);
-                    } else {
-                      notifier.setPushEnabled(v);
-                    }
-                  }
-                : null,
-          ),
-          if (isOwner)
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: Text('Open/Closed Alerts', style: AppTextStyles.label),
-              subtitle: Text('Notify me when my business opens or closes', style: AppTextStyles.caption),
-              value: openAlert && pushEnabled,
-              onChanged: pushEnabled ? (v) => notifier.setOpenAlert(v) : null,
-            ),
-          if (!isOwner) ...[
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: Text('Announcements', style: AppTextStyles.label),
-              subtitle: Text('Specials and updates from trucks you follow', style: AppTextStyles.caption),
-              value: announcementAlert && pushEnabled,
-              onChanged: pushEnabled ? (v) => notifier.setAnnouncementAlert(v) : null,
-            ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: Text('Booking Updates', style: AppTextStyles.label),
-              subtitle: Text('Status updates on your private event requests', style: AppTextStyles.caption),
-              value: bookingAlert && pushEnabled,
-              onChanged: pushEnabled ? (v) => notifier.setBookingAlert(v) : null,
-            ),
+            if (!isOwner) ...[
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text('Announcements', style: AppTextStyles.label),
+                subtitle: Text('Weekly schedules and announcements from businesses you follow. Mute individual businesses on their profile page.', style: AppTextStyles.caption),
+                value: announcementAlert && pushEnabled,
+                onChanged: pushEnabled ? (v) => notifier.setAnnouncementAlert(v) : null,
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text('Booking Updates', style: AppTextStyles.label),
+                subtitle: Text('Status updates on your private event requests', style: AppTextStyles.caption),
+                value: bookingAlert && pushEnabled,
+                onChanged: pushEnabled ? (v) => notifier.setBookingAlert(v) : null,
+              ),
+            ],
+            const SizedBox(height: AppSpacing.md),
+            if (!systemGranted)
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: () async { Navigator.pop(context); await openAppSettings(); },
+                  child: const Text('Open System Settings'),
+                ),
+              ),
           ],
-        ],
-      ),
-      actionsAlignment: MainAxisAlignment.spaceBetween,
-      actions: [
-        if (!systemGranted)
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              await openAppSettings();
-            },
-            child: const Text('Open Settings'),
-          ),
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Done'),
         ),
-      ],
+      ),
     );
   }
 }
@@ -905,38 +928,38 @@ class _ChangeNameDialogState extends State<_ChangeNameDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final isLight = Theme.of(context).brightness == Brightness.light;
-    return AlertDialog(
-      backgroundColor: isLight ? Colors.white : null,
-      title: const Text('Change Name'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextField(
-            controller: _ctrl,
-            autofocus: true,
-            textCapitalization: TextCapitalization.words,
-            decoration: const InputDecoration(labelText: 'Display name'),
-            onSubmitted: (_) => _submit(),
-          ),
-          if (_error != null) ...[
-            const SizedBox(height: AppSpacing.sm),
-            Text(_error!, style: AppTextStyles.caption.copyWith(color: AppColors.error)),
+    return _buildSheetContainer(
+      context: context,
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const _SheetHandle(),
+            Row(
+              children: [
+                Text('Change Name', style: AppTextStyles.heading3),
+                const Spacer(),
+                IconButton(icon: const Icon(Icons.close), visualDensity: VisualDensity.compact, onPressed: _loading ? null : () => Navigator.pop(context)),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.md),
+            TextField(
+              controller: _ctrl,
+              autofocus: true,
+              textCapitalization: TextCapitalization.words,
+              decoration: const InputDecoration(labelText: 'Display name', border: OutlineInputBorder()),
+              onSubmitted: (_) => _submit(),
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: AppSpacing.sm),
+              Text(_error!, style: AppTextStyles.caption.copyWith(color: AppColors.error)),
+            ],
+            const SizedBox(height: AppSpacing.lg),
+            AppButton(label: 'Save', onPressed: _loading ? null : _submit, isLoading: _loading),
           ],
-        ],
+        ),
       ),
-      actions: [
-        TextButton(
-          onPressed: _loading ? null : () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        TextButton(
-          onPressed: _loading ? null : _submit,
-          child: _loading
-              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-              : const Text('Save'),
-        ),
-      ],
     );
   }
 }
@@ -988,66 +1011,69 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final isLight = Theme.of(context).brightness == Brightness.light;
-    return AlertDialog(
-      backgroundColor: isLight ? Colors.white : null,
-      title: const Text('Change Password'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextField(
-            controller: widget.currentCtrl,
-            obscureText: _obscureCurrent,
-            decoration: InputDecoration(
-              labelText: 'Current password',
-              suffixIcon: IconButton(
-                icon: Icon(_obscureCurrent ? Icons.visibility_outlined : Icons.visibility_off_outlined),
-                onPressed: () => setState(() => _obscureCurrent = !_obscureCurrent),
+    return _buildSheetContainer(
+      context: context,
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const _SheetHandle(),
+            Row(
+              children: [
+                Text('Change Password', style: AppTextStyles.heading3),
+                const Spacer(),
+                IconButton(icon: const Icon(Icons.close), visualDensity: VisualDensity.compact, onPressed: _loading ? null : () => Navigator.pop(context)),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.md),
+            TextField(
+              controller: widget.currentCtrl,
+              obscureText: _obscureCurrent,
+              decoration: InputDecoration(
+                labelText: 'Current password',
+                border: const OutlineInputBorder(),
+                suffixIcon: IconButton(
+                  icon: Icon(_obscureCurrent ? Icons.visibility_outlined : Icons.visibility_off_outlined),
+                  onPressed: () => setState(() => _obscureCurrent = !_obscureCurrent),
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          TextField(
-            controller: widget.newCtrl,
-            obscureText: _obscureNew,
-            decoration: InputDecoration(
-              labelText: 'New password',
-              suffixIcon: IconButton(
-                icon: Icon(_obscureNew ? Icons.visibility_outlined : Icons.visibility_off_outlined),
-                onPressed: () => setState(() => _obscureNew = !_obscureNew),
-              ),
-            ),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          TextField(
-            controller: widget.confirmCtrl,
-            obscureText: _obscureConfirm,
-            decoration: InputDecoration(
-              labelText: 'Confirm new password',
-              suffixIcon: IconButton(
-                icon: Icon(_obscureConfirm ? Icons.visibility_outlined : Icons.visibility_off_outlined),
-                onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm),
-              ),
-            ),
-          ),
-          if (_error != null) ...[
             const SizedBox(height: AppSpacing.sm),
-            Text(_error!, style: AppTextStyles.caption.copyWith(color: AppColors.error)),
+            TextField(
+              controller: widget.newCtrl,
+              obscureText: _obscureNew,
+              decoration: InputDecoration(
+                labelText: 'New password',
+                border: const OutlineInputBorder(),
+                suffixIcon: IconButton(
+                  icon: Icon(_obscureNew ? Icons.visibility_outlined : Icons.visibility_off_outlined),
+                  onPressed: () => setState(() => _obscureNew = !_obscureNew),
+                ),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            TextField(
+              controller: widget.confirmCtrl,
+              obscureText: _obscureConfirm,
+              decoration: InputDecoration(
+                labelText: 'Confirm new password',
+                border: const OutlineInputBorder(),
+                suffixIcon: IconButton(
+                  icon: Icon(_obscureConfirm ? Icons.visibility_outlined : Icons.visibility_off_outlined),
+                  onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm),
+                ),
+              ),
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: AppSpacing.sm),
+              Text(_error!, style: AppTextStyles.caption.copyWith(color: AppColors.error)),
+            ],
+            const SizedBox(height: AppSpacing.lg),
+            AppButton(label: 'Update Password', onPressed: _loading ? null : _submit, isLoading: _loading),
           ],
-        ],
+        ),
       ),
-      actions: [
-        TextButton(
-          onPressed: _loading ? null : () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        TextButton(
-          onPressed: _loading ? null : _submit,
-          child: _loading
-              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-              : const Text('Update'),
-        ),
-      ],
     );
   }
 }
@@ -1085,55 +1111,59 @@ class _DeleteAccountDialogState extends State<_DeleteAccountDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final isLight = Theme.of(context).brightness == Brightness.light;
     final confirmed = _ctrl.text.trim() == 'DELETE';
-
-    return AlertDialog(
-      backgroundColor: isLight ? Colors.white : null,
-      title: const Text('Delete Account', textAlign: TextAlign.center),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(AppSpacing.sm),
-            decoration: BoxDecoration(
-              color: AppColors.error.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(8),
+    return _buildSheetContainer(
+      context: context,
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const _SheetHandle(),
+            Row(
+              children: [
+                Text('Delete Account', style: AppTextStyles.heading3),
+                const Spacer(),
+                IconButton(icon: const Icon(Icons.close), visualDensity: VisualDensity.compact, onPressed: _loading ? null : () => Navigator.pop(context)),
+              ],
             ),
-            child: Text(
-              'This is permanent. Your account, truck data, reviews, bookings, and favorites will be deleted and cannot be recovered.',
-              style: AppTextStyles.caption.copyWith(color: AppColors.error),
+            const SizedBox(height: AppSpacing.md),
+            Container(
+              padding: const EdgeInsets.all(AppSpacing.sm),
+              decoration: BoxDecoration(color: AppColors.error.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(8)),
+              child: Text('This is permanent. Your account, truck data, reviews, bookings, and favorites will be deleted and cannot be recovered.', style: AppTextStyles.caption.copyWith(color: AppColors.error)),
             ),
-          ),
-          const SizedBox(height: AppSpacing.md),
-          Text('Type DELETE to confirm', style: AppTextStyles.label),
-          const SizedBox(height: AppSpacing.sm),
-          TextField(
-            controller: _ctrl,
-            autofocus: true,
-            autocorrect: false,
-            onChanged: (_) => setState(() {}),
-            decoration: const InputDecoration(hintText: 'DELETE'),
-          ),
-          if (_error != null) ...[
+            const SizedBox(height: AppSpacing.md),
+            Text('Type DELETE to confirm', style: AppTextStyles.label),
             const SizedBox(height: AppSpacing.sm),
-            Text(_error!, style: AppTextStyles.caption.copyWith(color: AppColors.error)),
+            TextField(
+              controller: _ctrl,
+              autofocus: true,
+              autocorrect: false,
+              onChanged: (_) => setState(() {}),
+              decoration: const InputDecoration(hintText: 'DELETE', border: OutlineInputBorder()),
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: AppSpacing.sm),
+              Text(_error!, style: AppTextStyles.caption.copyWith(color: AppColors.error)),
+            ],
+            const SizedBox(height: AppSpacing.lg),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: (!confirmed || _loading) ? null : _submit,
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.error,
+                  disabledBackgroundColor: AppColors.error.withValues(alpha: 0.4),
+                ),
+                child: _loading
+                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : const Text('Delete Account'),
+              ),
+            ),
           ],
-        ],
+        ),
       ),
-      actions: [
-        TextButton(
-          onPressed: _loading ? null : () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        TextButton(
-          onPressed: (!confirmed || _loading) ? null : _submit,
-          child: _loading
-              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.error))
-              : Text('Delete Account', style: TextStyle(color: confirmed ? AppColors.error : null)),
-        ),
-      ],
     );
   }
 }
@@ -1391,4 +1421,38 @@ class _UpgradeToOwnerSheetState extends State<_UpgradeToOwnerSheet> {
       ),
     );
   }
+}
+
+// ─── Shared sheet helpers ─────────────────────────────────────────────────────
+
+class _SheetHandle extends StatelessWidget {
+  const _SheetHandle();
+  @override
+  Widget build(BuildContext context) => Center(
+        child: Container(
+          width: 40, height: 4,
+          margin: const EdgeInsets.only(bottom: 16),
+          decoration: BoxDecoration(
+            color: AppColors.textHint,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+      );
+}
+
+/// Standard bottom sheet container: rounded top corners, padded, respects keyboard.
+Widget _buildSheetContainer({
+  required BuildContext context,
+  required Widget child,
+}) {
+  final isLight = Theme.of(context).brightness == Brightness.light;
+  return Container(
+    decoration: BoxDecoration(
+      color: isLight ? Colors.white : Theme.of(context).colorScheme.surface,
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+    ),
+    padding: EdgeInsets.fromLTRB(
+      24, 16, 24, MediaQuery.of(context).viewInsets.bottom + 24),
+    child: child,
+  );
 }

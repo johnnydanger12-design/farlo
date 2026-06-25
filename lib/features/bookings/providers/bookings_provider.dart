@@ -54,6 +54,14 @@ final bookingsRepositoryProvider = Provider<BookingsRepository>((ref) {
   return BookingsRepository(Supabase.instance.client);
 });
 
+// Accepted bookings for a truck scoped to a calendar month — shared by calendar views.
+final acceptedBookingsForMonthProvider = FutureProvider.family<
+    List<BookingRequest>, (String, int, int)>((ref, key) async {
+  final (truckId, year, month) = key;
+  return BookingsRepository(Supabase.instance.client)
+      .fetchAcceptedBookingsForMonth(truckId, year, month);
+});
+
 // Owner-facing: list of booking requests for a given truck, refreshable.
 class OwnerBookingRequestsNotifier extends AsyncNotifier<List<BookingRequest>> {
   late String _truckId;

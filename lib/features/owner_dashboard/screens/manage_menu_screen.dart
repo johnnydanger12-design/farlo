@@ -394,7 +394,8 @@ class _MenuItemSheetState extends State<_MenuItemSheet> {
         padding: const EdgeInsets.all(AppSpacing.lg),
         child: Form(
           key: _formKey,
-          child: Column(
+          child: SingleChildScrollView(
+            child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -540,6 +541,7 @@ class _MenuItemSheetState extends State<_MenuItemSheet> {
                 isLoading: _saving,
               ),
             ],
+          ),
           ),
         ),
       ),

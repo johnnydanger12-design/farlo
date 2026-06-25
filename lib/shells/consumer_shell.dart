@@ -2,12 +2,31 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../core/constants/app_theme.dart';
+import '../core/widgets/sign_in_prompt_sheet.dart';
+import '../features/auth/providers/auth_provider.dart';
 import '../features/notifications/providers/notifications_provider.dart';
 
 class ConsumerShell extends ConsumerWidget {
   const ConsumerShell({super.key, required this.shell});
 
   final StatefulNavigationShell shell;
+
+  void _onTabTapped(BuildContext context, WidgetRef ref, int index) {
+    if (index != 0 && ref.read(authProvider).asData?.value == null) {
+      showModalBottomSheet<void>(
+        context: context,
+        backgroundColor: Colors.transparent,
+        builder: (_) => SignInPromptSheet(
+          onSignIn: () {
+            Navigator.pop(context);
+            context.go('/login');
+          },
+        ),
+      );
+      return;
+    }
+    shell.goBranch(index, initialLocation: index == shell.currentIndex);
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -19,10 +38,7 @@ class ConsumerShell extends ConsumerWidget {
         body: shell,
         bottomNavigationBar: NavigationBar(
           selectedIndex: shell.currentIndex,
-          onDestinationSelected: (index) => shell.goBranch(
-            index,
-            initialLocation: index == shell.currentIndex,
-          ),
+          onDestinationSelected: (index) => _onTabTapped(context, ref, index),
           destinations: [
             const NavigationDestination(
               icon: Icon(Icons.map_outlined),

@@ -44,7 +44,7 @@ class OnboardingScreen extends ConsumerWidget {
             child: FilledButton(
               onPressed: () async {
                 await ref.read(onboardingProvider.notifier).complete();
-                if (context.mounted) context.go('/login');
+                if (context.mounted) context.go('/map');
               },
               style: FilledButton.styleFrom(
                 backgroundColor: const Color(0xFF2563EB),

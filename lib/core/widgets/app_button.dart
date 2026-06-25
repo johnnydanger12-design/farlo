@@ -37,6 +37,8 @@ class AppButton extends StatelessWidget {
       style: ElevatedButton.styleFrom(
         backgroundColor: primary,
         foregroundColor: Colors.white,
+        disabledBackgroundColor: primary.withValues(alpha: 0.45),
+        disabledForegroundColor: Colors.white.withValues(alpha: 0.8),
         minimumSize: const Size(double.infinity, 52),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         elevation: 0,

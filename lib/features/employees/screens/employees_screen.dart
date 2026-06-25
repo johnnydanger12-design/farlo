@@ -39,15 +39,50 @@ class EmployeesScreen extends ConsumerWidget {
   }
 }
 
-class _EmployeesList extends ConsumerWidget {
+class _EmployeesList extends ConsumerStatefulWidget {
   const _EmployeesList({required this.truckId, required this.truckName, required this.ownerName});
   final String truckId;
   final String truckName;
   final String ownerName;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final asyncEmployees = ref.watch(truckEmployeesProvider(truckId));
+  ConsumerState<_EmployeesList> createState() => _EmployeesListState();
+}
+
+class _EmployeesListState extends ConsumerState<_EmployeesList> {
+  RealtimeChannel? _channel;
+
+  @override
+  void initState() {
+    super.initState();
+    _channel = Supabase.instance.client
+        .channel('employees-${widget.truckId}')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'truck_employees',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'truck_id',
+            value: widget.truckId,
+          ),
+          callback: (_) =>
+              ref.invalidate(truckEmployeesProvider(widget.truckId)),
+        )
+        .subscribe();
+  }
+
+  @override
+  void dispose() {
+    if (_channel != null) {
+      Supabase.instance.client.removeChannel(_channel!);
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final asyncEmployees = ref.watch(truckEmployeesProvider(widget.truckId));
 
     return asyncEmployees.when(
       loading: () => Center(child: CircularProgressIndicator(color: Theme.of(context).colorScheme.primary)),
@@ -119,64 +154,81 @@ class _EmployeesList extends ConsumerWidget {
       return;
     }
     final ctrl = TextEditingController();
-    showDialog<void>(
+    showModalBottomSheet<void>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: Theme.of(context).brightness == Brightness.light ? Colors.white : null,
-        title: const Text('Add Employee'),
-        content: TextField(
-          controller: ctrl,
-          autofocus: true,
-          keyboardType: TextInputType.emailAddress,
-          decoration: const InputDecoration(
-            labelText: 'Employee email',
-            hintText: 'name@example.com',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () async {
-              final email = ctrl.text.trim();
-              if (email.isEmpty || !email.contains('@')) return;
-              Navigator.pop(dialogContext);
-              try {
-                final alreadyUser = await ref.read(truckEmployeesProvider(truckId).notifier).invite(email);
-                Supabase.instance.client.functions.invoke(
-                  'send-employee-invite',
-                  body: {
-                    'email': email,
-                    'truckName': truckName,
-                    'ownerName': ownerName,
-                    'isExistingUser': alreadyUser,
-                  },
-                ).ignore();
-                if (context.mounted) {
-                  final message = alreadyUser
-                      ? '$email has been added to your team.'
-                      : '$email invited — they\'ll get access when they sign up.';
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(message),
-                      backgroundColor: AppColors.openGreen,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        final isLight = Theme.of(ctx).brightness == Brightness.light;
+        return Padding(
+          padding: EdgeInsets.fromLTRB(24, 16, 24, MediaQuery.of(ctx).viewInsets.bottom + 24),
+          child: Container(
+            decoration: BoxDecoration(
+              color: isLight ? Colors.white : Theme.of(ctx).colorScheme.surface,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            padding: const EdgeInsets.all(24),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(child: Container(width: 40, height: 4, margin: const EdgeInsets.only(bottom: 16), decoration: BoxDecoration(color: AppColors.textHint, borderRadius: BorderRadius.circular(2)))),
+                  Row(
+                    children: [
+                      Text('Add Employee', style: AppTextStyles.heading3),
+                      const Spacer(),
+                      IconButton(icon: const Icon(Icons.close), visualDensity: VisualDensity.compact, onPressed: () => Navigator.pop(ctx)),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  Text('Enter the employee\'s email address.', style: AppTextStyles.body.copyWith(color: AppColors.textSecondary)),
+                  const SizedBox(height: AppSpacing.md),
+                  TextField(
+                    controller: ctrl,
+                    autofocus: true,
+                    keyboardType: TextInputType.emailAddress,
+                    decoration: const InputDecoration(labelText: 'Employee email', hintText: 'name@example.com', border: OutlineInputBorder()),
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
+                      onPressed: () async {
+                        final email = ctrl.text.trim();
+                        if (email.isEmpty || !email.contains('@')) return;
+                        Navigator.pop(ctx);
+                        try {
+                          final alreadyUser = await ref.read(truckEmployeesProvider(widget.truckId).notifier).invite(email);
+                          Supabase.instance.client.functions.invoke('send-employee-invite', body: {
+                            'email': email,
+                            'truckName': widget.truckName,
+                            'ownerName': widget.ownerName,
+                            'isExistingUser': alreadyUser,
+                          }).ignore();
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                              content: Text(alreadyUser ? '$email has been added to your team.' : '$email invited — they\'ll get access when they sign up.'),
+                              backgroundColor: AppColors.openGreen,
+                            ));
+                          }
+                        } catch (e) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error));
+                          }
+                        }
+                      },
+                      child: const Text('Add Employee'),
                     ),
-                  );
-                }
-              } catch (e) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error),
-                  );
-                }
-              }
-            },
-            child: const Text('Add'),
+                  ),
+                ],
+              ),
+            ),
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -197,7 +249,7 @@ class _EmployeesList extends ConsumerWidget {
           TextButton(
             onPressed: () async {
               Navigator.pop(dialogContext);
-              await ref.read(truckEmployeesProvider(truckId).notifier).remove(employee.id);
+              await ref.read(truckEmployeesProvider(widget.truckId).notifier).remove(employee.id);
             },
             child: const Text('Remove', style: TextStyle(color: AppColors.error)),
           ),

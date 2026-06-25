@@ -18,10 +18,20 @@ import '../../orders/models/order.dart';
 import '../../orders/providers/orders_provider.dart';
 import '../../orders/screens/order_queue_screen.dart';
 import '../models/employee_shift.dart';
-import '../models/scheduled_shift.dart';
 import '../providers/employees_provider.dart';
 import '../providers/shifts_provider.dart';
-import '../widgets/shift_calendar_widget.dart';
+import '../widgets/shift_week_card.dart';
+
+// Checks whether a truck owner has Stripe Connect set up.
+final _ownerStripeConnectedProvider =
+    FutureProvider.autoDispose.family<bool, String>((ref, ownerId) async {
+  final row = await Supabase.instance.client
+      .from('profiles')
+      .select('stripe_account_id')
+      .eq('id', ownerId)
+      .single();
+  return (row['stripe_account_id'] as String?) != null;
+});
 
 class EmployeeDashboardScreen extends ConsumerStatefulWidget {
   const EmployeeDashboardScreen({
@@ -324,7 +334,7 @@ class _EmployeeDashboardScreenState extends ConsumerState<EmployeeDashboardScree
               _EmployeeOrdersCard(truckId: widget.truckId, truck: truck),
             ],
             const SizedBox(height: AppSpacing.xl),
-            _EmployeeCalendarSection(truckId: widget.truckId),
+            _EmployeeCalendarSection(truckId: widget.truckId, truckName: widget.truckName),
           ],
         ),
       ),
@@ -611,15 +621,31 @@ class _EmployeeOrdersCard extends ConsumerWidget {
                     ),
                   ),
                 ),
-                Switch(
-                  value: ordersAccepting,
-                  onChanged: (_) => ref
-                      .read(employeeGoLiveProvider(truckId).notifier)
-                      .updateOrdersAccepting(!ordersAccepting),
-                  activeThumbColor: AppColors.openGreen,
-                  activeTrackColor: AppColors.openGreen.withValues(alpha: 0.4),
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
+                Builder(builder: (context) {
+                  final stripeOk = ref
+                      .watch(_ownerStripeConnectedProvider(truck.ownerId))
+                      .asData
+                      ?.value ?? false;
+                  return Switch(
+                    value: ordersAccepting,
+                    onChanged: stripeOk
+                        ? (_) => ref
+                            .read(employeeGoLiveProvider(truckId).notifier)
+                            .updateOrdersAccepting(!ordersAccepting)
+                        : (_) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Online orders unavailable — the owner needs to connect Stripe first.'),
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                          },
+                    activeThumbColor: AppColors.openGreen,
+                    activeTrackColor: AppColors.openGreen.withValues(alpha: 0.4),
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  );
+                }),
               ],
             ),
           ),
@@ -666,8 +692,9 @@ class _EmployeeOrdersCard extends ConsumerWidget {
 // ─── Employee Calendar Section ────────────────────────────────────────────────
 
 class _EmployeeCalendarSection extends ConsumerStatefulWidget {
-  const _EmployeeCalendarSection({required this.truckId});
+  const _EmployeeCalendarSection({required this.truckId, required this.truckName});
   final String truckId;
+  final String truckName;
 
   @override
   ConsumerState<_EmployeeCalendarSection> createState() =>
@@ -676,45 +703,30 @@ class _EmployeeCalendarSection extends ConsumerStatefulWidget {
 
 class _EmployeeCalendarSectionState
     extends ConsumerState<_EmployeeCalendarSection> {
-  int _year = DateTime.now().year;
-  int _month = DateTime.now().month;
-
-  Future<void> _handleRespond(ScheduledShift shift, String status) async {
-    try {
-      await ref
-          .read(employeesRepositoryProvider)
-          .respondToScheduledShift(shiftId: shift.id, status: status);
-      ref.invalidate(myScheduledShiftsProvider(
-          (widget.truckId, shift.scheduledStart.year, shift.scheduledStart.month)));
-      // Notify owner of the response
-      await PushNotificationService.sendShiftResponse(shift.id);
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Could not update shift: $e')));
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    final key = (widget.truckId, _year, _month);
-    final workedAsync = ref.watch(myShiftsProvider(key));
-    final scheduledAsync = ref.watch(myScheduledShiftsProvider(key));
-
-    final worked = workedAsync.asData?.value ?? [];
-    final scheduled = scheduledAsync.asData?.value ?? [];
-
-    return ShiftCalendarWidget(
+    return ShiftWeekCard(
       truckId: widget.truckId,
+      truckName: widget.truckName,
       isOwner: false,
-      workedShifts: worked,
-      scheduledShifts: scheduled,
-      onMonthChanged: (y, m) => setState(() {
-        _year = y;
-        _month = m;
-      }),
-      onRespondScheduled: _handleRespond,
+      onRespondScheduled: (shift, status) async {
+        try {
+          await ref
+              .read(employeesRepositoryProvider)
+              .respondToScheduledShift(shiftId: shift.id, status: status);
+          await PushNotificationService.sendShiftResponse(shift.id);
+          ref.invalidate(myScheduledShiftsProvider((
+            widget.truckId,
+            shift.scheduledStart.year,
+            shift.scheduledStart.month,
+          )));
+        } catch (e) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Could not update shift: $e')));
+          }
+        }
+      },
     );
   }
 }

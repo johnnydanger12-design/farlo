@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -14,6 +15,7 @@ import '../../food_trucks/models/menu_item.dart';
 import '../../food_trucks/models/operating_hours.dart';
 import '../providers/food_truck_provider.dart';
 import '../../favorites/providers/favorites_provider.dart';
+import '../providers/announcement_prefs_provider.dart';
 import '../../reviews/models/review.dart';
 import '../../reviews/providers/reviews_provider.dart';
 import '../../reviews/widgets/review_card.dart';
@@ -22,6 +24,7 @@ import '../../orders/models/order_item.dart';
 import '../../orders/providers/orders_provider.dart';
 import '../../orders/widgets/order_cart_sheet.dart';
 import '../../reviews/widgets/write_review_sheet.dart';
+import '../../../core/widgets/sign_in_prompt_sheet.dart';
 
 class TruckProfileScreen extends ConsumerWidget {
   const TruckProfileScreen({
@@ -65,6 +68,7 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
   int _currentPhoto = 0;
   int? _filterRating;
   RealtimeChannel? _truckChannel;
+  RealtimeChannel? _menuChannel;
 
   @override
   void initState() {
@@ -81,6 +85,21 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
           filter: PostgresChangeFilter(
             type: PostgresChangeFilterType.eq,
             column: 'id',
+            value: widget.truck.id,
+          ),
+          callback: (_) => ref.invalidate(foodTruckProvider(widget.truck.id)),
+        )
+        .subscribe();
+    // Realtime: refresh when the owner changes menu item availability.
+    _menuChannel = Supabase.instance.client
+        .channel('truck-menu-${widget.truck.id}')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'menu_items',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'truck_id',
             value: widget.truck.id,
           ),
           callback: (_) => ref.invalidate(foodTruckProvider(widget.truck.id)),
@@ -104,6 +123,9 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
     if (_truckChannel != null) {
       Supabase.instance.client.removeChannel(_truckChannel!);
     }
+    if (_menuChannel != null) {
+      Supabase.instance.client.removeChannel(_menuChannel!);
+    }
     _pageController.dispose();
     ref.read(cartProvider.notifier).clear();
     super.dispose();
@@ -114,16 +136,12 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
 
     // Check that the truck owner has an active subscription before allowing
     // a booking request — bookings are a subscription-gated feature.
-    final row = await Supabase.instance.client
-        .from('owner_subscriptions')
-        .select('status')
-        .eq('owner_id', truck.ownerId)
-        .inFilter('status', ['active', 'trialing'])
-        .maybeSingle();
+    final hasSubscription = await Supabase.instance.client
+        .rpc('owner_has_active_subscription', params: {'p_owner_id': truck.ownerId});
 
     if (!mounted) return;
 
-    if (row == null) {
+    if (hasSubscription != true) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('This business isn\'t currently accepting booking requests.'),
@@ -222,6 +240,9 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
             foregroundColor: Colors.white,
             actions: isAuthenticated
                 ? [
+                    // Bell — only shown when following this truck
+                    if (ref.watch(favoritedTruckIdsProvider).asData?.value.contains(truck.id) ?? false)
+                      _AnnouncementBellButton(truckId: truck.id),
                     IconButton(
                       icon: AnimatedSwitcher(
                         duration: const Duration(milliseconds: 200),
@@ -473,17 +494,14 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
   }
 
   void _showLoginPrompt(BuildContext context) {
-    showDialog(
+    showModalBottomSheet<void>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Sign in required'),
-        content: const Text('You need to be signed in to leave a review.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('OK'),
-          ),
-        ],
+      backgroundColor: Colors.transparent,
+      builder: (_) => SignInPromptSheet(
+        onSignIn: () {
+          Navigator.pop(context);
+          context.go('/login');
+        },
       ),
     );
   }
@@ -1166,12 +1184,27 @@ class _FloatingCartBar extends ConsumerWidget {
       child: Padding(
         padding: const EdgeInsets.fromLTRB(AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.md),
         child: FilledButton(
-          onPressed: () => showModalBottomSheet(
-            context: context,
-            isScrollControlled: true,
-            backgroundColor: Colors.transparent,
-            builder: (_) => OrderCartSheet(truck: truck),
-          ),
+          onPressed: () {
+            if (ref.read(authProvider).asData?.value == null) {
+              showModalBottomSheet<void>(
+                context: context,
+                backgroundColor: Colors.transparent,
+                builder: (_) => SignInPromptSheet(
+                  onSignIn: () {
+                    Navigator.pop(context);
+                    context.go('/login');
+                  },
+                ),
+              );
+              return;
+            }
+            showModalBottomSheet(
+              context: context,
+              isScrollControlled: true,
+              backgroundColor: Colors.transparent,
+              builder: (_) => OrderCartSheet(truck: truck),
+            );
+          },
           style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1356,6 +1389,43 @@ class _OwnerReplySheetState extends State<_OwnerReplySheet> {
           ),
         ],
       ),
+    );
+  }
+}
+
+// ── Announcement bell toggle ───────────────────────────────────────────────────
+
+class _AnnouncementBellButton extends ConsumerWidget {
+  const _AnnouncementBellButton({required this.truckId});
+  final String truckId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final enabled = ref.watch(announcementPrefProvider(truckId)).asData?.value ?? true;
+    return IconButton(
+      icon: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 200),
+        child: Icon(
+          enabled ? Icons.notifications_rounded : Icons.notifications_off_outlined,
+          key: ValueKey(enabled),
+          color: Colors.white,
+        ),
+      ),
+      tooltip: enabled ? 'Mute announcements' : 'Unmute announcements',
+      onPressed: () async {
+        await ref.read(announcementPrefProvider(truckId).notifier).toggle();
+        if (!context.mounted) return;
+        final nowEnabled = ref.read(announcementPrefProvider(truckId)).asData?.value ?? true;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(nowEnabled
+                ? 'Announcements turned on'
+                : 'Announcements muted for this business'),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      },
     );
   }
 }

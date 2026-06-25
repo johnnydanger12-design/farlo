@@ -132,7 +132,10 @@ class AuthRepository {
   }
 
   Future<void> resetPasswordForEmail(String email) async {
-    await _supabase.auth.resetPasswordForEmail(email.trim().toLowerCase());
+    await _supabase.auth.resetPasswordForEmail(
+      email.trim().toLowerCase(),
+      redirectTo: 'com.farlo.app://reset-password',
+    );
   }
 
   Future<void> changePassword({

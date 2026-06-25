@@ -191,6 +191,56 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     }
   }
 
+  // Spreads markers that share the same location into a small circle so they
+  // don't completely overlap. Trucks within ~5 m of each other are grouped.
+  List<(FoodTruck, LatLng)> _applyClusterOffsets(List<FoodTruck> trucks) {
+    const double threshold = 0.00005; // ~5 m — treated as same location
+    const double spread    = 0.00022; // ~24 m radius — enough to see both pins
+
+    final groups    = <int, List<int>>{}; // representative index → members
+    final assigned  = <int, int>{};      // truck index → representative
+
+    for (int i = 0; i < trucks.length; i++) {
+      final t = trucks[i];
+      if (t.latitude == null || t.longitude == null) continue;
+      bool found = false;
+      for (final rep in groups.keys) {
+        final r = trucks[rep];
+        if ((t.latitude! - r.latitude!).abs() < threshold &&
+            (t.longitude! - r.longitude!).abs() < threshold) {
+          groups[rep]!.add(i);
+          assigned[i] = rep;
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        groups[i] = [i];
+        assigned[i] = i;
+      }
+    }
+
+    final result = <(FoodTruck, LatLng)>[];
+    for (int i = 0; i < trucks.length; i++) {
+      final truck = trucks[i];
+      if (truck.latitude == null || truck.longitude == null) continue;
+      final rep   = assigned[i]!;
+      final group = groups[rep]!;
+      if (group.length == 1) {
+        result.add((truck, LatLng(truck.latitude!, truck.longitude!)));
+      } else {
+        final idx   = group.indexOf(i);
+        final n     = group.length;
+        final angle = (2 * math.pi * idx) / n - math.pi / 2;
+        result.add((truck, LatLng(
+          truck.latitude!  + spread * math.cos(angle),
+          truck.longitude! + spread * math.sin(angle),
+        )));
+      }
+    }
+    return result;
+  }
+
   // Returns true when a truck's coordinate falls within the current visible bounds.
   // Falls back to true if the camera isn't ready yet so no markers are hidden early.
   bool _inVisibleBounds(FoodTruck truck) {
@@ -358,32 +408,41 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                   ],
                 ),
               MarkerLayer(
-                markers: trucksAsync.asData?.value
-                        .where(_inVisibleBounds)
-                        .map(
-                          (truck) {
-                            final showBadge = truck.sessionStartedAt != null &&
-                                DateTime.now().difference(truck.sessionStartedAt!).inMinutes >= 10;
-                            return Marker(
-                              point: LatLng(truck.latitude!, truck.longitude!),
-                              width: showBadge ? 72 : 44,
-                              height: showBadge ? 66 : 44,
-                              alignment: showBadge
-                                  ? const Alignment(0, -0.33)
-                                  : Alignment.center,
-                              child: GestureDetector(
-                                onTap: () => _onTruckTapped(truck),
-                                child: _TruckPin(
-                                  isOpen: truck.isOpen,
-                                  logoUrl: truck.logoUrl,
-                                  sessionStartedAt: truck.sessionStartedAt,
-                                ),
-                              ),
-                            );
-                          },
-                        )
-                        .toList() ??
-                    [],
+                markers: () {
+                  final sorted = trucksAsync.asData?.value
+                          .where(_inVisibleBounds)
+                          .toList() ?? [];
+                  sorted.sort((a, b) {
+                    if (a.sessionStartedAt == null) return -1;
+                    if (b.sessionStartedAt == null) return 1;
+                    return b.sessionStartedAt!.compareTo(a.sessionStartedAt!);
+                  });
+                  return _applyClusterOffsets(sorted).map(
+                    ((FoodTruck, LatLng) pair) {
+                      final (truck, point) = pair;
+                      final diff = truck.sessionStartedAt != null
+                          ? DateTime.now().difference(truck.sessionStartedAt!)
+                          : null;
+                      final showBadge = diff != null && diff.inMinutes >= 10;
+                      return Marker(
+                        point: point,
+                        width: showBadge ? 72 : 44,
+                        height: showBadge ? 76 : 44,
+                        alignment: showBadge
+                            ? const Alignment(0, -0.33)
+                            : Alignment.center,
+                        child: GestureDetector(
+                          onTap: () => _onTruckTapped(truck),
+                          child: _TruckPin(
+                            isOpen: truck.isOpen,
+                            logoUrl: truck.logoUrl,
+                            sessionStartedAt: truck.sessionStartedAt,
+                          ),
+                        ),
+                      );
+                    },
+                  ).toList();
+                }(),
               ),
             ],
           ),
@@ -522,6 +581,7 @@ class _TruckPin extends StatelessWidget {
     if (sessionStartedAt == null) return null;
     final diff = DateTime.now().difference(sessionStartedAt!);
     if (diff.inMinutes < 10) return null;
+    if (diff.inDays >= 1) return 'Opened ${diff.inDays}d';
     if (diff.inHours >= 1) return 'Opened ${diff.inHours}h';
     return 'Opened ${diff.inMinutes}m';
   }

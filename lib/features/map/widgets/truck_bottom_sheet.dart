@@ -90,7 +90,8 @@ class TruckBottomSheet extends ConsumerWidget {
               color: Theme.of(context).colorScheme.surface,
               borderRadius: const BorderRadius.all(Radius.circular(20)),
             ),
-            child: Column(
+            child: SingleChildScrollView(
+              child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -221,6 +222,7 @@ class TruckBottomSheet extends ConsumerWidget {
                   ),
                 ),
               ],
+              ),
             ),
           ),
 

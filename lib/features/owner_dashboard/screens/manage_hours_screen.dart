@@ -57,7 +57,7 @@ class _ManageHoursScreenState extends ConsumerState<ManageHoursScreen> {
             duration: Duration(seconds: 2),
           ),
         );
-        context.go('/dashboard');
+        context.canPop() ? context.pop() : context.go('/dashboard');
       }
     } catch (e) {
       if (mounted) {
@@ -88,7 +88,7 @@ class _ManageHoursScreenState extends ConsumerState<ManageHoursScreen> {
             surfaceTintColor: Colors.transparent,
             leading: IconButton(
               icon: const Icon(Icons.arrow_back),
-              onPressed: () => context.go('/dashboard'),
+              onPressed: () => context.canPop() ? context.pop() : context.go('/dashboard'),
             ),
             actions: [
               TextButton(

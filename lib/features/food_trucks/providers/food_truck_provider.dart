@@ -11,9 +11,39 @@ final foodTruckRepositoryProvider = Provider<FoodTruckRepository>((ref) {
 });
 
 // Fetches a single truck by ID with operating hours and menu items joined.
-final foodTruckProvider = FutureProvider.family<FoodTruck, String>((ref, id) {
-  return ref.read(foodTruckRepositoryProvider).fetchById(id);
-});
+class _FoodTruckNotifier extends AsyncNotifier<FoodTruck> {
+  _FoodTruckNotifier(this._truckId);
+  final String _truckId;
+
+  @override
+  Future<FoodTruck> build() async {
+    final truck = await ref.read(foodTruckRepositoryProvider).fetchById(_truckId);
+
+    // Realtime: refresh when menu items change so consumer profile stays current.
+    final channel = Supabase.instance.client
+        .channel('consumer-menu-$_truckId')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'menu_items',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'truck_id',
+            value: _truckId,
+          ),
+          callback: (_) => ref.invalidateSelf(),
+        )
+        .subscribe();
+    ref.onDispose(channel.unsubscribe);
+
+    return truck;
+  }
+}
+
+final foodTruckProvider =
+    AsyncNotifierProvider.family<_FoodTruckNotifier, FoodTruck, String>(
+  (id) => _FoodTruckNotifier(id),
+);
 
 // Owner's own trucks — refreshable notifier.
 class OwnerTruckNotifier extends AsyncNotifier<FoodTruck?> {
@@ -33,7 +63,7 @@ class OwnerTruckNotifier extends AsyncNotifier<FoodTruck?> {
 
     // Keep dashboard in sync when an employee changes the truck row remotely.
     if (truck != null) {
-      final channel = Supabase.instance.client
+      final truckChannel = Supabase.instance.client
           .channel('owner-truck-${truck.id}')
           .onPostgresChanges(
             event: PostgresChangeEvent.update,
@@ -47,7 +77,24 @@ class OwnerTruckNotifier extends AsyncNotifier<FoodTruck?> {
             callback: (_) => refresh(),
           )
           .subscribe();
-      ref.onDispose(channel.unsubscribe);
+      ref.onDispose(truckChannel.unsubscribe);
+
+      // Realtime for menu item changes (availability toggles, add/remove).
+      final menuChannel = Supabase.instance.client
+          .channel('owner-menu-${truck.id}')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'menu_items',
+            filter: PostgresChangeFilter(
+              type: PostgresChangeFilterType.eq,
+              column: 'truck_id',
+              value: truck.id,
+            ),
+            callback: (_) => refresh(),
+          )
+          .subscribe();
+      ref.onDispose(menuChannel.unsubscribe);
     }
 
     return truck;

@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../bookings/screens/booking_chat_screen.dart';
+import '../../employees/screens/employee_dashboard_screen.dart';
 import '../../reviews/providers/reviews_provider.dart';
 import '../models/app_notification.dart';
 import '../providers/notifications_provider.dart';
@@ -85,12 +87,12 @@ class NotificationsScreen extends ConsumerWidget {
     );
   }
 
-  void _handleTap(
+  Future<void> _handleTap(
     BuildContext context,
     WidgetRef ref,
     AppNotification n,
     bool isOwner,
-  ) {
+  ) async {
     if (!n.read) {
       ref.read(notificationsRepositoryProvider).markRead(n.id);
     }
@@ -139,19 +141,80 @@ class NotificationsScreen extends ConsumerWidget {
       case 'order_declined':
         // Route under notifications branch so back → Notifications, not Account
         context.go('/notifications/my-orders');
-      case 'announcement':
-        showDialog<void>(
-          context: context,
-          builder: (dialogContext) => AlertDialog(
-            title: Text(n.title),
-            content: Text(n.body),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext),
-                child: const Text('Close'),
+      case 'shift_assigned':
+      case 'shift_corrected':
+        // Fetch the shift's truck so we can open EmployeeDashboardScreen directly.
+        if (n.relatedId != null) {
+          try {
+            final row = await Supabase.instance.client
+                .from('scheduled_shifts')
+                .select('truck_id, food_trucks(name)')
+                .eq('id', n.relatedId!)
+                .single();
+            if (!context.mounted) return;
+            final truckId   = row['truck_id'] as String;
+            final truckName = (row['food_trucks'] as Map?)?['name'] as String? ?? '';
+            Navigator.push(
+              context,
+              MaterialPageRoute<void>(
+                builder: (_) => EmployeeDashboardScreen(
+                  truckId: truckId,
+                  truckName: truckName,
+                ),
               ),
-            ],
-          ),
+            );
+          } catch (_) {
+            if (context.mounted) context.go('/map');
+          }
+        } else {
+          context.go('/map');
+        }
+      case 'shift_response':
+        // Owner: someone responded to a shift assignment.
+        context.go('/dashboard');
+      case 'open_check':
+        context.go(isOwner ? '/dashboard' : '/map');
+      case 'announcement':
+        showModalBottomSheet<void>(
+          context: context,
+          isScrollControlled: true,
+          useSafeArea: true,
+          backgroundColor: Colors.transparent,
+          builder: (ctx) {
+            final isLight = Theme.of(ctx).brightness == Brightness.light;
+            return Container(
+              decoration: BoxDecoration(
+                color: isLight ? Colors.white : Theme.of(ctx).colorScheme.surface,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+              ),
+              padding: EdgeInsets.fromLTRB(24, 16, 24, MediaQuery.of(ctx).viewInsets.bottom + 24),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(child: Container(width: 40, height: 4, margin: const EdgeInsets.only(bottom: 16), decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)))),
+                    Row(
+                      children: [
+                        Expanded(child: Text(n.title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700))),
+                        IconButton(icon: const Icon(Icons.close), visualDensity: VisualDensity.compact, onPressed: () => Navigator.pop(ctx)),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Text(n.body, style: const TextStyle(fontSize: 15, height: 1.5)),
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        child: const Text('Close'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
         );
       default:
         break;

@@ -274,7 +274,8 @@ class _ForgotPasswordDialogState extends ConsumerState<_ForgotPasswordDialog> {
     return AlertDialog(
       backgroundColor: isLight ? Colors.white : null,
       title: const Text('Reset Password', textAlign: TextAlign.center),
-      content: Column(
+      content: SingleChildScrollView(
+        child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           const Text(
@@ -299,6 +300,7 @@ class _ForgotPasswordDialogState extends ConsumerState<_ForgotPasswordDialog> {
             ),
           ],
         ],
+      ),
       ),
       actions: [
         TextButton(

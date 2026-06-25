@@ -1,9 +1,11 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../core/widgets/app_button.dart';
 import '../../../core/push_notification_service.dart';
 import '../models/truck_employee.dart';
 import '../providers/employees_provider.dart';
@@ -46,25 +48,6 @@ class _AssignShiftSheetState extends ConsumerState<AssignShiftSheet> {
     super.dispose();
   }
 
-  Future<void> _pickDate() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _date,
-      firstDate: DateTime.now().subtract(const Duration(days: 30)),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
-    );
-    if (picked != null) setState(() => _date = picked);
-  }
-
-  Future<void> _pickStartTime() async {
-    final picked = await showTimePicker(context: context, initialTime: _startTime);
-    if (picked != null) setState(() => _startTime = picked);
-  }
-
-  Future<void> _pickEndTime() async {
-    final picked = await showTimePicker(context: context, initialTime: _endTime);
-    if (picked != null) setState(() => _endTime = picked);
-  }
 
   DateTime _combine(DateTime date, TimeOfDay time) =>
       DateTime(date.year, date.month, date.day, time.hour, time.minute);
@@ -137,19 +120,30 @@ class _AssignShiftSheetState extends ConsumerState<AssignShiftSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Fixed header
           Center(
             child: Container(
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(
-                color: AppColors.textHint,
-                borderRadius: BorderRadius.circular(2),
-              ),
+              width: 36, height: 4,
+              margin: const EdgeInsets.only(bottom: AppSpacing.md),
+              decoration: BoxDecoration(color: AppColors.textHint, borderRadius: BorderRadius.circular(2)),
             ),
           ),
-          const SizedBox(height: AppSpacing.md),
-          Text('Assign Shift', style: AppTextStyles.heading3),
-          const SizedBox(height: AppSpacing.lg),
+          Row(
+            children: [
+              Text('Assign Shift', style: AppTextStyles.heading3),
+              const Spacer(),
+              IconButton(
+                icon: const Icon(Icons.close),
+                visualDensity: VisualDensity.compact,
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          // Scrollable content
+          Flexible(child: SingleChildScrollView(child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
 
           // Employee picker
           Text('Employee', style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary)),
@@ -178,80 +172,60 @@ class _AssignShiftSheetState extends ConsumerState<AssignShiftSheet> {
 
           const SizedBox(height: AppSpacing.md),
 
-          // Date
-          Text('Date', style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary)),
-          const SizedBox(height: 6),
-          InkWell(
-            onTap: _pickDate,
-            borderRadius: BorderRadius.circular(10),
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-              decoration: BoxDecoration(
-                border: Border.all(color: AppColors.divider),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Text(_fmtDate(_date), style: AppTextStyles.bodySmall),
+          // ── Date (inline calendar) ───────────────────────────────────────
+          CalendarDatePicker(
+            initialDate: _date,
+            firstDate: DateTime.now().subtract(const Duration(days: 30)),
+            lastDate: DateTime.now().add(const Duration(days: 365)),
+            onDateChanged: (d) => setState(() => _date = d),
+          ),
+          const Divider(height: 1),
+
+          // ── Start time (Cupertino scroll wheel) ──────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(AppSpacing.md, 12, AppSpacing.md, 4),
+            child: Row(
+              children: [
+                Icon(Icons.access_time_outlined, size: 18,
+                    color: Theme.of(context).colorScheme.primary),
+                const SizedBox(width: 8),
+                Text('Start time', style: AppTextStyles.label),
+              ],
             ),
           ),
+          SizedBox(
+            height: 120,
+            child: CupertinoDatePicker(
+              mode: CupertinoDatePickerMode.time,
+              initialDateTime: DateTime(2000, 1, 1, _startTime.hour, _startTime.minute),
+              use24hFormat: false,
+              onDateTimeChanged: (dt) => setState(
+                  () => _startTime = TimeOfDay(hour: dt.hour, minute: dt.minute)),
+            ),
+          ),
+          const Divider(height: 1),
 
-          const SizedBox(height: AppSpacing.md),
-
-          // Time row
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Start',
-                        style: AppTextStyles.caption
-                            .copyWith(color: AppColors.textSecondary)),
-                    const SizedBox(height: 6),
-                    InkWell(
-                      onTap: _pickStartTime,
-                      borderRadius: BorderRadius.circular(10),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 12),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: AppColors.divider),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Text(_fmtTime(_startTime),
-                            style: AppTextStyles.bodySmall),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('End',
-                        style: AppTextStyles.caption
-                            .copyWith(color: AppColors.textSecondary)),
-                    const SizedBox(height: 6),
-                    InkWell(
-                      onTap: _pickEndTime,
-                      borderRadius: BorderRadius.circular(10),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 12),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: AppColors.divider),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Text(_fmtTime(_endTime),
-                            style: AppTextStyles.bodySmall),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+          // ── End time (Cupertino scroll wheel) ────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(AppSpacing.md, 12, AppSpacing.md, 4),
+            child: Row(
+              children: [
+                Icon(Icons.access_time_outlined, size: 18,
+                    color: Theme.of(context).colorScheme.primary),
+                const SizedBox(width: 8),
+                Text('End time', style: AppTextStyles.label),
+              ],
+            ),
+          ),
+          SizedBox(
+            height: 120,
+            child: CupertinoDatePicker(
+              mode: CupertinoDatePickerMode.time,
+              initialDateTime: DateTime(2000, 1, 1, _endTime.hour, _endTime.minute),
+              use24hFormat: false,
+              onDateTimeChanged: (dt) => setState(
+                  () => _endTime = TimeOfDay(hour: dt.hour, minute: dt.minute)),
+            ),
           ),
 
           const SizedBox(height: AppSpacing.md),
@@ -270,45 +244,23 @@ class _AssignShiftSheetState extends ConsumerState<AssignShiftSheet> {
             ),
           ),
 
+            ],
+          ),
+          ),
+          ),
+          // Fixed save button outside scroll
           const SizedBox(height: AppSpacing.md),
-
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: _canSave ? _save : null,
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                disabledBackgroundColor: AppColors.primary.withValues(alpha: 0.4),
-                disabledForegroundColor: Colors.white.withValues(alpha: 0.7),
-              ),
-              child: _saving
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                    )
-                  : const Text('Assign Shift'),
-            ),
+          AppButton(
+            label: 'Assign Shift',
+            onPressed: _canSave ? _save : null,
+            isLoading: _saving,
+            backgroundColor: AppColors.primary,
           ),
         ],
       ),
     );
   }
 
-  String _fmtDate(DateTime d) {
-    const months = [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December',
-    ];
-    return '${months[d.month - 1]} ${d.day}, ${d.year}';
-  }
-
-  String _fmtTime(TimeOfDay t) {
-    final h = t.hour > 12 ? t.hour - 12 : (t.hour == 0 ? 12 : t.hour);
-    final m = t.minute.toString().padLeft(2, '0');
-    final ampm = t.hour < 12 ? 'AM' : 'PM';
-    return '$h:$m $ampm';
-  }
 }
 
 // ─── Edit worked shift dialog ─────────────────────────────────────────────────

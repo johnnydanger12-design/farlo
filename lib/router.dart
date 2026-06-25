@@ -24,6 +24,8 @@ import 'features/notifications/screens/notifications_screen.dart';
 import 'features/orders/screens/my_orders_screen.dart';
 import 'features/orders/screens/order_queue_screen.dart';
 import 'features/orders/screens/stripe_connect_screen.dart';
+import 'features/auth/screens/set_new_password_screen.dart';
+import 'features/employees/screens/calendar_screen.dart';
 import 'shells/consumer_shell.dart';
 import 'shells/owner_shell.dart';
 
@@ -54,14 +56,16 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       final user = authAsync.asData?.value;
       final isAuthenticated = user != null;
-      final isOnAuthRoute = loc == '/login' || loc == '/register' || loc == '/register-owner';
+      const authRoutes = ['/login', '/register', '/register-owner'];
+      final isOnAuthRoute = authRoutes.contains(loc);
+      final isGuestRoute = loc == '/map' || loc.startsWith('/map/') || loc == '/set-new-password';
 
-      if (!isAuthenticated && !isOnAuthRoute) return '/login';
+      if (!isAuthenticated && !isOnAuthRoute && !isGuestRoute) return '/login';
       if (isAuthenticated && isOnAuthRoute) {
         return user.isOwner ? '/dashboard' : '/map';
       }
       if (isAuthenticated && user.isOwner) {
-        const ownerRoutes = ['/dashboard', '/owner-bookings', '/owner-account', '/owner-notifications'];
+        const ownerRoutes = ['/dashboard', '/owner-bookings', '/owner-account', '/owner-notifications', '/set-new-password'];
         final onOwnerRoute = ownerRoutes.any((r) => loc.startsWith(r));
         if (!onOwnerRoute) return '/dashboard';
       }
@@ -72,6 +76,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/login', builder: (c, s) => const LoginScreen()),
       GoRoute(path: '/register', builder: (c, s) => const RegisterScreen()),
       GoRoute(path: '/register-owner', builder: (c, s) => const RegisterOwnerScreen()),
+      GoRoute(path: '/set-new-password', builder: (c, s) => const SetNewPasswordScreen()),
 
       // Consumer shell
       StatefulShellRoute.indexedStack(
@@ -134,6 +139,18 @@ final routerProvider = Provider<GoRouter>((ref) {
                     truckId: s.pathParameters['id']!,
                     scrollToReviews: s.extra == true,
                   ),
+                ),
+                GoRoute(
+                  path: 'calendar',
+                  builder: (c, s) {
+                    final extra = s.extra as Map<String, dynamic>? ?? {};
+                    return CalendarScreen(
+                      truckId: extra['truckId'] as String? ?? '',
+                      truckName: extra['truckName'] as String? ?? '',
+                      isOwner: extra['isOwner'] as bool? ?? true,
+                      initialDate: extra['initialDate'] as DateTime? ?? DateTime.now(),
+                    );
+                  },
                 ),
                 GoRoute(
                   path: 'edit-truck',

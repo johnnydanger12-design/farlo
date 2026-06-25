@@ -7,6 +7,7 @@ import '../../../core/constants/app_text_styles.dart';
 import '../../../core/widgets/star_rating_widget.dart';
 import '../models/favorite_entry.dart';
 import '../providers/favorites_provider.dart';
+import '../../food_trucks/providers/announcement_prefs_provider.dart';
 
 class FavoritesScreen extends ConsumerWidget {
   const FavoritesScreen({super.key});
@@ -177,9 +178,44 @@ class _FavoriteTile extends ConsumerWidget {
                     ),
                   ),
                 const SizedBox(height: AppSpacing.sm),
-                GestureDetector(
-                  onTap: () => ref.read(favoritedTruckIdsProvider.notifier).remove(entry.truckId),
-                  child: const Icon(Icons.favorite_rounded, color: Colors.red, size: 22),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Announcement bell toggle
+                    if (truck != null)
+                      GestureDetector(
+                        onTap: () async {
+                          await ref.read(announcementPrefProvider(entry.truckId).notifier).toggle();
+                          final enabled = ref.read(announcementPrefProvider(entry.truckId)).asData?.value ?? true;
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                              content: Text(enabled
+                                  ? 'Announcements on for ${truck.name}'
+                                  : 'Announcements muted for ${truck.name}'),
+                              behavior: SnackBarBehavior.floating,
+                              duration: const Duration(seconds: 2),
+                            ));
+                          }
+                        },
+                        child: Builder(builder: (ctx) {
+                          final enabled = ref
+                              .watch(announcementPrefProvider(entry.truckId))
+                              .asData?.value ?? true;
+                          return Icon(
+                            enabled
+                                ? Icons.notifications_rounded
+                                : Icons.notifications_off_outlined,
+                            color: enabled ? AppColors.textSecondary : AppColors.textHint,
+                            size: 20,
+                          );
+                        }),
+                      ),
+                    const SizedBox(width: 8),
+                    GestureDetector(
+                      onTap: () => ref.read(favoritedTruckIdsProvider.notifier).remove(entry.truckId),
+                      child: const Icon(Icons.favorite_rounded, color: Colors.red, size: 22),
+                    ),
+                  ],
                 ),
               ],
             ),

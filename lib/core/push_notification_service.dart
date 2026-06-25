@@ -202,6 +202,18 @@ static Future<void> sendTruckClosedAlert(String truckName) async {
       case 'order_ready':
       case 'order_declined':
         router.go(_isOwner ? '/owner-notifications' : '/notifications/my-orders');
+      // ── Shift notifications ──────────────────────────────────────────────────
+      // shift_assigned / shift_corrected → employee lands on map where
+      // EmployeeGoLiveCard lets them tap into their dashboard to accept/decline.
+      // shift_response → owner back to dashboard to see the response.
+      case 'shift_assigned':
+      case 'shift_corrected':
+        router.go('/map');
+      case 'shift_response':
+        router.go('/dashboard');
+      // ── Open-check notification ──────────────────────────────────────────────
+      case 'open_check':
+        router.go('/dashboard');
       default:
         break;
     }
