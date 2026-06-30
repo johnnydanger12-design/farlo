@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../constants/app_colors.dart';
 
 class SignInPromptSheet extends StatelessWidget {
-  const SignInPromptSheet({super.key, required this.onSignIn});
-  final VoidCallback onSignIn;
+  const SignInPromptSheet({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -39,7 +39,11 @@ class SignInPromptSheet extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             child: FilledButton(
-              onPressed: onSignIn,
+              onPressed: () {
+                final router = GoRouter.of(context);
+                Navigator.pop(context);
+                router.go('/login');
+              },
               style: FilledButton.styleFrom(
                 minimumSize: const Size.fromHeight(50),
                 backgroundColor: AppColors.primary,

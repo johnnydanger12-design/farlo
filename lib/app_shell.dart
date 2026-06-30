@@ -46,8 +46,7 @@ class _AppShellState extends ConsumerState<AppShell> {
       if (next.isLoading) return;
       final user = next.asData?.value;
       final wasAuthed = prev?.asData?.value != null;
-      final wasOwner = prev?.asData?.value?.isOwner ?? false;
-      if (wasAuthed && user == null) router.go(wasOwner ? '/login' : '/map');
+      if (wasAuthed && user == null) router.go('/map');
       // Keep push notification service in sync with auth state so cold-start
       // deep-links drain with the correct role and owner-routing works.
       PushNotificationService.onAuthResolved(user);

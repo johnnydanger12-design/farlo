@@ -196,6 +196,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                   ],
                 ),
+                const SizedBox(height: AppSpacing.lg),
+                Center(
+                  child: GestureDetector(
+                    onTap: () => context.go('/map'),
+                    child: const Text(
+                      'Browse as guest',
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ),
               ],
             ),
           ),

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -69,10 +68,12 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
   int? _filterRating;
   RealtimeChannel? _truckChannel;
   RealtimeChannel? _menuChannel;
+  late final CartNotifier _cartNotifier;
 
   @override
   void initState() {
     super.initState();
+    _cartNotifier = ref.read(cartProvider.notifier);
     if (widget.scrollToReviews) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToReviews());
     }
@@ -87,7 +88,7 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
             column: 'id',
             value: widget.truck.id,
           ),
-          callback: (_) => ref.invalidate(foodTruckProvider(widget.truck.id)),
+          callback: (_) { if (mounted) ref.invalidate(foodTruckProvider(widget.truck.id)); },
         )
         .subscribe();
     // Realtime: refresh when the owner changes menu item availability.
@@ -102,7 +103,7 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
             column: 'truck_id',
             value: widget.truck.id,
           ),
-          callback: (_) => ref.invalidate(foodTruckProvider(widget.truck.id)),
+          callback: (_) { if (mounted) ref.invalidate(foodTruckProvider(widget.truck.id)); },
         )
         .subscribe();
   }
@@ -127,7 +128,7 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
       Supabase.instance.client.removeChannel(_menuChannel!);
     }
     _pageController.dispose();
-    ref.read(cartProvider.notifier).clear();
+    Future.microtask(() => _cartNotifier.clear());
     super.dispose();
   }
 
@@ -497,12 +498,7 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (_) => SignInPromptSheet(
-        onSignIn: () {
-          Navigator.pop(context);
-          context.go('/login');
-        },
-      ),
+      builder: (_) => const SignInPromptSheet(),
     );
   }
 }
@@ -1045,6 +1041,19 @@ class _NoPhotoPlaceholder extends StatelessWidget {
   }
 }
 
+bool _tryAddToCart(BuildContext context, WidgetRef ref, CartItem item) {
+  if (ref.read(authProvider).asData?.value == null) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => const SignInPromptSheet(),
+    );
+    return false;
+  }
+  ref.read(cartProvider.notifier).add(item);
+  return true;
+}
+
 class _AddButton extends ConsumerWidget {
   const _AddButton({required this.item, required this.qty});
   final MenuItem item;
@@ -1052,11 +1061,10 @@ class _AddButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final notifier = ref.read(cartProvider.notifier);
     final primary = Theme.of(context).colorScheme.primary;
 
     return GestureDetector(
-      onTap: () => notifier.add(CartItem(
+      onTap: () => _tryAddToCart(context, ref, CartItem(
         menuItemId: item.id,
         name: item.name,
         price: item.price,
@@ -1140,16 +1148,15 @@ class _ItemDetailSheet extends StatelessWidget {
                   Consumer(
                     builder: (context, ref, _) {
                       final qty = ref.watch(cartProvider)[item.id]?.quantity ?? 0;
-                      final notifier = ref.read(cartProvider.notifier);
                       return FilledButton.icon(
                         onPressed: () {
-                          notifier.add(CartItem(
+                          final added = _tryAddToCart(context, ref, CartItem(
                             menuItemId: item.id,
                             name: item.name,
                             price: item.price,
                             quantity: 1,
                           ));
-                          Navigator.pop(context);
+                          if (added) Navigator.pop(context);
                         },
                         icon: const Icon(Icons.add_shopping_cart_outlined, size: 18),
                         label: Text(qty == 0 ? 'Add to Bag' : 'Add One More'),
@@ -1185,19 +1192,6 @@ class _FloatingCartBar extends ConsumerWidget {
         padding: const EdgeInsets.fromLTRB(AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.md),
         child: FilledButton(
           onPressed: () {
-            if (ref.read(authProvider).asData?.value == null) {
-              showModalBottomSheet<void>(
-                context: context,
-                backgroundColor: Colors.transparent,
-                builder: (_) => SignInPromptSheet(
-                  onSignIn: () {
-                    Navigator.pop(context);
-                    context.go('/login');
-                  },
-                ),
-              );
-              return;
-            }
             showModalBottomSheet(
               context: context,
               isScrollControlled: true,
