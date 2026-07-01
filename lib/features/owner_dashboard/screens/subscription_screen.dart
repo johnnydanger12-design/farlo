@@ -1,11 +1,16 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../models/subscription.dart';
 import '../providers/subscription_provider.dart' show subscriptionProvider, subscriptionPricesProvider;
+
+const _tosUrl = 'https://farlo.app/terms';
+const _privacyUrl = 'https://farlo.app/privacy';
 
 class SubscriptionScreen extends ConsumerWidget {
   const SubscriptionScreen({super.key});
@@ -168,10 +173,12 @@ class _SubscriptionBodyState extends ConsumerState<_SubscriptionBody> {
           ),
           const SizedBox(height: AppSpacing.lg),
           Text(
-            'Subscription auto-renews ${_isAnnual ? 'annually' : 'monthly'}. Cancel anytime in App Store settings.',
+            'Subscription auto-renews ${_isAnnual ? 'annually' : 'monthly'}. Cancel anytime in ${Platform.isIOS ? 'App Store' : 'Google Play'} settings.',
             style: AppTextStyles.caption,
             textAlign: TextAlign.center,
           ),
+          const SizedBox(height: AppSpacing.sm),
+          const _LegalLinksRow(),
         ],
         if (_status == SubscriptionStatus.pastDue) ...[
           FilledButton(
@@ -185,11 +192,36 @@ class _SubscriptionBodyState extends ConsumerState<_SubscriptionBody> {
         ],
         if (_status == SubscriptionStatus.active) ...[
           Text(
-            'To cancel, go to App Store Settings → Subscriptions.',
+            'To cancel, go to ${Platform.isIOS ? 'App Store' : 'Google Play'} Settings → Subscriptions.',
             style: AppTextStyles.caption,
             textAlign: TextAlign.center,
           ),
         ],
+      ],
+    );
+  }
+}
+
+class _LegalLinksRow extends StatelessWidget {
+  const _LegalLinksRow();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        GestureDetector(
+          onTap: () => launchUrl(Uri.parse(_tosUrl), mode: LaunchMode.externalApplication),
+          child: Text('Terms of Use', style: AppTextStyles.caption.copyWith(color: AppColors.primary)),
+        ),
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 8),
+          child: Text('·', style: AppTextStyles.caption),
+        ),
+        GestureDetector(
+          onTap: () => launchUrl(Uri.parse(_privacyUrl), mode: LaunchMode.externalApplication),
+          child: Text('Privacy Policy', style: AppTextStyles.caption.copyWith(color: AppColors.primary)),
+        ),
       ],
     );
   }

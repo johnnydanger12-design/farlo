@@ -37,6 +37,9 @@ class _SocialAuthButtonsState extends ConsumerState<SocialAuthButtons> {
     if (msg.contains('network') || msg.contains('socket')) {
       return 'No internet connection. Please try again.';
     }
+    if (msg.contains('timeout')) {
+      return 'Request timed out. Check your connection and try again.';
+    }
     return 'Sign-in failed. Please try again.';
   }
 

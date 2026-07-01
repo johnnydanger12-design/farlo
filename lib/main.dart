@@ -24,10 +24,16 @@ Future<void> main() async {
     await Stripe.instance.applySettings();
   }
 
-  assert(
-    _supabaseUrl.isNotEmpty && _supabasePublishableKey.isNotEmpty,
-    'Missing Supabase config. Run with: flutter run --dart-define-from-file=.env.json',
-  );
+  // A plain `assert` here is stripped in release builds, so a misconfigured
+  // release archive (e.g. built without --dart-define-from-file) would launch
+  // fine and only fail deep inside auth calls with no visible cause — which is
+  // exactly what happened in the 1.0.0+4 App Store submission. Fail loudly in
+  // every build mode instead.
+  if (_supabaseUrl.isEmpty || _supabasePublishableKey.isEmpty) {
+    throw StateError(
+      'Missing Supabase config. Build with: flutter build ipa --dart-define-from-file=.env.json',
+    );
+  }
 
   await Supabase.initialize(
     url: _supabaseUrl,
@@ -40,8 +46,13 @@ Future<void> main() async {
 
   final rcKey = Platform.isIOS ? _rcAppleKey : _rcGoogleKey;
   if (rcKey.isNotEmpty) {
-    await Purchases.configure(PurchasesConfiguration(rcKey));
-    rcConfigured = true;
+    try {
+      await Purchases.configure(PurchasesConfiguration(rcKey)).timeout(const Duration(seconds: 10));
+      rcConfigured = true;
+    } catch (_) {
+      // Don't let a stuck RevenueCat init block app launch — subscription
+      // features will simply be unavailable until the next app start.
+    }
   }
 
   runApp(const ProviderScope(child: AppShell()));

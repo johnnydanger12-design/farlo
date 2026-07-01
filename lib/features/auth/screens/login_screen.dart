@@ -42,8 +42,25 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     TextInput.finishAutofillContext(shouldSave: error == null);
     if (mounted) {
       setState(() => _isLoading = false);
-      if (error != null) _showError(error.toString());
+      if (error != null) _showError(_friendlyError(error));
     }
+  }
+
+  String _friendlyError(Object error) {
+    final msg = error.toString().toLowerCase();
+    if (msg.contains('network') || msg.contains('socket')) {
+      return 'No internet connection. Please try again.';
+    }
+    if (msg.contains('timeout')) {
+      return 'Request timed out. Check your connection and try again.';
+    }
+    if (msg.contains('invalid login credentials')) {
+      return 'Incorrect email or password.';
+    }
+    if (msg.contains('email not confirmed')) {
+      return 'Please confirm your email before signing in.';
+    }
+    return 'Sign-in failed. Please try again.';
   }
 
   void _showError(String message) {

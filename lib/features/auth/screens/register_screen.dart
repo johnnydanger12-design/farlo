@@ -45,8 +45,22 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     TextInput.finishAutofillContext(shouldSave: error == null);
     if (mounted) {
       setState(() => _isLoading = false);
-      if (error != null) _showError(error.toString());
+      if (error != null) _showError(_friendlyError(error));
     }
+  }
+
+  String _friendlyError(Object error) {
+    final msg = error.toString().toLowerCase();
+    if (msg.contains('network') || msg.contains('socket')) {
+      return 'No internet connection. Please try again.';
+    }
+    if (msg.contains('timeout')) {
+      return 'Request timed out. Check your connection and try again.';
+    }
+    if (msg.contains('user already registered') || msg.contains('already registered')) {
+      return 'An account with this email already exists.';
+    }
+    return 'Account creation failed. Please try again.';
   }
 
   void _showError(String message) {

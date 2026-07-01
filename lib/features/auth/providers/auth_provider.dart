@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
@@ -6,6 +7,17 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/rc_config.dart';
 import '../models/app_user.dart';
 import '../repositories/auth_repository.dart';
+
+// Prevents auth attempts from hanging indefinitely if the network stalls —
+// without this, a stuck request just spins forever with no error shown.
+const _authTimeout = Duration(seconds: 20);
+
+extension _TimeoutAuth<T> on Future<T> {
+  Future<T> get withAuthTimeout => timeout(
+        _authTimeout,
+        onTimeout: () => throw TimeoutException('Request timed out. Check your connection and try again.'),
+      );
+}
 
 final supabaseClientProvider = Provider<SupabaseClient>((ref) {
   return Supabase.instance.client;
@@ -50,7 +62,7 @@ class AuthNotifier extends AsyncNotifier<AppUser?> {
   Future<void> signInWithEmail(String email, String password) async {
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
-      final user = await ref.read(authRepositoryProvider).signInWithEmail(email, password);
+      final user = await ref.read(authRepositoryProvider).signInWithEmail(email, password).withAuthTimeout;
       await _rcLogIn(user.id);
       await _claimInvites(user.id, user.email);
       return user;
@@ -68,7 +80,7 @@ class AuthNotifier extends AsyncNotifier<AppUser?> {
             email: email,
             password: password,
             displayName: displayName,
-          );
+          ).withAuthTimeout;
       await _rcLogIn(user.id);
       await _claimInvites(user.id, user.email);
       return user;
@@ -96,7 +108,7 @@ class AuthNotifier extends AsyncNotifier<AppUser?> {
             address: address,
             latitude: lat,
             longitude: lng,
-          );
+          ).withAuthTimeout;
       await _rcLogIn(user.id);
       await _claimInvites(user.id, user.email);
       return user;
@@ -107,7 +119,7 @@ class AuthNotifier extends AsyncNotifier<AppUser?> {
     final prev = state;
     state = const AsyncLoading();
     try {
-      final user = await ref.read(authRepositoryProvider).signInWithApple();
+      final user = await ref.read(authRepositoryProvider).signInWithApple().withAuthTimeout;
       await _rcLogIn(user.id);
       await _claimInvites(user.id, user.email);
       state = AsyncData(user);
@@ -124,7 +136,7 @@ class AuthNotifier extends AsyncNotifier<AppUser?> {
     final prev = state;
     state = const AsyncLoading();
     try {
-      final user = await ref.read(authRepositoryProvider).signInWithGoogle();
+      final user = await ref.read(authRepositoryProvider).signInWithGoogle().withAuthTimeout;
       await _rcLogIn(user.id);
       await _claimInvites(user.id, user.email);
       state = AsyncData(user);
@@ -144,7 +156,7 @@ class AuthNotifier extends AsyncNotifier<AppUser?> {
     final prev = state;
     state = const AsyncLoading();
     try {
-      final socialUser = await ref.read(authRepositoryProvider).signInWithApple();
+      final socialUser = await ref.read(authRepositoryProvider).signInWithApple().withAuthTimeout;
       final ownerUser = await ref.read(authRepositoryProvider).upgradeToOwner(
         uid: socialUser.id,
         truckName: truckName,
@@ -152,7 +164,7 @@ class AuthNotifier extends AsyncNotifier<AppUser?> {
         address: address,
         latitude: lat,
         longitude: lng,
-      );
+      ).withAuthTimeout;
       await _rcLogIn(ownerUser.id);
       await _claimInvites(ownerUser.id, ownerUser.email);
       state = AsyncData(ownerUser);
@@ -174,7 +186,7 @@ class AuthNotifier extends AsyncNotifier<AppUser?> {
     final prev = state;
     state = const AsyncLoading();
     try {
-      final socialUser = await ref.read(authRepositoryProvider).signInWithGoogle();
+      final socialUser = await ref.read(authRepositoryProvider).signInWithGoogle().withAuthTimeout;
       final ownerUser = await ref.read(authRepositoryProvider).upgradeToOwner(
         uid: socialUser.id,
         truckName: truckName,
@@ -182,7 +194,7 @@ class AuthNotifier extends AsyncNotifier<AppUser?> {
         address: address,
         latitude: lat,
         longitude: lng,
-      );
+      ).withAuthTimeout;
       await _rcLogIn(ownerUser.id);
       await _claimInvites(ownerUser.id, ownerUser.email);
       state = AsyncData(ownerUser);
