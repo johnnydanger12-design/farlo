@@ -1,11 +1,11 @@
 # HANDOFF.md — Farlo
-_Last updated: Jul 1 2026 — Build 4 rejected (auth completely broken + missing ToS link), root cause found and fixed, Build 5 built and verified, not yet uploaded. Read time: ~3 min._
+_Last updated: Jul 1 2026 (afternoon) — Build 1.0.0+5 uploaded, processed, and resubmitted to Apple for review after 1.0.0+4's rejection (broken auth + missing ToS link). Read time: ~3 min._
 
 ---
 
 ## Interrupted Task
 
-Build 1.0.0+5 IPA is built and verified at `build/ios/ipa/Farlo.ipa` but **not yet uploaded to App Store Connect**. Next action: `open -a Transporter "/Users/johnny/Desktop/Good Truck Finder/build/ios/ipa/Farlo.ipa"`, click Deliver, then select the new build in App Store Connect and resubmit for review. Apple reply draft (explaining the root cause) needs to be posted in the Resolution Center — ask Johnny where he saved it, or re-draft from the Recent Decisions entry below.
+None — session ended cleanly. Build 1.0.0+5 is with Apple for review.
 
 ---
 
@@ -13,7 +13,7 @@ Build 1.0.0+5 IPA is built and verified at `build/ios/ipa/Farlo.ipa` but **not y
 
 | Feature | Status |
 |---|---|
-| App Store v1.0 | ⚠ Build 1.0.0+4 rejected Jul 1 (Guideline 2.1(a) + 3.1.2(c)). Build 1.0.0+5 fixes both, built + verified, ready to upload. |
+| App Store v1.0 | ⏳ Build 1.0.0+5 resubmitted Jul 1 — fixes the 1.0.0+4 rejection (broken auth + missing ToS link). Waiting on Apple. |
 | Google Play | ✓ Internal testing track — build 2 (1.0.0) |
 | Owner onboarding emails | ✓ 3-email sequence live — emails 1 & 2 fire on signup, email 3 via daily pg_cron at day 7 |
 | Consumer welcome email | ✓ Single email fires on consumer account creation |
@@ -132,17 +132,16 @@ Note: `lib/core/widgets/background_location_disclosure.dart`, `lib/features/acco
 
 ## Next Steps
 
-1. **Upload and resubmit build 1.0.0+5** — `open -a Transporter "/Users/johnny/Desktop/Good Truck Finder/build/ios/ipa/Farlo.ipa"`, click Deliver. Once it finishes processing in App Store Connect, select it for the 1.0 submission, post the Apple reply in the Resolution Center (explains the root cause — see Recent Decisions above), and resubmit for review.
-2. **RevenueCat Android — finish:** In RevenueCat, retry the credentials refresh (Google permissions take up to 24hrs). Once green: Product catalog → Products → add `com.farlo.app.owner.sub.monthly` + `com.farlo.app.owner.sub.yearly` → attach to `premium` entitlement → attach to Default Offering. Copy the `goog_...` API key → add to `.env.json` as `REVENUECAT_GOOGLE_KEY` → `flutter build appbundle --dart-define-from-file=.env.json`.
-3. **Background location declaration** — Play Console → Policy → App content → fill out the background location permission form.
-4. **Watch for Apple review result on 1.0.0+5.** If approved, do these IN ORDER before posting anything public:
+1. **Watch for Apple review result on 1.0.0+5** — uploaded, processed, and resubmitted Jul 1. If approved, do these IN ORDER before posting anything public:
    - **Wipe all test data** — Supabase dashboard → Authentication → Users → select all → Delete (cascades to profiles, food_trucks, subscriptions, etc.). Do NOT wipe: agent_directives, content_queue, supervisor_reports, sales_prospects. Every current account is a test account — wipe everything, nothing to preserve.
    - Update farlo.app download buttons (href="#" → App Store link).
    - Tell Aiden in a Cowork chat to flip all agents to launch mode.
    - Activate the 4 Cowork scheduled tasks.
-5. **Activate Cowork agents** — don't start scheduled tasks until app is live. When ready, run Aiden first (he seeds `website_content`), then the other three. Full instructions in `COWORK_AGENT_SETUP.md`.
-6. **Promote Android to production** — once Apple approves and RevenueCat Android is live, promote internal testing AAB to production track.
-7. **Stripe business update** — update Stripe account with EIN + business bank account. Google Play merchant account also needs a bank account added (Payments profile → Add payment method).
+2. **RevenueCat Android — finish:** In RevenueCat, retry the credentials refresh (Google permissions take up to 24hrs). Once green: Product catalog → Products → add `com.farlo.app.owner.sub.monthly` + `com.farlo.app.owner.sub.yearly` → attach to `premium` entitlement → attach to Default Offering. Copy the `goog_...` API key → add to `.env.json` as `REVENUECAT_GOOGLE_KEY` → `flutter build appbundle --dart-define-from-file=.env.json`.
+3. **Background location declaration** — Play Console → Policy → App content → fill out the background location permission form.
+4. **Activate Cowork agents** — don't start scheduled tasks until app is live. When ready, run Aiden first (he seeds `website_content`), then the other three. Full instructions in `COWORK_AGENT_SETUP.md`.
+5. **Promote Android to production** — once Apple approves and RevenueCat Android is live, promote internal testing AAB to production track.
+6. **Stripe business update** — update Stripe account with EIN + business bank account. Google Play merchant account also needs a bank account added (Payments profile → Add payment method).
 
 ---
 
@@ -151,7 +150,7 @@ Note: `lib/core/widgets/background_location_disclosure.dart`, `lib/features/acco
 - **`.env.json`** at project root (gitignored). Keys: `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `STRIPE_PUBLISHABLE_KEY` (pk_live), `REVENUECAT_APPLE_KEY` (appl_...), `REVENUECAT_GOOGLE_KEY` (empty until Android set up), `GOOGLE_PLACES_API_KEY`, `GOOGLE_SIGN_IN_WEB_CLIENT_ID`.
 - **iOS build:** `flutter build ipa --dart-define-from-file=.env.json` → IPA at `build/ios/ipa/Farlo.ipa`. **Before uploading, verify the config actually got embedded** (see Traps/Dead Ends above) — 1.0.0+4 shipped with an empty Supabase URL and Apple rejected it for completely broken auth.
 - **Open in Transporter:** `open -a Transporter "/Users/johnny/Desktop/Good Truck Finder/build/ios/ipa/Farlo.ipa"`
-- **Current iOS build number:** 1.0.0+5, built and verified, pending upload. Next iOS build use `+6`.
+- **Current iOS build number:** 1.0.0+5, in review with Apple as of Jul 1. Next iOS build use `+6`.
 - **Android release:** `flutter build appbundle --dart-define-from-file=.env.json` → `build/app/outputs/bundle/release/app-release.aab`. Requires `android/app/farlo-release.keystore` + `android/key.properties` (both gitignored — back up externally).
 - **Supabase project:** `weflrxyerxpsafcdetya.supabase.co`. Deploy edge functions: `supabase functions deploy <name> --no-verify-jwt`.
 - **Firebase project:** internal ID `good-truck-finder` (cannot be renamed). `firebase_options.dart` is a stub — do not run `flutterfire configure`.
