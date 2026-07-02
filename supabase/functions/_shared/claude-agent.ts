@@ -1,6 +1,7 @@
 // Minimal Claude tool-use loop shared by every agent function. Raw fetch against the
 // Messages API rather than the SDK, matching this codebase's existing no-heavy-dependency
 // convention (see send-agent-email, send-truck-announcement).
+import type { UsageTotals } from './pricing.ts';
 
 export interface ToolDefinition {
   name: string;
@@ -17,6 +18,7 @@ export interface AgentRunResult {
   toolCallLog: { name: string; input: unknown; result: unknown }[];
   iterations: number;
   stoppedReason: 'done' | 'time_budget' | 'max_iterations';
+  usage: UsageTotals;
 }
 
 const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -26,6 +28,10 @@ export const MODEL_HAIKU = 'claude-haiku-4-5-20251001';
 
 const MAX_ITERATIONS = 30;
 const MAX_MS = 8 * 60 * 1000; // safety budget within Edge Function wall-clock limits
+
+function emptyUsage(): UsageTotals {
+  return { inputTokens: 0, outputTokens: 0, cacheCreationTokens: 0, cacheReadTokens: 0, webSearchRequests: 0 };
+}
 
 export async function runAgentLoop(opts: {
   systemPrompt: string;
@@ -47,10 +53,11 @@ export async function runAgentLoop(opts: {
   const toolCallLog: { name: string; input: unknown; result: unknown }[] = [];
   const allTools = [...opts.tools, ...(opts.hostedTools ?? [])];
   const startedAt = Date.now();
+  const usage = emptyUsage();
 
   for (let iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
     if (Date.now() - startedAt > MAX_MS) {
-      return { finalText: '', toolCallLog, iterations: iteration, stoppedReason: 'time_budget' };
+      return { finalText: '', toolCallLog, iterations: iteration, stoppedReason: 'time_budget', usage };
     }
 
     const res = await fetch(ANTHROPIC_API_URL, {
@@ -78,6 +85,14 @@ export async function runAgentLoop(opts: {
     const data: any = await res.json();
     messages.push({ role: 'assistant', content: data.content });
 
+    if (data.usage) {
+      usage.inputTokens += data.usage.input_tokens ?? 0;
+      usage.outputTokens += data.usage.output_tokens ?? 0;
+      usage.cacheCreationTokens += data.usage.cache_creation_input_tokens ?? 0;
+      usage.cacheReadTokens += data.usage.cache_read_input_tokens ?? 0;
+      usage.webSearchRequests += data.usage.server_tool_use?.web_search_requests ?? 0;
+    }
+
     // deno-lint-ignore no-explicit-any
     const toolUseBlocks = (data.content ?? []).filter((b: any) => b.type === 'tool_use');
 
@@ -89,6 +104,7 @@ export async function runAgentLoop(opts: {
         toolCallLog,
         iterations: iteration + 1,
         stoppedReason: 'done',
+        usage,
       };
     }
 
@@ -112,5 +128,5 @@ export async function runAgentLoop(opts: {
     messages.push({ role: 'user', content: toolResults });
   }
 
-  return { finalText: '', toolCallLog, iterations: MAX_ITERATIONS, stoppedReason: 'max_iterations' };
+  return { finalText: '', toolCallLog, iterations: MAX_ITERATIONS, stoppedReason: 'max_iterations', usage };
 }

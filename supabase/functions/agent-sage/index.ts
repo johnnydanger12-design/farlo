@@ -11,6 +11,7 @@ import { requireAgentSecret, isDryRun } from '../_shared/auth.ts';
 import { startRun, finishRun } from '../_shared/run-log.ts';
 import { getGmailAccessToken, searchThreads, getThread, extractPlainTextBody, extractEmailAddress, looksAutomated, sendMessage } from '../_shared/gmail.ts';
 import { runAgentLoop, MODEL_SONNET, type ToolDefinition } from '../_shared/claude-agent.ts';
+import type { UsageTotals } from '../_shared/pricing.ts';
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
@@ -170,6 +171,7 @@ Deno.serve(async (req: Request) => {
 
     let toolCallLog: unknown[] = [];
     let finalText = 'No open tickets this run.';
+    let usage: UsageTotals | undefined;
 
     if (openTicketIds.length > 0 && !dryRun) {
       const { data: openTickets, error: ticketsError } = await supabase
@@ -255,6 +257,7 @@ Deno.serve(async (req: Request) => {
       });
       toolCallLog = result.toolCallLog;
       finalText = result.finalText;
+      usage = result.usage;
     } else if (dryRun && openTicketIds.length > 0) {
       finalText = `[dry run] would have processed ${openTicketIds.length} open ticket(s), no sends/writes made.`;
     }
@@ -292,6 +295,9 @@ Deno.serve(async (req: Request) => {
       runId,
       'success',
       `${finalText} Closed ${closedCount} resolved ticket(s) in Part 2.`,
+      undefined,
+      usage,
+      MODEL_SONNET,
     );
 
     return new Response(

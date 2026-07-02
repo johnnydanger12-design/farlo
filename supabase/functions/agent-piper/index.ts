@@ -129,6 +129,9 @@ Deno.serve(async (req: Request) => {
       runId,
       status,
       result.finalText || `${result.toolCallLog.length} piece(s) queued`,
+      undefined,
+      result.usage,
+      MODEL_SONNET,
     );
 
     return new Response(

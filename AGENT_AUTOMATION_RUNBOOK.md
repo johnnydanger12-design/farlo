@@ -80,6 +80,26 @@ against this in `agent-sage/index.ts` and `_shared/gmail.ts`:
 bulk mail, and a deliberate false-positive check — an address containing "auto" with a genuine
 question) before deploying; all passed.
 
+**Cost tracking added to the weekly brief (Jul 2).** Since Anthropic billing is pay-per-token,
+`agent_run_log` now records `input_tokens`/`output_tokens`/`cache_read_tokens`/
+`web_search_requests`/`model` for every run, captured from the Messages API's own `usage` block in
+`_shared/claude-agent.ts` (`runAgentLoop`'s returned `usage`, threaded through every function's
+`finishRun` call). `_shared/pricing.ts` holds Anthropic's published per-model rates (with a
+date-gated rate change for Sonnet 5's post-intro pricing) and `estimateCostUsd()`.
+`agent-aiden-supervisor` queries the last 7 days of `agent_run_log`, computes a per-agent cost
+breakdown deterministically in code (not left to the model), and appends it verbatim to both the
+`supervisor_reports` row and the emailed brief — labeled as an estimate, not a reconciliation
+against the real Anthropic invoice. Verified live: a real Supervisor run logged 53,550 input /
+5,267 output tokens (~$0.16), correctly captured in `agent_run_log`; Sage runs with no open tickets
+correctly log `model` with null token counts (no Claude call made, $0.00 contribution).
+
+**Known limitation:** the cost query runs *before* the current run's own tool-use loop starts, so
+each week's brief always excludes the cost of generating itself — Supervisor's own ~53K-token
+weekly run (typically the single biggest line item) is undercounted by one week's cycle. Net effect
+is the total is consistently a little low (~$0.15-0.20/week), not wildly wrong. Not fixed — the
+model's own token count isn't known until after the loop finishes, and the tools that write/send
+the brief are called mid-loop.
+
 ---
 
 ## What's running

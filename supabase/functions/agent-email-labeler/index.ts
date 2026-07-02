@@ -123,6 +123,9 @@ Deno.serve(async (req: Request) => {
       runId,
       status,
       `${supportCount > 0 ? `⚠ ${supportCount} Support email(s). ` : ''}${result.finalText || `${result.toolCallLog.length} labeled`}`,
+      undefined,
+      result.usage,
+      MODEL_HAIKU,
     );
 
     return new Response(

@@ -173,6 +173,9 @@ Deno.serve(async (req: Request) => {
       runId,
       status,
       result.finalText || `${result.toolCallLog.length} tool call(s), stopped: ${result.stoppedReason}`,
+      undefined,
+      result.usage,
+      MODEL_SONNET,
     );
 
     return new Response(

@@ -85,7 +85,15 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    await finishRun(supabase, runId, 'success', dryRun ? '[dry run] report generated, not sent' : 'Weekly Stripe report sent.');
+    await finishRun(
+      supabase,
+      runId,
+      'success',
+      dryRun ? '[dry run] report generated, not sent' : 'Weekly Stripe report sent.',
+      undefined,
+      result.usage,
+      MODEL_SONNET,
+    );
 
     return new Response(JSON.stringify({ report: result.finalText, dry_run: dryRun }), {
       status: 200,

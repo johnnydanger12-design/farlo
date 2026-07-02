@@ -7,6 +7,7 @@ import { startRun, finishRun } from '../_shared/run-log.ts';
 import { sendEmail } from '../_shared/notify.ts';
 import { getGmailAccessToken, searchThreads, getThread, extractPlainTextBody } from '../_shared/gmail.ts';
 import { runAgentLoop, MODEL_SONNET, type ToolDefinition } from '../_shared/claude-agent.ts';
+import { estimateCostUsd } from '../_shared/pricing.ts';
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
@@ -144,6 +145,39 @@ Deno.serve(async (req: Request) => {
       .select('platform, status, notes, created_at')
       .gte('created_at', sevenDaysAgo);
 
+    // Deterministic cost estimate — computed in code, not left to the model to
+    // remember or calculate, then appended verbatim to whatever Claude writes.
+    const { data: runLogs } = await supabase
+      .from('agent_run_log')
+      .select('agent_name, model, input_tokens, output_tokens, cache_read_tokens, web_search_requests')
+      .gte('started_at', sevenDaysAgo)
+      .not('model', 'is', null);
+
+    let totalCostUsd = 0;
+    const costByAgent: Record<string, number> = {};
+    for (const row of runLogs ?? []) {
+      if (!row.model) continue;
+      const cost = estimateCostUsd(row.model, {
+        inputTokens: row.input_tokens ?? 0,
+        outputTokens: row.output_tokens ?? 0,
+        cacheCreationTokens: 0,
+        cacheReadTokens: row.cache_read_tokens ?? 0,
+        webSearchRequests: row.web_search_requests ?? 0,
+      });
+      totalCostUsd += cost;
+      costByAgent[row.agent_name] = (costByAgent[row.agent_name] ?? 0) + cost;
+    }
+    const costBreakdown = Object.entries(costByAgent)
+      .sort((a, b) => b[1] - a[1])
+      .map(([agent, cost]) => `  - ${agent}: $${cost.toFixed(2)}`)
+      .join('\n');
+    const costSummary = [
+      ``,
+      `Estimated Anthropic API cost this week: $${totalCostUsd.toFixed(2)}`,
+      costBreakdown || '  (no usage logged)',
+      `(Estimate from token counts we log ourselves — not a reconciliation against your actual Anthropic invoice.)`,
+    ].join('\n');
+
     const lockedKeys = new Set((directives ?? []).filter((d) => d.locked).map((d) => d.directive_key));
 
     // deno-lint-ignore no-explicit-any
@@ -161,7 +195,7 @@ Deno.serve(async (req: Request) => {
         if (dryRun) return { dry_run: true, would_write: input };
         const { error } = await supabase.from('supervisor_reports').insert({
           week_of: new Date().toISOString().slice(0, 10),
-          report_content: input.report_content,
+          report_content: input.report_content + costSummary,
           critical_flags: input.critical_flags ?? [],
           top_actions: input.top_actions,
         });
@@ -169,7 +203,7 @@ Deno.serve(async (req: Request) => {
       },
       send_weekly_brief_email: async (input: { subject: string; body: string }) => {
         if (dryRun) return { dry_run: true, would_send: input };
-        await sendEmail({ to: 'johnny@farlo.app', subject: input.subject, text: input.body, from: 'Aiden <aiden@farlo.app>' });
+        await sendEmail({ to: 'johnny@farlo.app', subject: input.subject, text: input.body + costSummary, from: 'Aiden <aiden@farlo.app>' });
         return { success: true };
       },
     };
@@ -218,6 +252,9 @@ Deno.serve(async (req: Request) => {
       runId,
       status,
       result.finalText || `${result.toolCallLog.length} tool call(s), stopped: ${result.stoppedReason}`,
+      undefined,
+      result.usage,
+      MODEL_SONNET,
     );
 
     return new Response(
