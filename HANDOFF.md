@@ -1,11 +1,11 @@
 # HANDOFF.md — Farlo
-_Last updated: Jul 2 2026 — Cowork's scheduled agents replaced with a self-hosted pg_cron + Supabase Edge Function system (now live), plus per-run Anthropic cost tracking added to the weekly brief. Build 1.0.0+5 still with Apple for review. Read time: ~4 min._
+_Last updated: Jul 2 2026 — Build 1.0.0+5 rejected a second time (Guideline 2.1(b), reviewer couldn't find the IAPs), root cause found and replied to Apple same day; also Cowork's scheduled agents replaced with a self-hosted pg_cron + Supabase Edge Function system, plus per-run Anthropic cost tracking added to the weekly brief. Read time: ~4 min._
 
 ---
 
 ## Interrupted Task
 
-None — session ended cleanly. Build 1.0.0+5 is with Apple for review. New agent automation system is live and unattended.
+None — session ended cleanly. Build 1.0.0+5 replied-to and resubmitted, status "Waiting for Review" as of Jul 2 afternoon. New agent automation system is live and unattended.
 
 ---
 
@@ -13,7 +13,7 @@ None — session ended cleanly. Build 1.0.0+5 is with Apple for review. New agen
 
 | Feature | Status |
 |---|---|
-| App Store v1.0 | ⏳ Build 1.0.0+5 resubmitted Jul 1 — fixes the 1.0.0+4 rejection (broken auth + missing ToS link). Waiting on Apple. |
+| App Store v1.0 | ⏳ Build 1.0.0+5 — rejected twice now. First (Jul 1): broken auth + missing ToS link, fixed. Second (Jul 2, Guideline 2.1(b)): reviewer couldn't locate the IAPs — root cause was the reviewer only ever created a Consumer account, which can never see the Business Owner paywall. Replied to Apple + rewrote App Review Notes with explicit navigation steps, resubmitted same day. Waiting on Apple. |
 | Google Play | ✓ Internal testing track — build 2 (1.0.0) |
 | Owner onboarding emails | ✓ 3-email sequence live — emails 1 & 2 fire on signup, email 3 via daily pg_cron at day 7 |
 | Consumer welcome email | ✓ Single email fires on consumer account creation |
@@ -33,6 +33,10 @@ Flutter + Riverpod 3.x + GoRouter (StatefulShellRoute — owner and consumer she
 ---
 
 ## Recent Decisions
+
+**Build 1.0.0+5 rejected again — Guideline 2.1(b), reviewer couldn't find the IAPs (Jul 2):** Apple said they couldn't locate "Owner Monthly Sub, Owner Yearly Sub" etc. anywhere in the app. Traced the in-app paywall path by code (`SubscriptionScreen`, reachable in 3-4 taps from a fresh owner signup, no gating logic hides it, no code path removes the button on empty/failed RevenueCat config) — confirmed the app itself has no bug here. Root cause found by cross-referencing Supabase `auth` logs against `profiles`: exactly one account was created during the review window, from a genuine Apple corporate IP (`17.64.126.135`) via Sign in with Apple, and its `role` is `consumer` — the reviewer never touched the owner side at all, so of course no IAP was visible (Subscription screen is gated to `user.isOwner`). Compounding problem: the demo owner account provided in App Review Information (`apple.review@farlo.app`) had `subscriptions.status = 'active'` (set Jun 19, testing purchase), so even if the reviewer *had* used those credentials they'd land on the "Active / Renews" screen with no purchase button — a second dead end. Fix: (1) reset that demo account's subscription `status` to `trialing` in Supabase (`UPDATE subscriptions SET status='trialing' WHERE owner_id=...`) so it now lands on the real paywall; (2) replied to Apple and rewrote the App Review Notes field with an explicit numbered tap-by-tap path to the Subscription screen (Login → "Have a business? Get listed" → create owner account → Account tab → Subscription), instead of the previous notes which described user types but never said how to navigate to the paywall. Resubmitted Jul 2, status "Waiting for Review."
+
+**General lesson:** with the login wall removed (a deliberate 1.0.0+4 fix — consumer tabs are open to guests), there is no forcing function that pushes an App Review reviewer toward the owner/paywall flow. App Review Notes must now always include explicit step-by-step navigation to any paywall/IAP screen, not just a description of account types — don't assume the reviewer will find the "Have a business? Get listed" link on their own.
 
 **Cost tracking added to Aiden's weekly brief (Jul 2):** Since the new agent system is pay-per-token, `agent_run_log` now captures `input_tokens`/`output_tokens`/`cache_read_tokens`/`web_search_requests`/`model` per run (from the Messages API's own `usage` block). `agent-aiden-supervisor` computes a deterministic per-agent cost estimate from Anthropic's published rates (`_shared/pricing.ts`) and appends it to both the emailed brief and the `supervisor_reports` row, labeled clearly as an estimate, not an invoice reconciliation. Verified live against a real run (53,550 input / 5,267 output tokens ≈ $0.16). Known limitation: each week's figure excludes the cost of generating that week's own brief (the query runs before the current run's tokens are known) — total is consistently a little low, not wildly wrong. Not fixed, documented in AGENT_AUTOMATION_RUNBOOK.md.
 
@@ -70,6 +74,8 @@ Flutter + Riverpod 3.x + GoRouter (StatefulShellRoute — owner and consumer she
 
 ## Traps / Dead Ends
 
+- **App Review Notes must give explicit step-by-step navigation to any paywall, not just describe account types** — Apple rejected 1.0.0+5 a second time (2.1(b)) because the reviewer created only a Consumer account (confirmed via Supabase auth logs cross-referenced with `profiles.role`) and never found the owner-only Subscription screen. With the login wall removed, nothing in the app forces a reviewer toward the owner flow — the review notes are the only forcing function. Always spell out the exact taps.
+- **Any demo/review account with an already-active subscription hides the purchase flow from reviewers** — `apple.review@farlo.app` had `subscriptions.status='active'` from earlier manual testing, so even a reviewer who did sign in with it would see "Active / Renews," not a purchase button. Keep review demo accounts in `trialing` status, not `active`, so the actual IAP buttons are visible. Reset via `UPDATE subscriptions SET status='trialing' WHERE owner_id=...`.
 - **Claude Cowork's scheduled tasks only run when the desktop app is open and unlocked** — confirmed through repeated testing, not a config issue. Don't rely on Cowork for anything that needs to run unattended; use the `pg_cron` + Edge Function system (AGENT_AUTOMATION_RUNBOOK.md) instead.
 - **Never test a raw email header (`From`, `To`, etc.) with an anchored regex** — display-name formats like `"Sage | Farlo Support" <support@farlo.app>` don't end where you'd expect (`@farlo.app>`, not `@farlo.app`), so a naive `/@farlo\.app$/` silently never matches. This caused Sage's ticket auto-resolution to silently never work since its first live run. Always extract the address first (`extractEmailAddress()` in `_shared/gmail.ts`), then compare.
 - **`btoa()` can't encode non-Latin1 characters** — any Gmail raw-message base64 encoding must UTF-8-byte-encode via `TextEncoder` first, or it throws `InvalidCharacterError` on any en-dash, arrow, or curly quote (i.e. normal LLM-written prose). Fixed in `_shared/gmail.ts`'s `buildRawMessage()`.
@@ -143,8 +149,8 @@ Note: `lib/core/widgets/background_location_disclosure.dart`, `lib/features/acco
 
 ## Next Steps
 
-1. **Watch for Apple review result on 1.0.0+5** — uploaded, processed, and resubmitted Jul 1. If approved, do these IN ORDER before posting anything public:
-   - **Wipe all test data** — Supabase dashboard → Authentication → Users → select all → Delete (cascades to profiles, food_trucks, subscriptions, etc.). Do NOT wipe: agent_directives, content_queue, supervisor_reports, sales_prospects, agent_run_log. Every current account is a test account — wipe everything, nothing to preserve.
+1. **Watch for Apple review result on 1.0.0+5** — replied to the 2.1(b) rejection + rewrote App Review Notes with explicit paywall navigation steps, resubmitted Jul 2, status "Waiting for Review." If approved, do these IN ORDER before posting anything public:
+   - **Wipe all test data** — Supabase dashboard → Authentication → Users → select all → Delete (cascades to profiles, food_trucks, subscriptions, etc.). Do NOT wipe: agent_directives, content_queue, supervisor_reports, sales_prospects, agent_run_log. Every current account is a test account — wipe everything, nothing to preserve. This includes `apple.review@farlo.app`, whose subscription status was reset to `trialing` on Jul 2 for review purposes — no action needed, it gets wiped with everything else.
    - Update farlo.app download buttons (href="#" → App Store link).
    - Lift the `sales_targets` HOLD directive so Miles starts real outreach — watch its first live `agent_run_log` entry and actual Gmail drafts before trusting it fully unattended (see Known Gaps in AGENT_AUTOMATION_RUNBOOK.md).
 2. **RevenueCat Android — finish:** In RevenueCat, retry the credentials refresh (Google permissions take up to 24hrs). Once green: Product catalog → Products → add `com.farlo.app.owner.sub.monthly` + `com.farlo.app.owner.sub.yearly` → attach to `premium` entitlement → attach to Default Offering. Copy the `goog_...` API key → add to `.env.json` as `REVENUECAT_GOOGLE_KEY` → `flutter build appbundle --dart-define-from-file=.env.json`.
