@@ -10,6 +10,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app_shell.dart';
 import 'core/push_notification_service.dart';
 import 'core/rc_config.dart';
+import 'core/secure_local_storage.dart';
 import 'firebase_options.dart';
 
 const _supabaseUrl = String.fromEnvironment('SUPABASE_URL');
@@ -37,9 +38,20 @@ Future<void> main() async {
     );
   }
 
+  // Session tokens (access + refresh) go in Keychain/Keystore rather than
+  // the default SharedPreferences-backed storage, which is plaintext on
+  // Android and an app-sandboxed plist (not Keychain) on iOS (security.md
+  // §1.1). Existing signed-in users will need to sign in again once after
+  // this ships — their old SharedPreferences-stored session isn't migrated,
+  // it's simply superseded by this new storage backend going forward.
   await Supabase.initialize(
     url: _supabaseUrl,
     publishableKey: _supabasePublishableKey,
+    authOptions: FlutterAuthClientOptions(
+      localStorage: SecureLocalStorage(
+        persistSessionKey: 'sb-${Uri.parse(_supabaseUrl).host.split('.').first}-auth-token',
+      ),
+    ),
   );
 
   if (Firebase.apps.isEmpty) {
