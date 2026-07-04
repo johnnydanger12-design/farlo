@@ -52,3 +52,43 @@ Nine items closed before this operating protocol existed. Verification method fo
 - **Green:** re-ran on the branch — owner1 deleting owner2's file now `403`; owner1 uploading into owner2's truck path now `403` (RLS violation); owner2 deleting their own file still `200`. All three as expected.
 - **Applied to production** via `apply_migration` (`scope_menu_item_photos_storage_policies_by_truck_ownership`), re-queried `pg_policies` to confirm the live policy text matches the branch-validated version exactly.
 - **Residual risk:** none identified for this specific bucket. Note for later: `truck-logos`/`truck-photos` buckets have the same class of gap on INSERT (checks only `auth.role() = 'authenticated'`, no path scoping) per `supabase-audit.md` §4 — not yet triaged as its own item, add to backlog.
+
+**#13 — Consumer-cancel vs. owner-accept order race.** Citation: `bugs.md` Executive Summary #2 / §2.3.1. Files: `lib/features/orders/repositories/orders_repository.dart`.
+
+- **Relocate:** confirmed `cancelOrder()` and `updateOrderStatus()` both did blind status updates (`.update({...}).eq('id', orderId)`) with no precondition on the order's current status.
+- **Red:** on the branch, inserted a `pending` order, updated it to `accepted` (simulating the owner's action), then ran the *old* unconditioned update shape inside a `BEGIN`/`ROLLBACK` block — confirmed it would have silently overwritten the row to `cancelled` (`UPDATE 1`), then rolled back so it didn't actually happen.
+- **Fix:** `cancelOrder()` now requires `status = 'pending'`; `updateOrderStatus()` requires the correct prior status per transition (`accepted`/`declined` from `pending`, `ready` from `accepted`, `completed` from `ready`), derived from the exact transitions the UI (`order_status_sheet.dart`) actually triggers. Both throw a new `OrderAlreadyActedOnException` with a user-facing message if the precondition fails, instead of silently no-oping.
+- **Green:** re-ran the same scenario with the new preconditioned query shape — `0` rows affected, order remains `accepted`, confirmed via direct re-query.
+- **Regressions:** `flutter analyze` on both touched files — no issues found. Existing generic `catch (e) { Text('Error: $e') }` handlers in `order_status_sheet.dart` already surface the new exception's message reasonably (not restructured further — that's the separate, not-yet-started shared-error-helper item).
+- **Commit:** `376e47e`.
+
+**#7 — Account deletion FK violation ("zombie" accounts).** Citation: `security.md` N2 / `FARLO_FINAL_AUDIT.md` Top 20 #7. Files: `supabase/functions/delete-account/index.ts`, new `delete_account_data()` Postgres function.
+
+- **Relocate:** confirmed 4 `NO ACTION` foreign keys (`booking_messages.sender_id`, `food_trucks.opened_by_user_id`, `support_tickets.user_id`, `sales_prospects.converted_owner_id`) referencing `profiles`/`auth.users`, none of which the old sequential Edge Function code ever cleared before calling `auth.admin.deleteUser()`.
+- **Red:** on the branch, had a synthetic "owner3" send a `booking_messages` row into a different truck's booking thread (the realistic case: someone who messaged in someone else's booking, not just their own), then ran the *old* delete sequence's exact steps inside a transaction — confirmed it throws `booking_messages_sender_id_fkey` violation on the final `auth.users` delete, rolled back.
+- **Fix:** new `delete_account_data(p_user_id)` Postgres function does all app-data cleanup (including clearing the 4 blockers — delete for the NOT NULL `booking_messages.sender_id`, null-out for the 3 nullable columns) in one atomic transaction. `delete-account`'s Edge Function now calls this RPC first, then `auth.admin.deleteUser()`.
+- **Green:** re-ran on the branch — `delete_account_data()` succeeds, the subsequent `auth.users` delete succeeds cleanly (both wrapped in `BEGIN`/`ROLLBACK` so branch test data stayed intact for reuse).
+- **Applied to production** via migration + function redeploy (version 20).
+- **Residual risk / known gap, not fixed in this pass:** storage objects (avatar, truck-logo/photo/menu images) are still never deleted by `delete-account` for any user (a separate `security.md` finding) — requires Storage API calls from the Edge Function itself, out of scope for the FK-violation root cause this item targeted.
+- **Commit:** `a7272f1`.
+
+**#15 — Subscription lapse never rechecked.** Citation: `bugs.md` Executive Summary #4. Files: `food_trucks` RLS policy (migration), `supabase/functions/create-payment-intent/index.ts`, `supabase/functions/create-booking-payment-intent/index.ts`.
+
+- **Relocate:** confirmed no realtime listener/router guard rechecks subscription status client-side, `fetchActiveTrucks()`'s public visibility had no subscription check, and neither payment Edge Function called `owner_has_active_subscription()`.
+- **Red:** on the branch, gave a test owner a `canceled` subscription row, confirmed via anon REST request that their truck was still publicly visible (`is_active=true` was the only gate).
+- **Fix (backend-only, no client changes needed):** (1) `food_trucks`'s public SELECT RLS policy now additionally requires `owner_has_active_subscription(owner_id)` — takes effect immediately for every client, current and future. Also consolidated the two identical duplicate "anyone can read active trucks" policies into one along the way. (2) Both payment Edge Functions now check the same RPC before creating a PaymentIntent, since a consumer with an already-known `truck_id` (favorited earlier, deep link) could otherwise bypass the map-visibility fix entirely.
+- **Green:** re-ran the same anon request — lapsed truck now `[]` (hidden); confirmed a truck with an `active` subscription remains visible; confirmed the lapsed truck's own owner can still see it via the separate owner-read policy (dashboard/resubscribe access preserved). Confirmed `owner_has_active_subscription()` returns the exact `true`/`false` both Edge Functions now branch on, via direct RPC call matching their code path exactly.
+- **Applied to production**, `pg_policies` re-query confirms the live policy text matches.
+- **Commit:** `5e9341c`.
+
+**#14 — Stranded Stripe charges / no idempotency key.** Citation: `bugs.md` Executive Summary #3. Files: both payment Edge Functions, `orders_repository.dart`, `order_cart_sheet.dart`, `bookings_repository.dart`, `my_requests_screen.dart`.
+
+- **Relocate:** confirmed neither payment Edge Function's Stripe call included an `Idempotency-Key`, `placeOrder()` had no dedup against a prior successful insert, and `_supabase.auth.currentUser!.id` was force-unwrapped *after* the Stripe payment-sheet flow completed (the actual crash trigger between charge-success and order-insert).
+- **Fix:** both Edge Functions accept an `idempotency_key` and pass it as Stripe's `Idempotency-Key` header. Clients (`order_cart_sheet.dart`, `my_requests_screen.dart`) generate one random key per checkout/payment attempt and reuse it across retries of that same attempt. `placeOrder()` is now idempotent by `stripe_payment_intent_id` (checks for an existing order before inserting). The force-unwrap is gone — callers now capture `consumerId` before starting the Stripe flow and pass it as a required parameter.
+- **Green (partial — see residual risk):** verified the `placeOrder()`-level idempotency directly on the branch: inserted an order with a known `stripe_payment_intent_id`, confirmed a retry query against that same id finds the existing row rather than needing a second insert. `flutter analyze` clean on all 4 touched Dart files.
+- **Residual risk / honest gap:** the Stripe `Idempotency-Key` header itself was **not** exercised against a real or test Stripe account — none is configured on the branch, and doing so would risk crossing Hard Stop #3 (real Stripe charges) if not extremely careful. This is standard, extensively-documented Stripe API behavior, so code-review confidence is reasonably high, but it is explicitly *not* the same rigor as the other items in this log. Flag for a real test-mode Stripe verification pass if/when test credentials are available.
+- **Commit:** `24110c8`.
+
+---
+
+**Phase 1 (Immediate Risks) is now fully closed** — all 15 items (#1-#15) have log entries above. Phase 2 (Must-Fix-if-Apple-Rejects-Again) has not been started; per Hard Stop #5, Phase 5 (Major Architecture) still cannot begin.

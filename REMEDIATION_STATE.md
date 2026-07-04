@@ -1,27 +1,27 @@
 # Farlo Remediation — Current State
 
-Working branch: `remediation/farlo-a-grade`. Supabase test branch: `remediation` (project ref `iwufrgjtlikkongopheu`, parent `weflrxyerxpsafcdetya`) — schema-only, no seed data except what a given test inserts. Get credentials via `supabase branches get remediation` when needed; never commit them.
+Working branch: `remediation/farlo-a-grade`. Supabase test branch: `remediation` (project ref `iwufrgjtlikkongopheu`, parent `weflrxyerxpsafcdetya`) — schema-only, no seed data except what a given test inserts (owners 1-3, trucks 1-3, a pending order, an event booking with a message, a canceled and an active subscription — all reusable for future tests). Get credentials via `supabase branches get remediation` when needed; never commit them. Note: this branch's own migration replay is broken (`MIGRATIONS_FAILED`) — it's usable only because the baseline schema dump was loaded directly via `psql`. If recreated, repeat that load step.
 
-**Iteration:** 3 (iteration 1 = last session's pre-protocol pass, reconciled below; iteration 2-3 = this protocol, same session).
+**Iteration:** 4 (iteration 1 = last session's pre-protocol pass, reconciled below; iterations 2-4 = this protocol, same session).
 
 ---
 
-## Scorecard (last updated: iteration 3)
+## Scorecard (last updated: iteration 4)
 
 | Area | Baseline | Now (est.) | Target | Weight |
 |---|---|---|---|---|
-| **Overall** | 64 (D+) | **~70** | ≥90 (A) | — |
-| Security | 46 (F) | ~63 | ≥90 | 25% |
-| Engineering | 74 (C) | ~76 | ≥90 | 20% |
-| Backend/Supabase | 66 (D+) | ~88 | ≥90 | 15% |
+| **Overall** | 64 (D+) | **~76** | ≥90 (A) | — |
+| Security | 46 (F) | ~74 | ≥90 | 25% |
+| Engineering | 74 (C) | ~77 | ≥90 | 20% |
+| Backend/Supabase | 66 (D+) | ~89 | ≥90 | 15% |
 | UI/UX | 68 (C-) | 68 | ≥90 | 12% |
 | Product | 73 (C+) | 73 | ≥90 | 10% |
 | AI Agent System | 58 (D-) | ~70 | ≥90 | 10% |
 | App Store Readiness | 70 (C-) | 70 | ≥90 | 8% |
 
-**Backend/Supabase note:** all 4 Critical findings from `supabase-audit.md` are now closed, and migrations are materialized — that's both literal criteria in §10's Definition of A for this category. Held below 90 rather than called A because: (a) several Medium/Low backend findings remain open (56 RLS perf re-eval issues, 27 unindexed FKs, duplicate policies, `truck-logos`/`truck-photos` bucket scoping — see Observed below), and (b) none of the Critical fixes have formal automated regression tests yet, only the red/green verification done live during this pass. Treat "all 4 Criticals closed" as real progress, not yet a certified A.
+**Milestone: Phase 1 (Immediate Risks) is fully closed — all 15 items.** This is the biggest single driver of the Security/Backend jumps this iteration (payment tampering, the order-race, subscription-lapse, stranded-charge, and account-deletion findings all closed with real red/green evidence against the isolated Supabase branch — see LOG). Still not calling Security or Backend an "A": several Medium/Low findings remain open (see Phase 4 below) and none of these fixes have formal automated regression tests yet, only live red/green verification done during this pass (see Observed section).
 
-These are rough re-estimates, not a formal re-audit — treat with the same skepticism the rest of this doc asks you to apply to the original citations. None of the seven categories meet their Definition of A (§10 of the operating prompt) yet, even where individual findings are closed, because several Definitions require things not yet done (formal tests on last session's fixes, remaining Criticals, the testing/accessibility/architecture work).
+These are rough re-estimates, not a formal re-audit — treat with the same skepticism the rest of this doc asks you to apply to the original citations.
 
 ---
 
@@ -29,24 +29,24 @@ These are rough re-estimates, not a formal re-audit — treat with the same skep
 
 Canonical IDs follow `FARLO_FINAL_AUDIT.md`'s Top 20 numbering where an item appears there; `QW-`/`MED-`/`ARCH-`/`MFR-`/`P6-` prefix items that only appear in Quick Wins / Medium / Major Architecture / Must-Fix-if-Rejects / Phase 6 respectively. Duplicates across lists are cross-referenced, not repeated.
 
-### Phase 1 — Immediate Risks
-- [x] #1 Payment amount tampering (`create-payment-intent`/`create-booking-payment-intent`) — closed iteration 1, see LOG. **Caveat: introduced a client/server contract break, see "Known blocker" below — not fully closed until that's resolved.**
+### Phase 1 — Immediate Risks — ✅ ALL 15 CLOSED
+- [x] #1 Payment amount tampering — closed iteration 1. **Caveat: introduced a client/server contract break on `create-payment-intent` (no secure backward-compat possible) — see "Known blocker" below. This is why the build was pulled from App Store review, per your decision.**
 - [x] #2 `invite_employee_by_email` no ownership check — closed iteration 1
-- [x] #3 `GOOGLE_PLACES_API_KEY` embedded client-side — closed iteration 1 (proxied). **The underlying key value itself was never rotated in Google Cloud Console — Hard Stop #1, awaiting sign-off below.**
+- [x] #3 `GOOGLE_PLACES_API_KEY` embedded client-side — closed iteration 1 (proxied). **Key itself never rotated — Hard Stop #1, awaiting sign-off below.**
 - [x] #4 `agent-aiden-supervisor` zero sender filtering — closed iteration 1
 - [x] #5 `agent-aiden-inbox` spoofable sender allowlist — closed iteration 1
 - [x] #6 `profiles` readable by every authenticated user — closed iteration 1
-- [ ] #7 Account deletion FK-violation "zombie" accounts — not started
+- [x] #7 Account deletion FK-violation "zombie" accounts — closed iteration 4, see LOG
 - [x] #8 `employee_shifts_update_own`/`scheduled_shifts` no `WITH CHECK` — closed iteration 1
-- [x] #9 `menu-item-photos` storage bucket over-permissive (Backend Critical #4) — closed iteration 3, see LOG (real red/green via minted JWTs against the Supabase branch's actual Storage API)
+- [x] #9 `menu-item-photos` storage bucket over-permissive — closed iteration 3, see LOG
 - [x] #10 `prospect-businesses` zero auth — closed iteration 1
 - [x] #11 `searchTrucks()` null-coordinate crash — closed iteration 2, see LOG
 - [x] #12 Unescaped search input breaking PostgREST filter — closed iteration 2, see LOG (same fix as #11)
-- [ ] #13 Consumer-cancel vs. owner-accept order race — not started
-- [ ] #14 Stranded Stripe charges / no idempotency key (= MED-6) — not started
-- [ ] #15 Subscription lapse never rechecked (= MED-7) — not started
+- [x] #13 Consumer-cancel vs. owner-accept order race — closed iteration 4, see LOG
+- [x] #14 Stranded Stripe charges / no idempotency key (= MED-6) — closed iteration 4, see LOG (Idempotency-Key header not tested against real/test Stripe — see Observed)
+- [x] #15 Subscription lapse never rechecked (= MED-7) — closed iteration 4, see LOG
 
-### Phase 2 — Must-Fix-if-Apple-Rejects-Again
+### Phase 2 — Must-Fix-if-Apple-Rejects-Again — NOT STARTED, next up
 - [ ] MFR-1 Pre-upload checklist automation (dart-define/demo-account script) — not started
 - [ ] MFR-2 Paywall App Review Notes — process item, not code; revisit at resubmission time
 - [ ] MFR-3 iOS background-location authorization gap — not started
@@ -71,18 +71,18 @@ Canonical IDs follow `FARLO_FINAL_AUDIT.md`'s Top 20 numbering where an item app
 - [x] MED-3 `menu-item-photos` storage policy scoping — see #9 above
 - [x] MED tighten `profiles` SELECT — see #6 above
 - [x] MED agent sender-check fixes — see #4/#5 above
-- [ ] MED-6 Idempotency key + compensating refund/alert + order-cancel precondition — see #13/#14 above
-- [ ] MED-7 Subscription-status check in payment functions + `fetchActiveTrucks` filter — see #15 above
+- [x] MED-6 Idempotency key + order-cancel precondition — see #13/#14 above. **Not fully done: "compensating refund/alert" half of this item (auto-refund if placeOrder fails after charge) was not implemented — the fix instead makes retry safe via idempotency, which resolves the same user-facing harm via a different mechanism. Note this explicitly rather than silently claim the original sub-item.**
+- [x] MED-7 Subscription-status check in payment functions + `fetchActiveTrucks` filter — see #15 above
 - [ ] MED-8 `flutter_secure_storage` wiring — not started
 - [ ] MED-9 Crash reporting + shared error/snackbar helper — see MFR-4 above
-- [ ] MED-10 `delete-account` transactional fix — see #7 above
+- [x] MED-10 `delete-account` transactional fix — see #7 above. **Storage-object cleanup (avatar/truck photos) still not done — separate gap, needs Storage API calls from the Edge Function, noted in LOG.**
 - [ ] MED-11 Batch `truck_profile_screen.dart`'s 6 round-trips — not started
 - [ ] MED-12 Memoize map screen clustering (= #18) — not started
 - [x] MED-13 Materialize migrations into git — closed iteration 1
 
-### Phase 5 — Major Architecture Improvements (do not start ahead of Phases 1-2 closing)
+### Phase 5 — Major Architecture Improvements (still blocked: Phase 2 not started — Hard Stop #5)
 - [ ] ARCH-1 Domain/data-model layer separation — not started
-- [ ] ARCH-2 Testing seam/mocking infrastructure — not started (this is also the prerequisite for rigorous red/green tests on several already-"closed" iteration-1 items — see Observed section)
+- [ ] ARCH-2 Testing seam/mocking infrastructure — not started (prerequisite for rigorous automated regression tests on every item closed via live/branch verification so far — see Observed section)
 - [ ] ARCH-3 Codebase-wide pagination + timeout pattern (= #17) — not started
 - [ ] ARCH-4 Decompose six god screens — not started
 - [ ] ARCH-5 Rebuild image pipeline — not started
@@ -99,7 +99,7 @@ Canonical IDs follow `FARLO_FINAL_AUDIT.md`'s Top 20 numbering where an item app
 ## Awaiting sign-off (Hard Stops)
 
 - **Hard Stop #1 (rotate/regenerate secret):** `GOOGLE_PLACES_API_KEY`'s actual value was never rotated in Google Cloud Console — only proxied so it stops shipping in *future* builds. If it leaked from any previously-built APK/IPA before today, it's still valid and usable until rotated. Need you to rotate it in GCP and give me the new value to set as the Edge Function secret (not committed anywhere).
-- **Hard Stop #6 (App Store submission):** current build was pulled from review per your decision last session — resubmission stays yours to trigger once Ship-Readiness Gate (§12) passes.
+- **Hard Stop #6 (App Store submission):** current build was pulled from review per your decision last session — resubmission stays yours to trigger once Ship-Readiness Gate (§12) passes. Not close yet — Phase 2 hasn't started.
 
 ## Blocked-technical
 
@@ -107,15 +107,17 @@ Canonical IDs follow `FARLO_FINAL_AUDIT.md`'s Top 20 numbering where an item app
 
 ## Known blocker (not a Hard Stop, but blocks Ship-Readiness Gate)
 
-`create-payment-intent`'s new required-`items` contract breaks order placement on any binary built before today's fix (including whatever was pulled from App Store review). The matching client code is committed but not shipped. This must close before Ship-Readiness Gate can pass — tracked under #1 above, not a separate item.
+`create-payment-intent`'s new required-`items` contract breaks order placement on any binary built before today's fix (including whatever was pulled from App Store review). The matching client code is committed but not shipped. This must close before Ship-Readiness Gate can pass — resolved automatically once a new build ships; no further action needed beyond eventually cutting that build.
 
 ## Observed, not yet triaged
 
-- Iteration 1's nine closed items (marked `[x]` above) were verified via live deployment + direct re-query (checked `pg_policies`, ran `flutter analyze`, spot-checked via SQL) — not via the formal red/green automated-test protocol this session is now operating under. They are almost certainly still correctly fixed (the underlying vulnerability is gone), but per §14's validation checklist ("no 'fixed' claim without a runnable test"), they don't yet have regression coverage. Once ARCH-2 (testing infrastructure) exists, backfill tests for these before certifying Security-A or Backend-A.
+- Every item closed in this pass (iterations 2-4: #7, #9, #11, #12, #13, #14, #15) was verified via **live red/green testing against the isolated Supabase branch** — a real step up from iteration 1's live-deployment-only verification, but still not the same as a permanent, automated, runnable regression test living in the codebase. Once ARCH-2 (testing infrastructure) exists, backfill real test files for all of these before certifying Security-A or Backend-A. The branch-based verification transcripts are preserved in `REMEDIATION_LOG.md` and should transfer directly into real test cases.
+- Iteration 1's original nine items (#1, #2, #3, #4, #5, #6, #8, #10, MED-13) still only have live-deployment + direct-re-query verification, no red/green branch testing was done for those (the branch didn't exist yet in iteration 1). Same backfill note applies.
 - `create-booking-payment-intent`'s accidental backward-compatibility (old client already sends what the new server needs) should get an explicit regression test once ARCH-2 lands, so it doesn't silently regress later.
-- `truck-logos`/`truck-photos` storage buckets have the same class of gap `menu-item-photos` had on INSERT — checks only `auth.role() = 'authenticated'`, no path/truck-ownership scoping (`supabase-audit.md` §4). Not yet triaged as its own item; add to Phase 1/4 backlog next pass.
-- The `remediation` Supabase branch's own migration replay is broken (`MIGRATIONS_FAILED` — see LOG #11/#12) — it's usable today only because the baseline schema dump was loaded directly via `psql`. If the branch is ever recreated, repeat that load step; don't assume `create_branch`/`branches create` alone leaves it schema-complete.
+- `truck-logos`/`truck-photos` storage buckets have the same class of gap `menu-item-photos` had on INSERT — checks only `auth.role() = 'authenticated'`, no path/truck-ownership scoping (`supabase-audit.md` §4). Not yet triaged as its own item; good Phase 4 candidate.
+- Stripe `Idempotency-Key` header behavior (#14) was not exercised against a real/test Stripe account — no Stripe test credentials configured on the branch. Standard, well-documented Stripe behavior, but flagged as lower-confidence than this pass's other items.
+- MED-6's "compensating refund/alert" sub-item and MED-10's storage-object-cleanup sub-item were each explicitly *not* done as part of closing their parent items — see the Phase 4 checklist notes above. Don't let the parent checkbox imply full scope was covered.
 
 ## Next action
 
-Resume with #13 (consumer-cancel vs. owner-accept race) or #15 (subscription-lapse recheck) — both remaining Phase 1 items usable on the `remediation` Supabase branch already provisioned (test data for two owners/trucks already exists there from the #9 test). #7 (account deletion FK violation) is also a strong candidate — same branch, same FK-violation-reproduction pattern as #9's cross-tenant test.
+Start Phase 2 (Must-Fix-if-Apple-Rejects-Again): MFR-4 (crash reporting SDK) and MFR-5 (`PrivacyInfo.xcprivacy`) are the most self-contained, no-branch-needed items — good next picks. MFR-3 (iOS background-location gap) is a real fix (or a deliberate descope) touching `Info.plist`/`location_tracking_service.dart`. MFR-1 (pre-upload checklist script) is a good candidate to convert HANDOFF.md's documented manual checklist into an actual runnable script. MFR-2 and MFR-6 are process/watch items, not implementation tasks right now.
