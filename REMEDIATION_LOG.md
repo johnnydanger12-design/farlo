@@ -171,3 +171,43 @@ All four remaining Quick Wins items are self-contained Dart/asset/pubspec change
 ---
 
 **Phase 3 (Quick Wins) is now fully closed.** Phase 2 (Must-Fix-if-Apple-Rejects-Again) remains 4/6 closed — MFR-2 and MFR-6 are process/watch items, not code, and stay open until resubmission time / until Ad Boost work starts, respectively. Phase 4 (Medium Improvements) has 4 items remaining: MED-8, MED-9 (partial), MED-11, MED-12.
+
+---
+
+## Iteration 7 — Phase 4 (Medium Improvements) closes
+
+**MED-12 — Map screen: debounced map-move + memoized clustering.** Citation: `performance.md` §2/Punch List #3, `FARLO_FINAL_AUDIT.md` Top 20 #18. Files: `lib/features/map/screens/map_screen.dart`.
+
+- **Relocate:** confirmed `mapEventStream.listen` fired an un-debounced `setState()` on every intermediate pan/zoom frame, and the `MarkerLayer` builder recomputed `.where(_inVisibleBounds)`, a sort, and `_applyClusterOffsets()` from scratch on every one of those rebuilds — same mechanism behind a live-observed stacked-pin bug (clustering re-run so often it didn't converge to a stable layout even at low truck counts).
+- **Fix:** map-move listener now debounces 120ms (matching the existing 350ms search-input debounce pattern) before calling `setState`. Clustering itself is now memoized (`_clusteredMarkers`) against the truck list identity + a rounded (~110m) visible-bounds key.
+- **Green:** `flutter analyze` clean, `flutter build ios --debug --simulator --no-codesign` succeeded.
+- **Commit:** `6ffa723`.
+
+**MED-11 — Combine 2 of `truck_profile_screen.dart`'s 5 fan-out providers.** Citation: `performance.md` §3, `FARLO_FINAL_AUDIT.md` Top 20 area #3. Files: `lib/features/reviews/providers/reviews_provider.dart`, `lib/features/food_trucks/screens/truck_profile_screen.dart`, `lib/features/notifications/screens/notifications_screen.dart`.
+
+- **Relocate:** confirmed `truckReviewsProvider`/`myReviewProvider` were always watched together and always invalidated together (4 mutation sites) — proof they're one conceptual unit split into 2 requests.
+- **Fix:** added `truckReviewsBundleProvider`, starting both underlying futures before awaiting either (genuinely concurrent), returning a `TruckReviewsBundle`. Screen derives its existing `asyncReviews`/`asyncMyReview` via `.whenData` so downstream loading/error handling needed zero changes. Old providers removed (confirmed unreferenced).
+- **Green:** `flutter analyze` clean, `flutter build ios --debug --simulator --no-codesign` succeeded.
+- **Commit:** `fe43503`.
+- **Residual risk / honest scope note:** only 2 of the 5 fan-out providers combined. `truckFollowerCountProvider` and `announcementPrefProvider` deliberately left separate — both are isolated small widgets with their own graceful loading states (`_FollowerCount` renders nothing while loading rather than blocking), and coupling them to the reviews bundle would be a UX regression; `announcementPrefProvider` is also a stateful notifier backing a live toggle, not a pure read. `foodTruckProvider` (the 6th/primary source, own realtime subscription) also left separate. A full server-side RPC/view remains the more complete fix the audit also proposed — not done here.
+
+**MED-9 — Shared error/snackbar helper, full migration.** Citation: `code-quality.md` §2.12/§2.16/Remediation #6. Files: new `lib/core/widgets/snackbar_extensions.dart`, plus 24 call-site files.
+
+- **Relocate:** re-counted independently — 64 `ScaffoldMessenger.of(context).showSnackBar(...)` call sites across 24 files (audit said 63; close enough to attribute to a boundary miscount, not a materially different picture), confirming inconsistent error-message quality (raw `'Error: $e'`/`e.toString()` shown to users at several sites vs. curated messages at others) and inconsistent error-color convention (`Colors.red` raw at some sites, `AppColors.error` at others).
+- **Fix:** added `showError`/`showSuccess`/`showInfo` `BuildContext` extension methods (with optional `action`/`duration`/`behavior`/`showCloseIcon`/`backgroundColor` params to preserve every site's existing bespoke behavior — undo-style actions, floating behavior, custom colors — nothing dropped) plus `sanitizeErrorMessage()`, which strips `Exception:`/`AuthException:`/`PostgrestException:` prefixes off a caught exception's `toString()`. Migrated all 64 call sites; applied `sanitizeErrorMessage()` specifically to the sites that were showing raw exception text, leaving already-curated messages as their own curated text.
+- **Green:** `flutter analyze` clean project-wide (only 2 pre-existing unrelated info-level lints remain, both predating this pass). `flutter build ios --debug --simulator --no-codesign` succeeded end-to-end. Re-grepped afterward for `ScaffoldMessenger.of(context).showSnackBar` — zero remaining call sites outside the helper's own file (a doc-comment reference, not a real call).
+- **Commit:** `7fd8375`.
+- **Residual risk:** none identified for the migration itself — this was a mechanical, low-conceptual-risk refactor verified by a clean full-project analyze + real build, not a sample.
+
+**MED-8 — Session tokens moved from SharedPreferences to Keychain/Keystore.** Citation: `security.md` §1.1, `FARLO_FINAL_AUDIT.md` Medium Improvements MED-8. Files: new `lib/core/secure_local_storage.dart`, `lib/main.dart`, `pubspec.yaml`.
+
+- **Relocate:** confirmed `supabase_flutter`'s default `SharedPreferencesLocalStorage` persists the access+refresh token pair via SharedPreferences (plaintext XML on Android, app-sandboxed plist on iOS, neither Keychain/Keystore-encrypted), and confirmed `flutter_secure_storage` was not a dependency anywhere (0 grep hits).
+- **Fix:** added `flutter_secure_storage`; new `SecureLocalStorage extends LocalStorage` implementing the same 5-method interface `SharedPreferencesLocalStorage` does, backed by `FlutterSecureStorage` (with `encryptedSharedPreferences: true` on Android). Wired into `Supabase.initialize` via `authOptions: FlutterAuthClientOptions(localStorage: ...)`, using the same `sb-<project-ref>-auth-token` key format the default implementation derives.
+- **Green:** `flutter pub get` resolved the new native dependency cleanly; `flutter analyze` clean; `flutter build ios --debug --simulator --no-codesign` succeeded including a real `pod install` for the new native CocoaPods (confirmed via background task output: "Running pod install... 6.8s", "Xcode build done. 128.6s").
+- **Commit:** `4f7ef79`.
+- **Scope note:** only the session-token `localStorage` was changed, matching the audit's specific finding — the PKCE code-verifier storage (`pkceAsyncStorage`) was left on its SharedPreferences default since it's short-lived and lower-sensitivity, and the audit didn't flag it.
+- **Residual risk, called out honestly:** existing signed-in users' old SharedPreferences-stored session is not migrated forward — they'll need to sign in again once after this ships. This is the standard, expected cost of this class of fix, not an oversight.
+
+---
+
+**Phase 4 (Medium Improvements) is now fully closed** — all 13 items across Phases 1 and 4's combined numbering (some items are cross-referenced from Phase 1, per the checklist). Two items (MED-6, MED-11) have explicitly narrowed scope, documented above and in `REMEDIATION_STATE.md` rather than silently claimed as fully done. Phase 5 (Major Architecture) is paused on a genuine judgment call about Hard Stop #5's exact scope — see `REMEDIATION_STATE.md`'s "Judgment call" section — pending your input. Moving to Phase 6 (non-code deliverables) instead, which isn't blocked by Hard Stop #5.

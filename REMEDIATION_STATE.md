@@ -2,28 +2,30 @@
 
 Working branch: `remediation/farlo-a-grade`. Supabase test branch: `remediation` (project ref `iwufrgjtlikkongopheu`, parent `weflrxyerxpsafcdetya`) — schema-only, no seed data except what a given test inserts (owners 1-3, trucks 1-3, a pending order, an event booking with a message, a canceled and an active subscription — all reusable for future tests). Get credentials via `supabase branches get remediation` when needed; never commit them. Note: this branch's own migration replay is broken (`MIGRATIONS_FAILED`) — it's usable only because the baseline schema dump was loaded directly via `psql`. If recreated, repeat that load step.
 
-**Iteration:** 6 (iteration 1 = last session's pre-protocol pass, reconciled below; iterations 2-6 = this protocol, same session).
+**Iteration:** 7 (iteration 1 = last session's pre-protocol pass, reconciled below; iterations 2-7 = this protocol, same session).
 
 ---
 
-## Scorecard (last updated: iteration 6)
+## Scorecard (last updated: iteration 7)
 
 | Area | Baseline | Now (est.) | Target | Weight |
 |---|---|---|---|---|
-| **Overall** | 64 (D+) | **~80** | ≥90 (A) | — |
-| Security | 46 (F) | ~76 | ≥90 | 25% |
-| Engineering | 74 (C) | ~82 | ≥90 | 20% |
+| **Overall** | 64 (D+) | **~82** | ≥90 (A) | — |
+| Security | 46 (F) | ~80 | ≥90 | 25% |
+| Engineering | 74 (C) | ~85 | ≥90 | 20% |
 | Backend/Supabase | 66 (D+) | ~89 | ≥90 | 15% |
 | UI/UX | 68 (C-) | 68 | ≥90 | 12% |
 | Product | 73 (C+) | 73 | ≥90 | 10% |
 | AI Agent System | 58 (D-) | ~70 | ≥90 | 10% |
 | App Store Readiness | 70 (C-) | ~82 | ≥90 | 8% |
 
-**Milestone: Phase 1 (Immediate Risks) is fully closed — all 15 items.** This is the biggest single driver of the Security/Backend jumps this iteration (payment tampering, the order-race, subscription-lapse, stranded-charge, and account-deletion findings all closed with real red/green evidence against the isolated Supabase branch — see LOG). Still not calling Security or Backend an "A": several Medium/Low findings remain open (see Phase 4 below) and none of these fixes have formal automated regression tests yet, only live red/green verification done during this pass (see Observed section).
+**Milestone: Phase 1 (Immediate Risks) is fully closed — all 15 items.** This is the biggest single driver of the Security/Backend jumps this iteration (payment tampering, the order-race, subscription-lapse, stranded-charge, and account-deletion findings all closed with real red/green evidence against the isolated Supabase branch — see LOG). Still not calling Security or Backend an "A": several Low findings remain open and none of these fixes have formal automated regression tests yet, only live red/green verification done during this pass (see Observed section).
 
 **Milestone: Phase 2 (Must-Fix-if-Apple-Rejects-Again) is 4/6 closed** — MFR-5 (privacy manifest), MFR-4 (Crashlytics), MFR-3 (background-location descope), and MFR-1 (pre-upload checklist script) all closed this iteration, each verified with a real `flutter build ios --debug --simulator --no-codesign` (or, for MFR-1, a real script run) rather than guessed. This is the driver of the App Store Readiness bump. Remaining: MFR-2 and MFR-6 are process/watch items, not code (see below) — Phase 2 is effectively code-complete pending those.
 
-**Milestone: Phase 3 (Quick Wins) is fully closed.** QW-3 (fail-open `SubscriptionStatus` default — a real security-relevant client-side gap, fixed alongside Phase 1's server-side subscription work), QW-4 (`.autoDispose` on all 19 flagged providers, including `pendingBookingCountProvider` — the single highest-leverage fix in the whole audit), QW-5 (2 dead files + 4 unused packages removed), QW-6 (`onboarding.png` recompressed 1.8MB→512KB, `icon.png` removed from the shipped bundle entirely) all closed this iteration. This is the driver of the Engineering jump (74→~82) and a further Security nudge (74→~76).
+**Milestone: Phase 3 (Quick Wins) is fully closed.** QW-3 (fail-open `SubscriptionStatus` default — a real security-relevant client-side gap, fixed alongside Phase 1's server-side subscription work), QW-4 (`.autoDispose` on all 19 flagged providers, including `pendingBookingCountProvider` — the single highest-leverage fix in the whole audit), QW-5 (2 dead files + 4 unused packages removed), QW-6 (`onboarding.png` recompressed 1.8MB→512KB, `icon.png` removed from the shipped bundle entirely) all closed this iteration.
+
+**Milestone: Phase 4 (Medium Improvements) is now fully closed** (with 2 items' scope honestly narrowed, not silently claimed — see checklist notes). MED-8 (session tokens now in Keychain/Keystore via `flutter_secure_storage`, closing security.md's last remaining Medium-High client-side finding), MED-9 (shared error/snackbar helper — all 64 raw call sites migrated, not just a sample), MED-11 (2 of `truck_profile_screen.dart`'s 5 fan-out providers combined into 1 round trip), MED-12 (map clustering memoized + debounced, also fixing a live-observed stacked-pin bug) all closed this iteration. This is the driver of the Engineering jump (~82→~85) and the Security jump (~76→~80).
 
 These are rough re-estimates, not a formal re-audit — treat with the same skepticism the rest of this doc asks you to apply to the original citations.
 
@@ -69,7 +71,7 @@ Canonical IDs follow `FARLO_FINAL_AUDIT.md`'s Top 20 numbering where an item app
 - [x] QW-9 Remove `RESEND_API_KEY` from client `.env.json` — closed iteration 1
 - [x] QW `PrivacyInfo.xcprivacy` — see MFR-5 above
 
-### Phase 4 — Medium Improvements
+### Phase 4 — Medium Improvements — ✅ ALL CLOSED (2 with narrowed scope, see notes)
 - [x] MED server-side amount recomputation — see #1 above
 - [x] MED ownership/`WITH CHECK` fixes — see #2/#8 above
 - [x] MED-3 `menu-item-photos` storage policy scoping — see #9 above
@@ -77,14 +79,14 @@ Canonical IDs follow `FARLO_FINAL_AUDIT.md`'s Top 20 numbering where an item app
 - [x] MED agent sender-check fixes — see #4/#5 above
 - [x] MED-6 Idempotency key + order-cancel precondition — see #13/#14 above. **Not fully done: "compensating refund/alert" half of this item (auto-refund if placeOrder fails after charge) was not implemented — the fix instead makes retry safe via idempotency, which resolves the same user-facing harm via a different mechanism. Note this explicitly rather than silently claim the original sub-item.**
 - [x] MED-7 Subscription-status check in payment functions + `fetchActiveTrucks` filter — see #15 above
-- [ ] MED-8 `flutter_secure_storage` wiring — not started
-- [ ] MED-9 Crash reporting (done, see MFR-4 above) + shared error/snackbar helper (not started) — split item, only half closed
+- [x] MED-8 `flutter_secure_storage` wiring — closed iteration 7, see LOG
+- [x] MED-9 Crash reporting (see MFR-4 above) + shared error/snackbar helper — closed iteration 7, see LOG. All 64 raw call sites migrated (full scope, not a partial sample).
 - [x] MED-10 `delete-account` transactional fix — see #7 above. **Storage-object cleanup (avatar/truck photos) still not done — separate gap, needs Storage API calls from the Edge Function, noted in LOG.**
-- [ ] MED-11 Batch `truck_profile_screen.dart`'s 6 round-trips — not started
-- [ ] MED-12 Memoize map screen clustering (= #18) — not started
+- [x] MED-11 Batch `truck_profile_screen.dart`'s 6 round-trips — closed iteration 7, see LOG. **Narrowed scope: only 2 of 5 fan-out providers (reviews + myReview) combined into 1 round trip — `truckFollowerCountProvider`/`announcementPrefProvider` deliberately left separate (isolated widgets with independent graceful-loading UX; combining would regress that), `foodTruckProvider` left separate (primary data + its own realtime subscription). A full server-side RPC/view remains the more complete fix, not done.**
+- [x] MED-12 Memoize map screen clustering (= #18) — closed iteration 7, see LOG. Also fixed the live-observed stacked-pin bug (same root cause).
 - [x] MED-13 Materialize migrations into git — closed iteration 1
 
-### Phase 5 — Major Architecture Improvements (still blocked: Phase 2 not started — Hard Stop #5)
+### Phase 5 — Major Architecture Improvements (blocked — Hard Stop #5, see judgment-call note below)
 - [ ] ARCH-1 Domain/data-model layer separation — not started
 - [ ] ARCH-2 Testing seam/mocking infrastructure — not started (prerequisite for rigorous automated regression tests on every item closed via live/branch verification so far — see Observed section)
 - [ ] ARCH-3 Codebase-wide pagination + timeout pattern (= #17) — not started
@@ -122,6 +124,10 @@ Canonical IDs follow `FARLO_FINAL_AUDIT.md`'s Top 20 numbering where an item app
 - Stripe `Idempotency-Key` header behavior (#14) was not exercised against a real/test Stripe account — no Stripe test credentials configured on the branch. Standard, well-documented Stripe behavior, but flagged as lower-confidence than this pass's other items.
 - MED-6's "compensating refund/alert" sub-item and MED-10's storage-object-cleanup sub-item were each explicitly *not* done as part of closing their parent items — see the Phase 4 checklist notes above. Don't let the parent checkbox imply full scope was covered.
 
+## Judgment call, surfaced rather than silently decided
+
+Hard Stop #5's literal wording is "merging Phase 5 before Phases 1-2 close" — Phase 1 is fully closed, Phase 2 is code-complete (4/6) with the 2 remaining items (MFR-2, MFR-6) being pure process/watch items with no code to write. Whether that counts as Phase 2 having "closed" for the purpose of unblocking Phase 5 work is genuinely ambiguous and reads like exactly the kind of call this protocol wants surfaced rather than assumed. Treating it conservatively for now: not starting Phase 5 (Major Architecture) work without your confirmation, since those are the largest, highest-blast-radius items in the whole roadmap (domain-layer separation, testing infrastructure, decomposing 6 god screens, image pipeline rebuild, agent trust-boundary library) and the cost of pausing to ask is low relative to the cost of a wrong call there. Proceeding instead to Phase 6 (non-code deliverables), which Hard Stop #5 doesn't mention at all and carries none of that risk.
+
 ## Next action
 
-Phase 2 and Phase 3 are both code-complete. Move to Phase 4's remaining items: MED-8 (`flutter_secure_storage` wiring), MED-9's shared error/snackbar helper half (crash reporting half already done via MFR-4), MED-11 (batch `truck_profile_screen.dart`'s 6 round-trips), MED-12 (memoize map screen clustering, = #18 — also closes a live-observed UX bug per performance.md §2). None of these need the Supabase branch. After Phase 4, Phase 5 (Major Architecture) remains blocked by Hard Stop #5 until Phase 2's remaining process items (MFR-2, MFR-6) are formally closed at resubmission time — treat as effectively unblockable for code work purposes right now.
+Phase 2, 3, and 4 are all code-complete/closed. Phase 5 is paused on the judgment call above — flagging for your input, not blocking further autonomous work. Moving to Phase 6 (non-code deliverables): P6-1 (cold-start GTM memo), P6-2 (accessibility roadmap), P6-3 (agent architecture decision doc, = ARCH-7). These are documents, not code — no branch, no build/analyze verification needed, and not gated by Hard Stop #5.
