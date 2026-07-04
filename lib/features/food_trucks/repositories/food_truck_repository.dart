@@ -62,21 +62,26 @@ class FoodTruckRepository {
         .eq('id', id);
   }
 
-  // Operating hours — upsert per day
-  Future<void> upsertOperatingHours(String truckId, int dayOfWeek, {
-    required bool isClosed,
-    String? openTime,
-    String? closeTime,
-  }) async {
-    await _supabase
-        .from(SupabaseConstants.operatingHoursTable)
-        .upsert({
-          'truck_id': truckId,
-          'day_of_week': dayOfWeek,
-          'is_closed': isClosed,
-          'open_time': isClosed ? null : openTime,
-          'close_time': isClosed ? null : closeTime,
-        }, onConflict: 'truck_id,day_of_week');
+  // Operating hours — all 7 days upserted in one call instead of one
+  // round-trip per day (code-quality.md §2.8/§2.15 — was the only N+1
+  // write-loop pattern found in the codebase, and non-atomic: a failure
+  // partway through used to leave some days saved and others not).
+  Future<void> upsertOperatingHoursBatch(
+    String truckId,
+    Map<int, ({bool isClosed, String? openTime, String? closeTime})> entries,
+  ) async {
+    await _supabase.from(SupabaseConstants.operatingHoursTable).upsert(
+          entries.entries
+              .map((e) => {
+                    'truck_id': truckId,
+                    'day_of_week': e.key,
+                    'is_closed': e.value.isClosed,
+                    'open_time': e.value.isClosed ? null : e.value.openTime,
+                    'close_time': e.value.isClosed ? null : e.value.closeTime,
+                  })
+              .toList(),
+          onConflict: 'truck_id,day_of_week',
+        );
   }
 
   // Menu items

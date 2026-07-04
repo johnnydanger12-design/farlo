@@ -40,15 +40,14 @@ class _ManageHoursScreenState extends ConsumerState<ManageHoursScreen> {
     setState(() => _saving = true);
     try {
       final repo = ref.read(foodTruckRepositoryProvider);
-      for (final entry in _entries.entries) {
-        await repo.upsertOperatingHours(
-          truck.id,
-          entry.key,
-          isClosed: entry.value.isClosed,
-          openTime: entry.value.openTime,
-          closeTime: entry.value.closeTime,
-        );
-      }
+      await repo.upsertOperatingHoursBatch(
+        truck.id,
+        _entries.map((day, entry) => MapEntry(day, (
+          isClosed: entry.isClosed,
+          openTime: entry.openTime,
+          closeTime: entry.closeTime,
+        ))),
+      );
       await ref.read(ownerTruckProvider.notifier).refresh();
       if (mounted) {
         context.showSuccess('Hours saved!', duration: const Duration(seconds: 2), backgroundColor: AppColors.openGreen);
