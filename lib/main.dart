@@ -1,5 +1,7 @@
 import 'dart:io';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
@@ -43,6 +45,18 @@ Future<void> main() async {
   if (Firebase.apps.isEmpty) {
     await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   }
+
+  // Crash visibility gap: two of three prior App Store rejections were only
+  // diagnosable because Apple happened to attach screenshots — there was no
+  // server-side signal at all if the app crashed on a reviewer's or user's
+  // device (app-store-review.md Finding 8.1). Disabled in debug so local
+  // development crashes don't pollute the production Crashlytics dashboard.
+  await FirebaseCrashlytics.instance.setCrashlyticsCollectionEnabled(!kDebugMode);
+  FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
+  PlatformDispatcher.instance.onError = (error, stack) {
+    FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+    return true;
+  };
 
   final rcKey = Platform.isIOS ? _rcAppleKey : _rcGoogleKey;
   if (rcKey.isNotEmpty) {
