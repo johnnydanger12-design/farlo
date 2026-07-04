@@ -8,22 +8,24 @@ Working branch: `remediation/farlo-a-grade`. Supabase test branch: `remediation`
 
 ---
 
-## Scorecard (last updated: iteration 9, third update)
+## Scorecard (last updated: iteration 9, fourth update)
 
 | Area | Baseline | Now (est.) | Target | Weight |
 |---|---|---|---|---|
-| **Overall** | 64 (D+) | **~88** | ≥90 (A), Product excluded | — |
-| Security | 46 (F) | ~85 | ≥90 | 25% |
+| **Overall** | 64 (D+) | **~89** | ≥90 (A), Product excluded | — |
+| Security | 46 (F) | ~87 | ≥90 | 25% |
 | Engineering | 74 (C) | ~88 | ≥90 | 20% |
 | Backend/Supabase | 66 (D+) | ~91 | ≥90 | 15% |
 | UI/UX | 68 (C-) | ~87 | ≥90 | 12% |
 | Product | 73 (C+) | 73 | excluded, see Goal above | 10% |
-| AI Agent System | 58 (D-) | ~70 | ≥90 | 10% |
+| AI Agent System | 58 (D-) | ~80 | ≥90 | 10% |
 | App Store Readiness | 70 (C-) | ~85 | ≥90 | 8% |
 
 **Milestone: ARCH-2 (3/4 targets) + ARCH-3 (limits + timeouts across all 13 repositories) + the truck-logos/truck-photos storage gap all closed this iteration**, driving Security ~81→~85, Engineering ~86→~88, Backend ~89→~91 (first category to cross the ≥90 bar, pending the founder's independent re-audit).
 
-**Milestone: the full accessibility roadmap (all 20 items + the bonus swipe-to-delete alternative) closed this iteration**, driving UI/UX 68→~87 — the single largest jump of any category, closing `ux-review.md`'s F/30 accessibility grade. Not calling this a full "A" yet: `ux-review.md`'s other findings (motion/haptics, 116+27 raw color literals bypassing the theme system, remaining touch-target-adjacent polish) weren't in scope for this pass and would need their own item to fully close the category. AI Agent System is the last untouched category — needs `ai-agents.md` §7's recommendations, not started yet.
+**Milestone: the full accessibility roadmap (all 20 items + the bonus swipe-to-delete alternative) closed this iteration**, driving UI/UX 68→~87 — the single largest jump of any category, closing `ux-review.md`'s F/30 accessibility grade. Not calling this a full "A" yet: `ux-review.md`'s other findings (motion/haptics, 116+27 raw color literals bypassing the theme system, remaining touch-target-adjacent polish) weren't in scope for this pass and would need their own item to fully close the category.
+
+**Milestone: 2 of `ai-agents.md` §7's 6 recommendations closed this iteration** — untrusted-input framing (#2, closing a real prompt-injection surface across 5 agent functions) and a shared Aiden prompt/persona layer (#3). Driving both Security (~85→~87, the injection-framing fix) and AI Agent System (~70→~80, both fixes). **Narrowed scope, honestly flagged:** #5 (per-function credentials — only the shared-bearer-token half is in scope without external GCP/Workspace action; not yet done, see Phase 5 checklist), #6 (observability/tracing beyond `agent_run_log`), #7 (unified tool registry), and #8 (watch-the-watchdog, needs an external monitoring service) remain open. AI Agent System is closer to the bar but not confirmed at 90 yet.
 
 **Milestone: Phase 1 (Immediate Risks) is fully closed — all 15 items.** This is the biggest single driver of the Security/Backend jumps this iteration (payment tampering, the order-race, subscription-lapse, stranded-charge, and account-deletion findings all closed with real red/green evidence against the isolated Supabase branch — see LOG). Still not calling Security or Backend an "A": several Low findings remain open and none of these fixes have formal automated regression tests yet, only live red/green verification done during this pass (see Observed section).
 
@@ -100,7 +102,7 @@ Canonical IDs follow `FARLO_FINAL_AUDIT.md`'s Top 20 numbering where an item app
 - [x] ARCH-3 Codebase-wide pagination + timeout pattern (= #17) — closed iteration 9, see LOG. `.limit(200)` added to the 4 originally-unbounded queries; new shared `withNetworkTimeout` extension applied across all 13 repository files (~90 call sites). **Narrowed scope: the 4 confirmed eager `ListView(children:)` sites (dashboard/order_queue/my_orders/booking_requests screens) were not converted to `.builder()`** — each mixes static headers/empty-states with mapped content, a real per-screen restructuring job, and at today's data volumes the audit itself frames this as "latent-until-scale, not today's problem." Flagged as remaining backlog, not attempted.
 - [ ] ARCH-4 Decompose six god screens — not started
 - [ ] ARCH-5 Rebuild image pipeline — not started
-- [ ] ARCH-6 AI agent trust-boundary shared library — not started
+- [x] ARCH-6 AI agent trust-boundary shared library — **2 of 6 sub-items closed iteration 9**, see LOG (`_shared/prompt-boundaries.ts` untrusted-input wrapping across 5 functions, `_shared/aiden-persona.ts` shared directive/persona layer). Remaining, explicitly deferred: per-function bearer secrets (partially external-action-free, not attempted yet), a real observability/tracing layer, a unified tool registry, and watch-the-watchdog (needs an external monitoring service, similar in kind to Hard Stop #1).
 - [x] ARCH-7 Agent dispatcher-vs-cron decision doc (= P6-3) — closed iteration 7, see LOG
 
 ### Phase 6 — Non-code deliverables — ✅ ALL CLOSED
