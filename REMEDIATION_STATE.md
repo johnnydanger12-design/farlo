@@ -93,12 +93,12 @@ Canonical IDs follow `FARLO_FINAL_AUDIT.md`'s Top 20 numbering where an item app
 - [ ] ARCH-4 Decompose six god screens — not started
 - [ ] ARCH-5 Rebuild image pipeline — not started
 - [ ] ARCH-6 AI agent trust-boundary shared library — not started
-- [ ] ARCH-7 Agent dispatcher-vs-cron decision doc (= P6-3) — not started
+- [x] ARCH-7 Agent dispatcher-vs-cron decision doc (= P6-3) — closed iteration 7, see LOG
 
-### Phase 6 — Non-code deliverables
-- [ ] P6-1 Cold-start GTM memo — not started
-- [ ] P6-2 Accessibility roadmap (15-20 highest-traffic controls, priority order) — not started
-- [ ] P6-3 Agent architecture decision doc — see ARCH-7 above
+### Phase 6 — Non-code deliverables — ✅ ALL CLOSED
+- [x] P6-1 Cold-start GTM memo — closed iteration 7, see `audit/cold_start_gtm_memo.md`
+- [x] P6-2 Accessibility roadmap (15-20 highest-traffic controls, priority order) — closed iteration 7, see `audit/accessibility_roadmap.md`
+- [x] P6-3 Agent architecture decision doc — closed iteration 7, see `audit/agent_architecture_decision.md`
 
 ---
 
@@ -130,4 +130,12 @@ Hard Stop #5's literal wording is "merging Phase 5 before Phases 1-2 close" — 
 
 ## Next action
 
-Phase 2, 3, and 4 are all code-complete/closed. Phase 5 is paused on the judgment call above — flagging for your input, not blocking further autonomous work. Moving to Phase 6 (non-code deliverables): P6-1 (cold-start GTM memo), P6-2 (accessibility roadmap), P6-3 (agent architecture decision doc, = ARCH-7). These are documents, not code — no branch, no build/analyze verification needed, and not gated by Hard Stop #5.
+**Every autonomously-actionable item in Phases 1-4 and 6 is now closed.** What remains needs your input, not further unattended work:
+
+1. **The Phase 5 judgment call** (see above) — whether Phase 2's code-complete-but-2-process-items-open state counts as "closed" for Hard Stop #5's purposes. If you say go ahead, Phase 5 (Major Architecture: domain-layer separation, testing infrastructure, decomposing 6 god screens, image pipeline, agent trust-boundary library) is the largest remaining body of work and should probably be scoped/sequenced with you rather than started blind.
+2. **Hard Stop #1** — `GOOGLE_PLACES_API_KEY` rotation in Google Cloud Console (yours to do; give me the new value to set as the Edge Function secret once rotated).
+3. **MFR-2** (App Review Notes confirmation) and **MFR-6** (Ad Boost payment-model guardrail, watch item) — process items, revisit at resubmission time / if Ad Boost work starts.
+4. **The `cold_start_gtm_memo.md` open questions** (launch city, pricing-sequencing option) and **`agent_architecture_decision.md`'s recommendation** (formalize vs. build a dispatcher) — both are explicitly your calls, not mine.
+5. **Hard Stop #6** — App Store resubmission, once you're satisfied with where things stand.
+
+Not blocking on any of these — just nothing left that's mine to decide or build without one of the above.

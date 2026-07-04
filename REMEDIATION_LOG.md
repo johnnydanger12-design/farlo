@@ -211,3 +211,18 @@ All four remaining Quick Wins items are self-contained Dart/asset/pubspec change
 ---
 
 **Phase 4 (Medium Improvements) is now fully closed** — all 13 items across Phases 1 and 4's combined numbering (some items are cross-referenced from Phase 1, per the checklist). Two items (MED-6, MED-11) have explicitly narrowed scope, documented above and in `REMEDIATION_STATE.md` rather than silently claimed as fully done. Phase 5 (Major Architecture) is paused on a genuine judgment call about Hard Stop #5's exact scope — see `REMEDIATION_STATE.md`'s "Judgment call" section — pending your input. Moving to Phase 6 (non-code deliverables) instead, which isn't blocked by Hard Stop #5.
+
+---
+
+## Iteration 7 (continued) — Phase 6 (non-code deliverables) closes
+
+**P6-1 / P6-2 / P6-3.** Citation: `product-review.md` §5, `ux-review.md` §5 Recommendation #5, `ai-agents.md` §7. Files: new `audit/cold_start_gtm_memo.md`, `audit/accessibility_roadmap.md`, `audit/agent_architecture_decision.md`.
+
+- These are synthesis/decision documents, not code — "Green" for this kind of item is internal consistency with the source audit citations, not `flutter analyze`/a build. Each document explicitly separates "recommendation" from "decision," since city selection, pricing changes, and the dispatcher-vs-cron architecture call are all business/architecture decisions that belong to you, not something this pass should decide unilaterally — consistent with how every other genuinely ambiguous call in this session (Supabase branch vs. live project, App Store submission handling) was surfaced via a question rather than assumed.
+- `accessibility_roadmap.md` specifically: compiled a concrete, file:line-cited list of 20 controls (matching the audit's own "~15-20" framing) from citations scattered across 15+ per-screen sections of `ux-review.md`, tiered by severity (destructive/paid actions first) rather than left as a generic "add accessibility" note.
+- **Commit:** `6796a91`.
+- **Residual work, explicitly not done here:** none of the three documents' recommendations were implemented — that's the point of a Phase 6 deliverable (a plan, not a change) — but `accessibility_roadmap.md`'s 20 items are scoped precisely enough to become real Fix-Protocol items in a future pass without re-deriving the list from the audit reports again.
+
+---
+
+**Phase 6 (non-code deliverables) is now fully closed.** Every autonomously-actionable item across Phases 1, 2 (code portion), 3, 4, and 6 is closed as of this iteration. What remains (Phase 5's start/no-start judgment call, Hard Stop #1's key rotation, MFR-2/MFR-6's process items, the GTM memo's and agent-architecture doc's open business/architecture decisions, and Hard Stop #6's resubmission) all genuinely need your input — see `REMEDIATION_STATE.md`'s "Next action" section for the full list.
