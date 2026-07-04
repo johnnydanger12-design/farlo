@@ -222,20 +222,28 @@ class _CartItemRow extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: 10),
       child: Row(
         children: [
-          GestureDetector(
-            onTap: () => notifier.remove(cartItem.menuItemId),
-            child: Icon(
-              cartItem.quantity == 1 ? Icons.delete_outline : Icons.remove_circle_outline,
-              size: 20,
-              color: cartItem.quantity == 1 ? AppColors.error : AppColors.textSecondary,
+          Semantics(
+            label: cartItem.quantity == 1 ? 'Remove item' : 'Decrease quantity',
+            button: true,
+            child: GestureDetector(
+              onTap: () => notifier.remove(cartItem.menuItemId),
+              child: Icon(
+                cartItem.quantity == 1 ? Icons.delete_outline : Icons.remove_circle_outline,
+                size: 20,
+                color: cartItem.quantity == 1 ? AppColors.error : AppColors.textSecondary,
+              ),
             ),
           ),
           const SizedBox(width: 10),
           Text('${cartItem.quantity}', style: AppTextStyles.label),
           const SizedBox(width: 10),
-          GestureDetector(
-            onTap: () => notifier.add(cartItem),
-            child: const Icon(Icons.add_circle_outline, size: 20, color: AppColors.textSecondary),
+          Semantics(
+            label: 'Increase quantity',
+            button: true,
+            child: GestureDetector(
+              onTap: () => notifier.add(cartItem),
+              child: const Icon(Icons.add_circle_outline, size: 20, color: AppColors.textSecondary),
+            ),
           ),
           const SizedBox(width: AppSpacing.md),
           Expanded(child: Text(cartItem.name, style: AppTextStyles.bodySmall)),

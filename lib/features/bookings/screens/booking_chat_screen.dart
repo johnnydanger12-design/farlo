@@ -381,21 +381,25 @@ class _SendButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: sending ? null : onTap,
-      child: Container(
-        width: 40,
-        height: 40,
-        decoration: BoxDecoration(
-          color: AppColors.primary,
-          shape: BoxShape.circle,
+    return Semantics(
+      label: 'Send message',
+      button: true,
+      child: GestureDetector(
+        onTap: sending ? null : onTap,
+        child: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: AppColors.primary,
+            shape: BoxShape.circle,
+          ),
+          child: sending
+              ? const Padding(
+                  padding: EdgeInsets.all(10),
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                )
+              : const Icon(Icons.send_rounded, color: Colors.white, size: 18),
         ),
-        child: sending
-            ? const Padding(
-                padding: EdgeInsets.all(10),
-                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-              )
-            : const Icon(Icons.send_rounded, color: Colors.white, size: 18),
       ),
     );
   }

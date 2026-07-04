@@ -268,15 +268,20 @@ class _HeartButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 200),
-        child: Icon(
-          isFav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-          key: ValueKey(isFav),
-          color: isFav ? Colors.red : AppColors.textHint,
-          size: 24,
+    return Semantics(
+      label: isFav ? 'Remove from favorites' : 'Add to favorites',
+      button: true,
+      toggled: isFav,
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 200),
+          child: Icon(
+            isFav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+            key: ValueKey(isFav),
+            color: isFav ? Colors.red : AppColors.textHint,
+            size: 24,
+          ),
         ),
       ),
     );

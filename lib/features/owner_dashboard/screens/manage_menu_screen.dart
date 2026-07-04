@@ -254,22 +254,25 @@ class _MenuItemTile extends StatelessWidget {
           trailing: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Switch(
-                value: item.isAvailable,
-                onChanged: onToggleAvailable,
-                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              Semantics(
+                label: '${item.name} available',
+                toggled: item.isAvailable,
+                child: Switch(
+                  value: item.isAvailable,
+                  onChanged: onToggleAvailable,
+                ),
               ),
               IconButton(
                 icon: const Icon(Icons.edit_outlined, size: 18),
                 color: AppColors.textSecondary,
                 onPressed: onEdit,
-                visualDensity: VisualDensity.compact,
+                tooltip: 'Edit ${item.name}',
               ),
               IconButton(
                 icon: const Icon(Icons.delete_outline, size: 18),
                 color: AppColors.error,
                 onPressed: onDelete,
-                visualDensity: VisualDensity.compact,
+                tooltip: 'Delete ${item.name}',
               ),
             ],
           ),

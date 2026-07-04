@@ -241,6 +241,9 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
                     if (ref.watch(favoritedTruckIdsProvider).asData?.value.contains(truck.id) ?? false)
                       _AnnouncementBellButton(truckId: truck.id),
                     IconButton(
+                      tooltip: (ref.watch(favoritedTruckIdsProvider).asData?.value.contains(truck.id) ?? false)
+                          ? 'Remove from favorites'
+                          : 'Add to favorites',
                       icon: AnimatedSwitcher(
                         duration: const Duration(milliseconds: 200),
                         child: Icon(
@@ -1059,34 +1062,38 @@ class _AddButton extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final primary = Theme.of(context).colorScheme.primary;
 
-    return GestureDetector(
-      onTap: () => _tryAddToCart(context, ref, CartItem(
-        menuItemId: item.id,
-        name: item.name,
-        price: item.price,
-        quantity: 1,
-      )),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: qty == 0
-            ? const EdgeInsets.all(4)
-            : const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: primary,
-          borderRadius: BorderRadius.circular(20),
+    return Semantics(
+      label: qty == 0 ? 'Add ${item.name} to order' : 'Add another ${item.name}, $qty in order',
+      button: true,
+      child: GestureDetector(
+        onTap: () => _tryAddToCart(context, ref, CartItem(
+          menuItemId: item.id,
+          name: item.name,
+          price: item.price,
+          quantity: 1,
+        )),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: qty == 0
+              ? const EdgeInsets.all(4)
+              : const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: primary,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: qty == 0
+              ? const Icon(Icons.add, size: 14, color: Colors.white)
+              : Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.add, size: 11, color: Colors.white),
+                    const SizedBox(width: 3),
+                    Text('$qty',
+                        style: const TextStyle(
+                            color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)),
+                  ],
+                ),
         ),
-        child: qty == 0
-            ? const Icon(Icons.add, size: 14, color: Colors.white)
-            : Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.add, size: 11, color: Colors.white),
-                  const SizedBox(width: 3),
-                  Text('$qty',
-                      style: const TextStyle(
-                          color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)),
-                ],
-              ),
       ),
     );
   }

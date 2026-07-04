@@ -943,12 +943,14 @@ class _TimelineView extends StatelessWidget {
                     children: [
                       _MiniButton(
                         label: '✓',
+                        semanticLabel: 'Accept shift',
                         color: AppColors.openGreen,
                         onTap: () => onRespondScheduled!(s, 'accepted'),
                       ),
                       const SizedBox(width: 4),
                       _MiniButton(
                         label: '✗',
+                        semanticLabel: 'Decline shift',
                         color: AppColors.closedRed,
                         onTap: () => onRespondScheduled!(s, 'declined'),
                       ),
@@ -1059,20 +1061,25 @@ class _TimelineBlock extends StatelessWidget {
 }
 
 class _MiniButton extends StatelessWidget {
-  const _MiniButton({required this.label, required this.color, required this.onTap});
+  const _MiniButton({required this.label, required this.semanticLabel, required this.color, required this.onTap});
   final String label;
+  final String semanticLabel;
   final Color color;
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => GestureDetector(
-        onTap: onTap,
-        child: Container(
-          width: 24, height: 24,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-          alignment: Alignment.center,
-          child: Text(label,
-              style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)),
+  Widget build(BuildContext context) => Semantics(
+        label: semanticLabel,
+        button: true,
+        child: GestureDetector(
+          onTap: onTap,
+          child: Container(
+            width: 24, height: 24,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            alignment: Alignment.center,
+            child: Text(label,
+                style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)),
+          ),
         ),
       );
 }

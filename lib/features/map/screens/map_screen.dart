@@ -842,9 +842,13 @@ class _SearchBar extends StatelessWidget {
             ),
           ),
           if (controller.text.isNotEmpty) ...[
-            GestureDetector(
-              onTap: onClear,
-              child: const Icon(Icons.close, color: AppColors.textHint, size: 18),
+            Semantics(
+              label: 'Clear search',
+              button: true,
+              child: GestureDetector(
+                onTap: onClear,
+                child: const Icon(Icons.close, color: AppColors.textHint, size: 18),
+              ),
             ),
             const SizedBox(width: 14),
           ],

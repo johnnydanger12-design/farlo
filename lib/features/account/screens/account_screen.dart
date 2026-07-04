@@ -579,12 +579,12 @@ class _ProfileTileState extends ConsumerState<_ProfileTile> {
                 Row(
                   children: [
                     Expanded(child: Text(widget.name, style: AppTextStyles.heading3)),
-                    GestureDetector(
-                      onTap: widget.onEditName,
-                      child: const Padding(
-                        padding: EdgeInsets.only(left: 4),
-                        child: Icon(Icons.edit_outlined, size: 16, color: AppColors.textHint),
-                      ),
+                    IconButton(
+                      onPressed: widget.onEditName,
+                      tooltip: 'Edit name',
+                      icon: const Icon(Icons.edit_outlined, size: 16, color: AppColors.textHint),
+                      constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+                      padding: EdgeInsets.zero,
                     ),
                   ],
                 ),
@@ -679,7 +679,7 @@ class _AppearanceTile extends ConsumerWidget {
                 children: [
                   Text('Appearance', style: AppTextStyles.heading3),
                   const Spacer(),
-                  IconButton(icon: const Icon(Icons.close), visualDensity: VisualDensity.compact, onPressed: () => Navigator.pop(ctx)),
+                  IconButton(icon: const Icon(Icons.close), tooltip: 'Close', onPressed: () => Navigator.pop(ctx)),
                 ],
               ),
               const SizedBox(height: AppSpacing.md),
@@ -807,7 +807,7 @@ class _NotificationsDialog extends ConsumerWidget {
               children: [
                 Text('Notifications', style: AppTextStyles.heading3),
                 const Spacer(),
-                IconButton(icon: const Icon(Icons.close), visualDensity: VisualDensity.compact, onPressed: () => Navigator.pop(context)),
+                IconButton(icon: const Icon(Icons.close), tooltip: 'Close', onPressed: () => Navigator.pop(context)),
               ],
             ),
             const SizedBox(height: AppSpacing.sm),
@@ -933,7 +933,7 @@ class _ChangeNameDialogState extends State<_ChangeNameDialog> {
               children: [
                 Text('Change Name', style: AppTextStyles.heading3),
                 const Spacer(),
-                IconButton(icon: const Icon(Icons.close), visualDensity: VisualDensity.compact, onPressed: _loading ? null : () => Navigator.pop(context)),
+                IconButton(icon: const Icon(Icons.close), tooltip: 'Close', onPressed: _loading ? null : () => Navigator.pop(context)),
               ],
             ),
             const SizedBox(height: AppSpacing.md),
@@ -1014,7 +1014,7 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
               children: [
                 Text('Change Password', style: AppTextStyles.heading3),
                 const Spacer(),
-                IconButton(icon: const Icon(Icons.close), visualDensity: VisualDensity.compact, onPressed: _loading ? null : () => Navigator.pop(context)),
+                IconButton(icon: const Icon(Icons.close), tooltip: 'Close', onPressed: _loading ? null : () => Navigator.pop(context)),
               ],
             ),
             const SizedBox(height: AppSpacing.md),
@@ -1115,7 +1115,7 @@ class _DeleteAccountDialogState extends State<_DeleteAccountDialog> {
               children: [
                 Text('Delete Account', style: AppTextStyles.heading3),
                 const Spacer(),
-                IconButton(icon: const Icon(Icons.close), visualDensity: VisualDensity.compact, onPressed: _loading ? null : () => Navigator.pop(context)),
+                IconButton(icon: const Icon(Icons.close), tooltip: 'Close', onPressed: _loading ? null : () => Navigator.pop(context)),
               ],
             ),
             const SizedBox(height: AppSpacing.md),

@@ -180,7 +180,7 @@ class _EmployeesListState extends ConsumerState<_EmployeesList> {
                     children: [
                       Text('Add Employee', style: AppTextStyles.heading3),
                       const Spacer(),
-                      IconButton(icon: const Icon(Icons.close), visualDensity: VisualDensity.compact, onPressed: () => Navigator.pop(ctx)),
+                      IconButton(icon: const Icon(Icons.close), tooltip: 'Close', onPressed: () => Navigator.pop(ctx)),
                     ],
                   ),
                   const SizedBox(height: AppSpacing.md),

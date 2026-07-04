@@ -154,11 +154,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   alignment: Alignment.centerRight,
                   child: TextButton(
                     onPressed: () => _showForgotPasswordDialog(context),
-                    style: TextButton.styleFrom(
-                      padding: EdgeInsets.zero,
-                      minimumSize: const Size(0, 36),
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
                     child: const Text(
                       'Forgot password?',
                       style: TextStyle(fontSize: 13, color: AppColors.primary),
@@ -177,14 +172,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     const Text("Don't have an account? ", style: AppTextStyles.bodySmall),
-                    GestureDetector(
-                      onTap: () => context.go('/register'),
-                      child: const Text(
-                        'Sign up',
-                        style: TextStyle(
-                          color: AppColors.primary,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 13,
+                    Semantics(
+                      button: true,
+                      child: GestureDetector(
+                        onTap: () => context.go('/register'),
+                        child: const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 14),
+                          child: Text(
+                            'Sign up',
+                            style: TextStyle(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -195,14 +196,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     const Text('Have a business? ', style: AppTextStyles.bodySmall),
-                    GestureDetector(
-                      onTap: () => context.go('/register-owner'),
-                      child: const Text(
-                        'Get listed',
-                        style: TextStyle(
-                          color: AppColors.primary,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 13,
+                    Semantics(
+                      button: true,
+                      child: GestureDetector(
+                        onTap: () => context.go('/register-owner'),
+                        child: const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 14),
+                          child: Text(
+                            'Get listed',
+                            style: TextStyle(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -210,13 +217,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ),
                 const SizedBox(height: AppSpacing.lg),
                 Center(
-                  child: GestureDetector(
-                    onTap: () => context.go('/map'),
-                    child: const Text(
-                      'Browse as guest',
-                      style: TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 14,
+                  child: Semantics(
+                    button: true,
+                    child: GestureDetector(
+                      onTap: () => context.go('/map'),
+                      child: const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+                        child: Text(
+                          'Browse as guest',
+                          style: TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 14,
+                          ),
+                        ),
                       ),
                     ),
                   ),
