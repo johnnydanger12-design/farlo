@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../map/models/food_truck.dart';
 import '../../../core/constants/supabase_constants.dart';
+import '../../../core/extensions/future_timeout.dart';
 
 class FoodTruckRepository {
   FoodTruckRepository(this._supabase);
@@ -12,7 +13,8 @@ class FoodTruckRepository {
         .from(SupabaseConstants.foodTrucksTable)
         .select('*, operating_hours(*), menu_items(*)')
         .eq('id', id)
-        .single();
+        .single()
+        .withNetworkTimeout;
     return FoodTruck.fromMap(data);
   }
 
@@ -20,7 +22,8 @@ class FoodTruckRepository {
     final data = await _supabase
         .from(SupabaseConstants.foodTrucksTable)
         .select('*, operating_hours(*), menu_items(*)')
-        .eq('owner_id', ownerId);
+        .eq('owner_id', ownerId)
+        .withNetworkTimeout;
     return (data as List).map((e) => FoodTruck.fromMap(e as Map<String, dynamic>)).toList();
   }
 
@@ -28,7 +31,8 @@ class FoodTruckRepository {
     await _supabase
         .from(SupabaseConstants.foodTrucksTable)
         .update(fields)
-        .eq('id', id);
+        .eq('id', id)
+        .withNetworkTimeout;
   }
 
   Future<void> updateOpenStatus(String id, {required bool isOpen, String? userId}) async {
@@ -40,14 +44,16 @@ class FoodTruckRepository {
           'opened_by_user_id': isOpen ? userId : null,
           if (isOpen) 'has_ever_opened': true,
         })
-        .eq('id', id);
+        .eq('id', id)
+        .withNetworkTimeout;
   }
 
   Future<void> updateOrdersAccepting(String id, bool accepting) async {
     await _supabase
         .from(SupabaseConstants.foodTrucksTable)
         .update({'orders_accepting': accepting})
-        .eq('id', id);
+        .eq('id', id)
+        .withNetworkTimeout;
   }
 
   Future<void> updateLocation(String id, double lat, double lng, {String? address}) async {
@@ -59,7 +65,8 @@ class FoodTruckRepository {
           'location_updated_at': DateTime.now().toUtc().toIso8601String(),
           'address': address,
         })
-        .eq('id', id);
+        .eq('id', id)
+        .withNetworkTimeout;
   }
 
   // Operating hours — all 7 days upserted in one call instead of one
@@ -81,7 +88,7 @@ class FoodTruckRepository {
                   })
               .toList(),
           onConflict: 'truck_id,day_of_week',
-        );
+        ).withNetworkTimeout;
   }
 
   // Menu items
@@ -102,14 +109,14 @@ class FoodTruckRepository {
       'sort_order': sortOrder,
       'is_available': true,
       'image_url': ?imageUrl,
-    });
+    }).withNetworkTimeout;
   }
 
   Future<void> updateMenuItem(String itemId, Map<String, dynamic> fields) async {
-    await _supabase.from(SupabaseConstants.menuItemsTable).update(fields).eq('id', itemId);
+    await _supabase.from(SupabaseConstants.menuItemsTable).update(fields).eq('id', itemId).withNetworkTimeout;
   }
 
   Future<void> deleteMenuItem(String itemId) async {
-    await _supabase.from(SupabaseConstants.menuItemsTable).delete().eq('id', itemId);
+    await _supabase.from(SupabaseConstants.menuItemsTable).delete().eq('id', itemId).withNetworkTimeout;
   }
 }

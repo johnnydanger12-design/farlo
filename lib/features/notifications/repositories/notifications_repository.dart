@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/extensions/future_timeout.dart';
 import '../models/app_notification.dart';
 
 class NotificationsRepository {
@@ -12,7 +13,8 @@ class NotificationsRepository {
         .select()
         .eq('user_id', userId)
         .order('created_at', ascending: false)
-        .limit(100);
+        .limit(100)
+        .withNetworkTimeout;
     return (rows as List)
         .map((r) => AppNotification.fromMap(r as Map<String, dynamic>))
         .toList();
@@ -22,7 +24,8 @@ class NotificationsRepository {
     await _supabase
         .from('notifications')
         .update({'read': true})
-        .eq('id', notificationId);
+        .eq('id', notificationId)
+        .withNetworkTimeout;
   }
 
   Future<void> markAllRead(String userId) async {
@@ -30,7 +33,8 @@ class NotificationsRepository {
         .from('notifications')
         .update({'read': true})
         .eq('user_id', userId)
-        .eq('read', false);
+        .eq('read', false)
+        .withNetworkTimeout;
   }
 
   Future<void> markBookingNotificationsRead(String userId) async {
@@ -45,14 +49,16 @@ class NotificationsRepository {
           'deposit_paid',
           'invoice_paid',
           'booking_cancelled_by_consumer',
-        ]);
+        ])
+        .withNetworkTimeout;
   }
 
   Future<void> deleteNotification(String notificationId) async {
     await _supabase
         .from('notifications')
         .delete()
-        .eq('id', notificationId);
+        .eq('id', notificationId)
+        .withNetworkTimeout;
   }
 
   Stream<List<AppNotification>> streamNotifications(String userId) {

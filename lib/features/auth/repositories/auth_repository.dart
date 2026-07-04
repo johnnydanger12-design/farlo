@@ -6,6 +6,7 @@ import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/app_user.dart';
 import '../../../core/constants/supabase_constants.dart';
+import '../../../core/extensions/future_timeout.dart';
 
 const _googleWebClientId = String.fromEnvironment('GOOGLE_SIGN_IN_WEB_CLIENT_ID');
 
@@ -101,13 +102,15 @@ class AuthRepository {
         .from(SupabaseConstants.foodTrucksTable)
         .select('id')
         .eq('owner_id', uid)
-        .maybeSingle();
+        .maybeSingle()
+        .withNetworkTimeout;
 
     if (existing == null) {
       await _supabase
           .from(SupabaseConstants.profilesTable)
           .update({'role': 'owner'})
-          .eq('id', uid);
+          .eq('id', uid)
+          .withNetworkTimeout;
 
       await _supabase.from(SupabaseConstants.foodTrucksTable).insert({
         'owner_id': uid,
@@ -120,12 +123,12 @@ class AuthRepository {
         'address': ?address,
         'latitude': ?latitude,
         'longitude': ?longitude,
-      });
+      }).withNetworkTimeout;
 
       await _supabase.from(SupabaseConstants.subscriptionsTable).upsert(
         {'owner_id': uid, 'status': 'trialing'},
         onConflict: 'owner_id',
-      );
+      ).withNetworkTimeout;
     }
 
     return _fetchProfile(uid);
@@ -135,7 +138,7 @@ class AuthRepository {
     await _supabase.auth.resetPasswordForEmail(
       email.trim().toLowerCase(),
       redirectTo: 'com.farlo.app://reset-password',
-    );
+    ).withNetworkTimeout;
   }
 
   Future<void> changePassword({
@@ -144,32 +147,34 @@ class AuthRepository {
     required String newPassword,
   }) async {
     // Re-authenticate to verify the current password before allowing the change.
-    await _supabase.auth.signInWithPassword(email: email, password: currentPassword);
-    await _supabase.auth.updateUser(UserAttributes(password: newPassword));
+    await _supabase.auth.signInWithPassword(email: email, password: currentPassword).withNetworkTimeout;
+    await _supabase.auth.updateUser(UserAttributes(password: newPassword)).withNetworkTimeout;
   }
 
   Future<void> updateDisplayName(String userId, String displayName) async {
     await _supabase
         .from(SupabaseConstants.profilesTable)
         .update({'display_name': displayName})
-        .eq('id', userId);
+        .eq('id', userId)
+        .withNetworkTimeout;
   }
 
   Future<void> signOut() async {
-    await _supabase.auth.signOut();
+    await _supabase.auth.signOut().withNetworkTimeout;
   }
 
   Future<void> deleteAccount() async {
-    await _supabase.functions.invoke('delete-account');
+    await _supabase.functions.invoke('delete-account').withNetworkTimeout;
     // Session is invalidated server-side; clear local state only.
-    await _supabase.auth.signOut(scope: SignOutScope.local);
+    await _supabase.auth.signOut(scope: SignOutScope.local).withNetworkTimeout;
   }
 
   Future<String> updateAvatar(String userId, Uint8List bytes) async {
     await _supabase.storage
         .from('avatars')
         .uploadBinary(userId, bytes,
-            fileOptions: const FileOptions(upsert: true, contentType: 'image/jpeg'));
+            fileOptions: const FileOptions(upsert: true, contentType: 'image/jpeg'))
+        .withNetworkTimeout;
 
     // Append timestamp so CachedNetworkImage treats each upload as a new URL.
     final url =
@@ -177,7 +182,9 @@ class AuthRepository {
 
     await _supabase
         .from(SupabaseConstants.profilesTable)
-        .update({'avatar_url': url}).eq('id', userId);
+        .update({'avatar_url': url})
+        .eq('id', userId)
+        .withNetworkTimeout;
 
     return url;
   }
@@ -284,7 +291,8 @@ class AuthRepository {
         .from(SupabaseConstants.profilesTable)
         .select()
         .eq('id', uid)
-        .single();
+        .single()
+        .withNetworkTimeout;
     return AppUser.fromMap(data);
   }
 }

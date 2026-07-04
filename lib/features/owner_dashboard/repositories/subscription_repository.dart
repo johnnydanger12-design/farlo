@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/extensions/future_timeout.dart';
 import '../models/subscription.dart';
 
 class SubscriptionRepository {
@@ -11,7 +12,8 @@ class SubscriptionRepository {
         .from('subscriptions')
         .select()
         .eq('owner_id', ownerId)
-        .maybeSingle();
+        .maybeSingle()
+        .withNetworkTimeout;
     if (row == null) return null;
     return Subscription.fromMap(row);
   }

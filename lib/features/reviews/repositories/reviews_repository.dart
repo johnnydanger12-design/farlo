@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/supabase_constants.dart';
+import '../../../core/extensions/future_timeout.dart';
 import '../models/review.dart';
 
 class ReviewsRepository {
@@ -12,7 +13,8 @@ class ReviewsRepository {
         .from(SupabaseConstants.reviewsTable)
         .select()
         .eq('truck_id', truckId)
-        .order('created_at', ascending: false);
+        .order('created_at', ascending: false)
+        .withNetworkTimeout;
     return (data as List).map((e) => Review.fromMap(e as Map<String, dynamic>)).toList();
   }
 
@@ -25,7 +27,8 @@ class ReviewsRepository {
         .select()
         .eq('truck_id', truckId)
         .eq('user_id', userId)
-        .maybeSingle();
+        .maybeSingle()
+        .withNetworkTimeout;
     return data == null ? null : Review.fromMap(data);
   }
 
@@ -48,7 +51,7 @@ class ReviewsRepository {
       'user_avatar_url': userAvatarUrl,
       'rating': rating,
       'comment': comment?.trim().isEmpty ?? true ? null : comment!.trim(),
-    }, onConflict: 'truck_id,user_id');
+    }, onConflict: 'truck_id,user_id').withNetworkTimeout;
     // Notifications are inserted by DB triggers (bypass RLS): on_review_inserted, on_review_response_added
   }
 
@@ -56,20 +59,21 @@ class ReviewsRepository {
     await _supabase
         .from(SupabaseConstants.reviewsTable)
         .delete()
-        .eq('id', reviewId);
+        .eq('id', reviewId)
+        .withNetworkTimeout;
   }
 
   Future<void> respondToReview(String reviewId, String response) async {
     await _supabase.rpc('set_owner_review_response', params: {
       'p_review_id': reviewId,
       'p_response': response,
-    });
+    }).withNetworkTimeout;
     // Notification inserted by DB trigger on_review_response_added
   }
 
   Future<void> deleteOwnerResponse(String reviewId) async {
     await _supabase.rpc('delete_owner_review_response', params: {
       'p_review_id': reviewId,
-    });
+    }).withNetworkTimeout;
   }
 }

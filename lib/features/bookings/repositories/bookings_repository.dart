@@ -2,9 +2,15 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/extensions/future_timeout.dart';
 import '../models/booking_deposit.dart';
 import '../models/booking_quote.dart';
 import '../models/booking_request.dart';
+
+// Caps how many booking requests a single fetch pulls back — an owner/consumer
+// with a long history was pulling every row ever created with no limit
+// (code-quality.md §2.15).
+const _bookingPageSize = 200;
 
 class BookingsRepository {
   BookingsRepository(this._supabase);
@@ -17,7 +23,8 @@ class BookingsRepository {
         .update({'status': 'expired'})
         .eq('truck_id', truckId)
         .eq('status', 'pending')
-        .lt('event_date', today);
+        .lt('event_date', today)
+        .withNetworkTimeout;
   }
 
   Future<List<BookingRequest>> fetchOwnerRequests(String truckId) async {
@@ -25,7 +32,9 @@ class BookingsRepository {
         .from('event_booking_requests')
         .select()
         .eq('truck_id', truckId)
-        .order('event_date', ascending: true);
+        .order('event_date', ascending: true)
+        .limit(_bookingPageSize)
+        .withNetworkTimeout;
     return (rows as List).map((r) => BookingRequest.fromMap(r as Map<String, dynamic>)).toList();
   }
 
@@ -40,7 +49,8 @@ class BookingsRepository {
         .eq('truck_id', truckId)
         .eq('status', 'accepted')
         .gte('event_date', start)
-        .lte('event_date', end);
+        .lte('event_date', end)
+        .withNetworkTimeout;
     return (rows as List)
         .map((r) => BookingRequest.fromMap(r as Map<String, dynamic>))
         .toList();
@@ -51,7 +61,9 @@ class BookingsRepository {
         .from('event_booking_requests')
         .select('*, food_trucks(name, cancellation_policy_hours)')
         .eq('requester_id', userId)
-        .order('event_date', ascending: false);
+        .order('event_date', ascending: false)
+        .limit(_bookingPageSize)
+        .withNetworkTimeout;
     return (rows as List).map((r) => BookingRequest.fromMap(r as Map<String, dynamic>)).toList();
   }
 
@@ -59,7 +71,8 @@ class BookingsRepository {
     await _supabase
         .from('event_booking_requests')
         .update({'status': 'cancelled', 'cancelled_by': 'consumer'})
-        .eq('id', requestId);
+        .eq('id', requestId)
+        .withNetworkTimeout;
     _invokeNotification('booking_cancelled_by_consumer', requestId);
   }
 
@@ -97,7 +110,8 @@ class BookingsRepository {
           'status': 'accepted',
         })
         .select('*')
-        .single();
+        .single()
+        .withNetworkTimeout;
     _invokeConfirmationEmail(row['id'] as String);
     return BookingRequest.fromMap(row);
   }
@@ -113,7 +127,8 @@ class BookingsRepository {
     await _supabase
         .from('event_booking_requests')
         .update(updates)
-        .eq('id', requestId);
+        .eq('id', requestId)
+        .withNetworkTimeout;
 
     // Notify the requester when the owner responds or cancels.
     if (status == 'accepted' || status == 'declined' || status == 'cancelled') {
@@ -156,7 +171,8 @@ class BookingsRepository {
           'other_trucks_count': ?otherTrucksCount,
         })
         .select('id')
-        .single();
+        .single()
+        .withNetworkTimeout;
 
     // Notify the truck owner — fire-and-forget, don't block the submit.
     _invokeNotification('booking_created', row['id'] as String);
@@ -169,7 +185,8 @@ class BookingsRepository {
         .from('booking_quotes')
         .select()
         .eq('booking_id', bookingId)
-        .order('created_at', ascending: true);
+        .order('created_at', ascending: true)
+        .withNetworkTimeout;
     return (rows as List)
         .map((r) => BookingQuote.fromMap(r as Map<String, dynamic>))
         .toList();
@@ -185,7 +202,8 @@ class BookingsRepository {
           'notes': notes,
         })
         .select()
-        .single();
+        .single()
+        .withNetworkTimeout;
     _invokeNotification('estimate_sent', bookingId);
     return BookingQuote.fromMap(row);
   }
@@ -194,7 +212,8 @@ class BookingsRepository {
     await _supabase
         .from('booking_quotes')
         .update({'status': accepted ? 'accepted' : 'declined'})
-        .eq('id', quoteId);
+        .eq('id', quoteId)
+        .withNetworkTimeout;
     _invokeNotificationWithExtra(
       'estimate_responded',
       bookingId,
@@ -212,7 +231,8 @@ class BookingsRepository {
           'notes': notes,
         })
         .select()
-        .single();
+        .single()
+        .withNetworkTimeout;
     _invokeNotification('invoice_sent', bookingId);
     return BookingQuote.fromMap(row);
   }
@@ -224,7 +244,8 @@ class BookingsRepository {
         .from('booking_deposits')
         .select()
         .eq('booking_id', bookingId)
-        .maybeSingle();
+        .maybeSingle()
+        .withNetworkTimeout;
     if (row == null) return null;
     return BookingDeposit.fromMap(row);
   }
@@ -244,7 +265,8 @@ class BookingsRepository {
           'due_date': dueDate?.toIso8601String().substring(0, 10),
         })
         .select()
-        .single();
+        .single()
+        .withNetworkTimeout;
     _invokeNotification('deposit_requested', bookingId);
     return BookingDeposit.fromMap(row);
   }
@@ -255,7 +277,7 @@ class BookingsRepository {
     final res = await _supabase.functions.invoke(
       'generate-booking-invoice',
       body: {'booking_id': bookingId},
-    );
+    ).withNetworkTimeout;
     final data = res.data as Map<String, dynamic>;
     if (data['error'] != null) throw Exception(data['error']);
     final bytes = base64Decode(data['pdf_base64'] as String);
@@ -284,7 +306,7 @@ class BookingsRepository {
         'booking_id': bookingId,
         'idempotency_key': idempotencyKey,
       },
-    );
+    ).withNetworkTimeout;
     final data = res.data as Map<String, dynamic>;
     if (data['error'] != null) throw Exception(data['error']);
     return data;

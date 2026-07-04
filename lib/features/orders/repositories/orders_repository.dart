@@ -1,7 +1,14 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/extensions/future_timeout.dart';
 import '../models/order.dart';
 import '../models/order_item.dart';
+
+// Caps how many past orders a single fetch pulls back — an owner/consumer
+// with a long history was pulling every row ever created with no limit,
+// feeding an eager (non-lazy) ListView that built every row regardless of
+// scroll position (performance.md §5, code-quality.md §2.15).
+const _orderPageSize = 200;
 
 /// Thrown when a status-changing action (cancel/accept/decline/etc.) didn't
 /// apply because the order had already moved to a different status —
@@ -45,7 +52,7 @@ class OrdersRepository {
             .toList(),
         'idempotency_key': idempotencyKey,
       },
-    );
+    ).withNetworkTimeout;
     final data = res.data as Map<String, dynamic>;
     if (data['error'] != null) throw Exception(data['error']);
     return (
@@ -71,7 +78,8 @@ class OrdersRepository {
         .from('orders')
         .select(_orderSelect)
         .eq('stripe_payment_intent_id', paymentIntentId)
-        .maybeSingle();
+        .maybeSingle()
+        .withNetworkTimeout;
     if (existing != null) return Order.fromMap(existing);
 
     final totalPrice = items.fold(0.0, (sum, i) => sum + i.lineTotal);
@@ -86,7 +94,8 @@ class OrdersRepository {
           if (pickupNote != null && pickupNote.isNotEmpty) 'pickup_note': pickupNote,
         })
         .select('id')
-        .single();
+        .single()
+        .withNetworkTimeout;
 
     final orderId = orderRow['id'] as String;
 
@@ -102,7 +111,7 @@ class OrdersRepository {
                   'special_request': i.specialRequest,
               })
           .toList(),
-    );
+    ).withNetworkTimeout;
 
     _invokeNotification('order_placed', orderId);
 
@@ -110,7 +119,8 @@ class OrdersRepository {
         .from('orders')
         .select(_orderSelect)
         .eq('id', orderId)
-        .single();
+        .single()
+        .withNetworkTimeout;
     return Order.fromMap(row);
   }
 
@@ -119,7 +129,9 @@ class OrdersRepository {
         .from('orders')
         .select('*, order_items(*), food_trucks(name)')
         .eq('consumer_id', userId)
-        .order('created_at', ascending: false);
+        .order('created_at', ascending: false)
+        .limit(_orderPageSize)
+        .withNetworkTimeout;
     return (rows as List)
         .map((r) => Order.fromMap(r as Map<String, dynamic>))
         .toList();
@@ -137,7 +149,8 @@ class OrdersRepository {
         .update({'status': 'cancelled'})
         .eq('id', orderId)
         .eq('status', 'pending')
-        .select('id');
+        .select('id')
+        .withNetworkTimeout;
     if ((updated as List).isEmpty) {
       throw OrderAlreadyActedOnException(
         'This order has already been accepted by the truck and can no longer be cancelled.',
@@ -156,7 +169,9 @@ class OrdersRepository {
         .from('orders')
         .select(_orderSelect)
         .eq('truck_id', truckId)
-        .order('created_at', ascending: false);
+        .order('created_at', ascending: false)
+        .limit(_orderPageSize)
+        .withNetworkTimeout;
     return (rows as List)
         .map((r) => Order.fromMap(r as Map<String, dynamic>))
         .toList();
@@ -183,7 +198,7 @@ class OrdersRepository {
     if (priorStatus != null) {
       query = query.eq('status', priorStatus);
     }
-    final updated = await query.select('id');
+    final updated = await query.select('id').withNetworkTimeout;
     if ((updated as List).isEmpty) {
       throw OrderAlreadyActedOnException(
         'This order was already updated — refresh to see its current status.',
@@ -205,7 +220,7 @@ class OrdersRepository {
   // -------------------------------------------------------------------------
 
   Future<String> connectStripeAccount() async {
-    final res = await _supabase.functions.invoke('stripe-connect-onboard');
+    final res = await _supabase.functions.invoke('stripe-connect-onboard').withNetworkTimeout;
     final data = res.data as Map<String, dynamic>;
     if (data['error'] != null) throw Exception(data['error']);
     return data['url'] as String;

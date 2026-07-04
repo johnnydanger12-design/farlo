@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/supabase_constants.dart';
+import '../../../core/extensions/future_timeout.dart';
 import '../../../features/map/models/food_truck.dart';
 import '../models/employee_shift.dart';
 import '../models/scheduled_shift.dart';
@@ -17,7 +18,8 @@ class EmployeesRepository {
         .select('*, profiles(display_name)')
         .eq('truck_id', truckId)
         .neq('status', 'removed')
-        .order('invited_at');
+        .order('invited_at')
+        .withNetworkTimeout;
     return (data as List)
         .map((e) => TruckEmployee.fromMap(e as Map<String, dynamic>))
         .toList();
@@ -30,7 +32,7 @@ class EmployeesRepository {
     final result = await _supabase.rpc('invite_employee_by_email', params: {
       'p_truck_id': truckId,
       'p_email': email.trim().toLowerCase(),
-    });
+    }).withNetworkTimeout;
     return (result as Map<String, dynamic>)['already_user'] as bool;
   }
 
@@ -39,7 +41,8 @@ class EmployeesRepository {
     await _supabase
         .from(SupabaseConstants.truckEmployeesTable)
         .update({'status': 'removed'})
-        .eq('id', employeeId);
+        .eq('id', employeeId)
+        .withNetworkTimeout;
   }
 
   // Employee: claim any pending invites matching this user's email
@@ -52,7 +55,8 @@ class EmployeesRepository {
           'linked_at': DateTime.now().toIso8601String(),
         })
         .eq('invited_email', email.trim().toLowerCase())
-        .eq('status', 'pending');
+        .eq('status', 'pending')
+        .withNetworkTimeout;
   }
 
   // Employee: fetch trucks they're assigned to
@@ -61,7 +65,8 @@ class EmployeesRepository {
         .from(SupabaseConstants.truckEmployeesTable)
         .select('food_trucks(*, operating_hours(*), menu_items(*))')
         .eq('user_id', userId)
-        .eq('status', 'active');
+        .eq('status', 'active')
+        .withNetworkTimeout;
     return (data as List)
         .map((e) => FoodTruck.fromMap(e['food_trucks'] as Map<String, dynamic>))
         .toList();
@@ -84,7 +89,8 @@ class EmployeesRepository {
           'location_address': locationAddress,
         })
         .select()
-        .single();
+        .single()
+        .withNetworkTimeout;
     return EmployeeShift.fromMap(data);
   }
 
@@ -95,7 +101,8 @@ class EmployeesRepository {
         .update({'clocked_out_at': DateTime.now().toUtc().toIso8601String()})
         .eq('id', shiftId)
         .select()
-        .single();
+        .single()
+        .withNetworkTimeout;
     return EmployeeShift.fromMap(data);
   }
 
@@ -110,7 +117,8 @@ class EmployeesRepository {
         .eq('employee_id', employeeId)
         .eq('truck_id', truckId)
         .order('clocked_in_at', ascending: false)
-        .limit(30);
+        .limit(30)
+        .withNetworkTimeout;
     return (data as List)
         .map((e) => EmployeeShift.fromMap(e as Map<String, dynamic>))
         .toList();
@@ -132,7 +140,8 @@ class EmployeesRepository {
         .eq('truck_id', truckId)
         .gte('clocked_in_at', first.toIso8601String())
         .lt('clocked_in_at', next.toIso8601String())
-        .order('clocked_in_at', ascending: false);
+        .order('clocked_in_at', ascending: false)
+        .withNetworkTimeout;
     return (data as List)
         .map((e) => EmployeeShift.fromMap(e as Map<String, dynamic>))
         .toList();
@@ -152,7 +161,8 @@ class EmployeesRepository {
         .eq('truck_id', truckId)
         .gte('clocked_in_at', first.toIso8601String())
         .lt('clocked_in_at', next.toIso8601String())
-        .order('clocked_in_at', ascending: false);
+        .order('clocked_in_at', ascending: false)
+        .withNetworkTimeout;
     return (data as List)
         .map((e) => EmployeeShift.fromMap(e as Map<String, dynamic>))
         .toList();
@@ -172,7 +182,8 @@ class EmployeesRepository {
         })
         .eq('id', shiftId)
         .select()
-        .single();
+        .single()
+        .withNetworkTimeout;
     return EmployeeShift.fromMap(data);
   }
 
@@ -198,7 +209,8 @@ class EmployeesRepository {
           'created_by': createdBy,
         })
         .select()
-        .single();
+        .single()
+        .withNetworkTimeout;
     return ScheduledShift.fromMap(data);
   }
 
@@ -212,13 +224,14 @@ class EmployeesRepository {
         .update({'status': status})
         .eq('id', shiftId)
         .select()
-        .single();
+        .single()
+        .withNetworkTimeout;
     return ScheduledShift.fromMap(data);
   }
 
   // Owner: delete a scheduled shift
   Future<void> deleteScheduledShift(String shiftId) async {
-    await _supabase.from('scheduled_shifts').delete().eq('id', shiftId);
+    await _supabase.from('scheduled_shifts').delete().eq('id', shiftId).withNetworkTimeout;
   }
 
   // Owner: all scheduled shifts for their truck in a month
@@ -235,7 +248,8 @@ class EmployeesRepository {
         .eq('truck_id', truckId)
         .gte('scheduled_start', first.toIso8601String())
         .lt('scheduled_start', next.toIso8601String())
-        .order('scheduled_start');
+        .order('scheduled_start')
+        .withNetworkTimeout;
     return (data as List)
         .map((e) => ScheduledShift.fromMap(e as Map<String, dynamic>))
         .toList();
@@ -257,7 +271,8 @@ class EmployeesRepository {
         .eq('truck_id', truckId)
         .gte('scheduled_start', first.toIso8601String())
         .lt('scheduled_start', next.toIso8601String())
-        .order('scheduled_start');
+        .order('scheduled_start')
+        .withNetworkTimeout;
     return (data as List)
         .map((e) => ScheduledShift.fromMap(e as Map<String, dynamic>))
         .toList();
@@ -271,7 +286,8 @@ class EmployeesRepository {
         .select('*, profiles(display_name)')
         .eq('truck_id', truckId)
         .order('clocked_in_at', ascending: false)
-        .limit(50);
+        .limit(50)
+        .withNetworkTimeout;
     return (data as List)
         .map((e) => EmployeeShift.fromMap(e as Map<String, dynamic>))
         .toList();

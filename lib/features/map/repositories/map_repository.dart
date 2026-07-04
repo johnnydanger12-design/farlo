@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/food_truck.dart';
 import '../../../core/constants/supabase_constants.dart';
+import '../../../core/extensions/future_timeout.dart';
 
 class MapRepository {
   MapRepository(this._supabase);
@@ -15,7 +16,8 @@ class MapRepository {
         .eq('is_active', true)
         .eq('is_open', true)
         .not('latitude', 'is', null)
-        .not('longitude', 'is', null);
+        .not('longitude', 'is', null)
+        .withNetworkTimeout;
     return (data as List).map((e) => FoodTruck.fromMap(e as Map<String, dynamic>)).toList();
   }
 
@@ -75,7 +77,8 @@ class MapRepository {
           .not('latitude', 'is', null)
           .not('longitude', 'is', null)
           .ilike('name', '%$q%')
-          .limit(10),
+          .limit(10)
+          .withNetworkTimeout,
       _supabase
           .from(SupabaseConstants.foodTrucksTable)
           .select()
@@ -83,7 +86,8 @@ class MapRepository {
           .not('latitude', 'is', null)
           .not('longitude', 'is', null)
           .ilike('cuisine_type', '%$q%')
-          .limit(10),
+          .limit(10)
+          .withNetworkTimeout,
     ]);
 
     final byId = <String, FoodTruck>{};

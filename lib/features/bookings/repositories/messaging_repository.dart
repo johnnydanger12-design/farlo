@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/extensions/future_timeout.dart';
 import '../models/booking_message.dart';
 
 class MessagingRepository {
@@ -12,7 +13,8 @@ class MessagingRepository {
         .from('booking_messages')
         .select()
         .eq('booking_id', bookingId)
-        .order('created_at', ascending: true);
+        .order('created_at', ascending: true)
+        .withNetworkTimeout;
     return (rows as List)
         .map((r) => BookingMessage.fromMap(r as Map<String, dynamic>))
         .toList();
@@ -27,7 +29,7 @@ class MessagingRepository {
       'booking_id': bookingId,
       'sender_id': senderId,
       'body': body,
-    });
+    }).withNetworkTimeout;
     _invokeMessageNotification(bookingId: bookingId, senderId: senderId);
   }
 
@@ -55,7 +57,7 @@ class MessagingRepository {
       query = query.gt('created_at', lastRead.toUtc().toIso8601String());
     }
 
-    final rows = await query;
+    final rows = await query.withNetworkTimeout;
     return (rows as List).length;
   }
 

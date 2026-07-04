@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/extensions/future_timeout.dart';
 import '../models/planned_location.dart';
 
 class PlannedLocationsRepository {
@@ -14,7 +15,8 @@ class PlannedLocationsRepository {
         .eq('truck_id', truckId)
         .gte('event_date', from)
         .lte('event_date', to)
-        .order('event_date');
+        .order('event_date')
+        .withNetworkTimeout;
     return (data as List).map((m) => PlannedLocation.fromMap(m)).toList();
   }
 
@@ -27,7 +29,8 @@ class PlannedLocationsRepository {
         .eq('truck_id', truckId)
         .gte('event_date', from)
         .lte('event_date', to)
-        .order('event_date');
+        .order('event_date')
+        .withNetworkTimeout;
     return (data as List).map((m) => PlannedLocation.fromMap(m)).toList();
   }
 
@@ -50,11 +53,11 @@ class PlannedLocationsRepository {
       'longitude'  : longitude,
       'notes'      : notes?.trim().isEmpty ?? true ? null : notes!.trim(),
       'created_by' : userId,
-    }).select().single();
+    }).select().single().withNetworkTimeout;
     return PlannedLocation.fromMap(row);
   }
 
   Future<void> delete(String id) async {
-    await _client.from('planned_locations').delete().eq('id', id);
+    await _client.from('planned_locations').delete().eq('id', id).withNetworkTimeout;
   }
 }

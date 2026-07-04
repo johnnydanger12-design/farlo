@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/extensions/future_timeout.dart';
 
 typedef NotifPrefs = ({
   bool pushEnabled,
@@ -25,7 +26,8 @@ class NotificationPrefsRepository {
         .from('notification_preferences')
         .select('push_enabled, open_alert, announcement_alert, booking_alert')
         .eq('user_id', userId)
-        .maybeSingle();
+        .maybeSingle()
+        .withNetworkTimeout;
 
     if (data == null) return _defaultPrefs;
     return (
@@ -55,6 +57,6 @@ class NotificationPrefsRepository {
         'booking_alert': ?bookingAlert,
       },
       onConflict: 'user_id',
-    );
+    ).withNetworkTimeout;
   }
 }
