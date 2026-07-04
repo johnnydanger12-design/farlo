@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'core/push_notification_service.dart';
+import 'router_redirect.dart';
 import 'features/auth/providers/auth_provider.dart';
 import 'features/auth/screens/login_screen.dart';
 import 'features/onboarding/providers/onboarding_provider.dart';
@@ -44,32 +45,13 @@ final routerProvider = Provider<GoRouter>((ref) {
     redirect: (context, state) {
       final authAsync = ref.read(authProvider);
       final onboardingAsync = ref.read(onboardingProvider);
-
-      if (authAsync.isLoading || onboardingAsync.isLoading) return null;
-
-      final onboardingComplete = onboardingAsync.asData?.value ?? true;
-      final loc = state.matchedLocation;
-
-      if (!onboardingComplete) {
-        return loc == '/onboarding' ? null : '/onboarding';
-      }
-
-      final user = authAsync.asData?.value;
-      final isAuthenticated = user != null;
-      const authRoutes = ['/login', '/register', '/register-owner'];
-      final isOnAuthRoute = authRoutes.contains(loc);
-      final isGuestRoute = loc == '/map' || loc.startsWith('/map/') || loc == '/set-new-password';
-
-      if (!isAuthenticated && !isOnAuthRoute && !isGuestRoute) return '/login';
-      if (isAuthenticated && isOnAuthRoute) {
-        return user.isOwner ? '/dashboard' : '/map';
-      }
-      if (isAuthenticated && user.isOwner) {
-        const ownerRoutes = ['/dashboard', '/owner-bookings', '/owner-account', '/owner-notifications', '/set-new-password'];
-        final onOwnerRoute = ownerRoutes.any((r) => loc.startsWith(r));
-        if (!onOwnerRoute) return '/dashboard';
-      }
-      return null;
+      return computeRedirect(
+        authLoading: authAsync.isLoading,
+        onboardingLoading: onboardingAsync.isLoading,
+        onboardingComplete: onboardingAsync.asData?.value ?? true,
+        user: authAsync.asData?.value,
+        matchedLocation: state.matchedLocation,
+      );
     },
     routes: [
       GoRoute(path: '/onboarding', builder: (c, s) => const OnboardingScreen()),
