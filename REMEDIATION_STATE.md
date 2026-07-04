@@ -2,17 +2,17 @@
 
 Working branch: `remediation/farlo-a-grade`. Supabase test branch: `remediation` (project ref `iwufrgjtlikkongopheu`, parent `weflrxyerxpsafcdetya`) — schema-only, no seed data except what a given test inserts (owners 1-3, trucks 1-3, a pending order, an event booking with a message, a canceled and an active subscription — all reusable for future tests). Get credentials via `supabase branches get remediation` when needed; never commit them. Note: this branch's own migration replay is broken (`MIGRATIONS_FAILED`) — it's usable only because the baseline schema dump was loaded directly via `psql`. If recreated, repeat that load step.
 
-**Iteration:** 5 (iteration 1 = last session's pre-protocol pass, reconciled below; iterations 2-5 = this protocol, same session).
+**Iteration:** 6 (iteration 1 = last session's pre-protocol pass, reconciled below; iterations 2-6 = this protocol, same session).
 
 ---
 
-## Scorecard (last updated: iteration 5)
+## Scorecard (last updated: iteration 6)
 
 | Area | Baseline | Now (est.) | Target | Weight |
 |---|---|---|---|---|
-| **Overall** | 64 (D+) | **~78** | ≥90 (A) | — |
-| Security | 46 (F) | ~74 | ≥90 | 25% |
-| Engineering | 74 (C) | ~77 | ≥90 | 20% |
+| **Overall** | 64 (D+) | **~80** | ≥90 (A) | — |
+| Security | 46 (F) | ~76 | ≥90 | 25% |
+| Engineering | 74 (C) | ~82 | ≥90 | 20% |
 | Backend/Supabase | 66 (D+) | ~89 | ≥90 | 15% |
 | UI/UX | 68 (C-) | 68 | ≥90 | 12% |
 | Product | 73 (C+) | 73 | ≥90 | 10% |
@@ -22,6 +22,8 @@ Working branch: `remediation/farlo-a-grade`. Supabase test branch: `remediation`
 **Milestone: Phase 1 (Immediate Risks) is fully closed — all 15 items.** This is the biggest single driver of the Security/Backend jumps this iteration (payment tampering, the order-race, subscription-lapse, stranded-charge, and account-deletion findings all closed with real red/green evidence against the isolated Supabase branch — see LOG). Still not calling Security or Backend an "A": several Medium/Low findings remain open (see Phase 4 below) and none of these fixes have formal automated regression tests yet, only live red/green verification done during this pass (see Observed section).
 
 **Milestone: Phase 2 (Must-Fix-if-Apple-Rejects-Again) is 4/6 closed** — MFR-5 (privacy manifest), MFR-4 (Crashlytics), MFR-3 (background-location descope), and MFR-1 (pre-upload checklist script) all closed this iteration, each verified with a real `flutter build ios --debug --simulator --no-codesign` (or, for MFR-1, a real script run) rather than guessed. This is the driver of the App Store Readiness bump. Remaining: MFR-2 and MFR-6 are process/watch items, not code (see below) — Phase 2 is effectively code-complete pending those.
+
+**Milestone: Phase 3 (Quick Wins) is fully closed.** QW-3 (fail-open `SubscriptionStatus` default — a real security-relevant client-side gap, fixed alongside Phase 1's server-side subscription work), QW-4 (`.autoDispose` on all 19 flagged providers, including `pendingBookingCountProvider` — the single highest-leverage fix in the whole audit), QW-5 (2 dead files + 4 unused packages removed), QW-6 (`onboarding.png` recompressed 1.8MB→512KB, `icon.png` removed from the shipped bundle entirely) all closed this iteration. This is the driver of the Engineering jump (74→~82) and a further Security nudge (74→~76).
 
 These are rough re-estimates, not a formal re-audit — treat with the same skepticism the rest of this doc asks you to apply to the original citations.
 
@@ -56,12 +58,12 @@ Canonical IDs follow `FARLO_FINAL_AUDIT.md`'s Top 20 numbering where an item app
 - [x] MFR-5 App-level `PrivacyInfo.xcprivacy` — closed iteration 3, see LOG
 - [ ] MFR-6 Ad Boost payment-model guardrail — no code exists yet; watch item, block if Ad Boost work starts before this is resolved
 
-### Phase 3 — Quick Wins
+### Phase 3 — Quick Wins — ✅ ALL CLOSED
 - [x] QW searchTrucks + unescaped filter — see #11/#12 above
-- [ ] QW-3 `SubscriptionStatus.fromString` fail-open default — not started
-- [ ] QW-4 `.autoDispose` on 19 flagged providers (= #16) — not started
-- [ ] QW-5 Delete 2 dead files + 4 unused packages — not started
-- [ ] QW-6 Recompress `onboarding.png`/`icon.png` — not started
+- [x] QW-3 `SubscriptionStatus.fromString` fail-open default — closed iteration 6, see LOG
+- [x] QW-4 `.autoDispose` on 19 flagged providers (= #16) — closed iteration 6, see LOG
+- [x] QW-5 Delete 2 dead files + 4 unused packages — closed iteration 6, see LOG
+- [x] QW-6 Recompress `onboarding.png`/`icon.png` — closed iteration 6, see LOG
 - [x] QW `requireAgentSecret` on `prospect-businesses` — see #10 above
 - [x] QW Google Places key — see #3 above
 - [x] QW-9 Remove `RESEND_API_KEY` from client `.env.json` — closed iteration 1
@@ -122,4 +124,4 @@ Canonical IDs follow `FARLO_FINAL_AUDIT.md`'s Top 20 numbering where an item app
 
 ## Next action
 
-Phase 2 is code-complete (MFR-1/3/4/5 closed; MFR-2/MFR-6 are process/watch items, not implementation work). Move to Phase 3 (Quick Wins): QW-3 (`SubscriptionStatus.fromString` fail-open default — a real security-relevant bug, do first), QW-4 (`.autoDispose` on 19 flagged providers), QW-5 (delete 2 dead files + 4 unused packages), QW-6 (recompress `onboarding.png`/`icon.png`) are all self-contained, no-branch-needed items. After Phase 3, Phase 4's remaining items (MED-8 `flutter_secure_storage`, MED-9's shared error/snackbar helper half, MED-11 batch truck-profile round-trips, MED-12 memoize map clustering) are next, then Phase 5 (still blocked by Hard Stop #5 until Phase 2's remaining process items are formally closed at resubmission time — treat as effectively unblockable for code work purposes since MFR-2/MFR-6 aren't code).
+Phase 2 and Phase 3 are both code-complete. Move to Phase 4's remaining items: MED-8 (`flutter_secure_storage` wiring), MED-9's shared error/snackbar helper half (crash reporting half already done via MFR-4), MED-11 (batch `truck_profile_screen.dart`'s 6 round-trips), MED-12 (memoize map screen clustering, = #18 — also closes a live-observed UX bug per performance.md §2). None of these need the Supabase branch. After Phase 4, Phase 5 (Major Architecture) remains blocked by Hard Stop #5 until Phase 2's remaining process items (MFR-2, MFR-6) are formally closed at resubmission time — treat as effectively unblockable for code work purposes right now.

@@ -130,3 +130,44 @@ These four items are Xcode/iOS-config and script-level fixes, not RLS/backend ch
 - **Green:** ran the script live with no `SUPABASE_SERVICE_ROLE_KEY` set — correctly `[WARN]`s and skips (exit 0) rather than false-passing. Confirmed the anon key is RLS-blocked from reading another user's `profiles` row (`[]` returned), validating that the check's empty-response handling matches real RLS behavior rather than being untested guesswork. Unit-verified the Python JSON-parsing logic against empty/`trialing`/`active` response shapes — all three produce the intended WARN/PASS/FAIL branch.
 - **Residual risk:** the full PASS path (with a real `SUPABASE_SERVICE_ROLE_KEY` exported) was not exercised end-to-end in this session, since the key isn't and shouldn't be stored anywhere this session can read — the WARN-path and REST-logic verification above is the practical ceiling for this session; you should get a real `[PASS] ... 'trialing' ...` the first time you run it locally with the key exported.
 - **Commit:** `3efa56e`.
+
+---
+
+## Iteration 6 — Phase 3 (Quick Wins) closes
+
+All four remaining Quick Wins items are self-contained Dart/asset/pubspec changes — no Supabase branch needed. "Green" here means `flutter analyze` clean plus a real `flutter build ios --debug --simulator --no-codesign` for each.
+
+**QW-3 — `SubscriptionStatus.fromString` fail-open default.** Citation: `code-quality.md`, `bugs.md` §2.1.1 / Fix-before-launch #6. Files: `lib/features/owner_dashboard/models/subscription.dart`.
+
+- **Relocate:** confirmed the switch's default (`_`) branch mapped any unrecognized status string to `trialing`, which grants `hasAccess`. Confirmed 3 real client-side gates depend on `hasAccess` (`dashboard_screen.dart` x2, `employees_screen.dart`).
+- **Fix:** default changed to `canceled` (fail closed); `trialing` promoted to an explicit case. Also fixed `Subscription.fromMap`'s separate null-coalesce, which defaulted a missing `status` column to the literal string `'trialing'` before even reaching the switch.
+- **Green:** `flutter analyze` on the touched file — no issues found.
+- **Commit:** `ceda7a6`.
+- **Residual risk:** none identified — this was a pure default-value logic fix, not something that benefits from red/green branch testing (no server round-trip involved).
+
+**QW-4 — `.autoDispose` on 19 flagged Riverpod family providers.** Citation: `code-quality.md` §2.7 / Remediation #1 (the single largest recurring citation in the whole audit), `FARLO_FINAL_AUDIT.md` Top 20 #16. Files: `employees_provider.dart`, `shifts_provider.dart`, `announcement_prefs_provider.dart`, `food_truck_provider.dart`, `dashboard_screen.dart`, `bookings_provider.dart`, `favorites_provider.dart`, `map_provider.dart`, `reviews_provider.dart`, `planned_locations_provider.dart`.
+
+- **Relocate:** independently re-counted all 19 (9 `AsyncNotifierProvider.family`, 9 `FutureProvider.family`, 1 `StreamProvider.family`) against the audit's file:line citations — all 19 confirmed still present and still non-`.autoDispose`.
+- **Fix:** added `.autoDispose` before `.family` on all 19, including `pendingBookingCountProvider` (`bookings_provider.dart:11`) — the worst single instance, which keeps an open Postgres Realtime channel + refetch cycle alive per truck ID forever without it.
+- **Green:** `flutter analyze` — no new issues (2 pre-existing unrelated info-level lints only). `flutter build ios --debug --simulator --no-codesign` succeeded end-to-end, confirming the classic (non-code-generated) `AsyncNotifier` base class is compatible with `.autoDispose.family` with no other code changes needed.
+- **Commit:** `69e3d10`.
+- **Residual risk:** behavioral effect (that providers actually tear down and channels actually close on last-listener-removed) was not exercised via a running-app instrumentation test — verified by build success and code-level correctness only. Real regression coverage for this is exactly what ARCH-2 (testing infrastructure) is meant to eventually provide.
+
+**QW-5 — Delete 2 dead files + remove 4 unused packages.** Citation: `code-quality.md` §2.3/§2.4/Remediation #4-5. Files: deleted `lib/features/employees/widgets/shift_calendar_widget.dart`, `lib/core/widgets/loading_overlay.dart`; edited `pubspec.yaml`.
+
+- **Relocate:** independently re-verified both files zero-referenced outside themselves (`grep -rn "ShiftCalendarWidget"`/`"LoadingOverlay"` across `lib/` — only self-references), and all 4 packages still unused (0 `CupertinoIcons.` references, 0 `@riverpod`/`.g.dart` files anywhere), since code has changed since the original audit and a stale citation would be a real risk here.
+- **Fix:** deleted both files; removed `cupertino_icons`, `riverpod_annotation`, `riverpod_generator` (dev), `build_runner` (dev) from `pubspec.yaml`. Confirmed `http` (flagged in the same audit table) is still legitimately used by `places_autocomplete_field.dart` and left it in.
+- **Green:** `flutter pub get` resolved cleanly; `flutter analyze` clean; `flutter build ios --debug --simulator --no-codesign` succeeded — nothing depended on the removed files/packages.
+- **Commit:** `893ac2e`.
+
+**QW-6 — Recompress `onboarding.png`, remove `icon.png` from the shipped bundle.** Citation: `performance.md` §1/§6/Punch List #1 ("the cheapest win in the entire report"). Files: `assets/images/onboarding.png`, `assets/icon_source/icon.png` (moved), `pubspec.yaml`.
+
+- **Relocate:** confirmed both files' sizes (1.88 MB / 1.71 MB) and confirmed via `sips` neither has an alpha channel (safe for lossy palette quantization). Confirmed `onboarding.png` is displayed via `Image.asset` in `onboarding_screen.dart`; confirmed `icon.png` has zero `Image.asset` references anywhere in `lib/` and is only read by `flutter_launcher_icons`/`flutter_native_splash`'s `pubspec.yaml`-configured codegen (a build-time step, not the runtime asset bundle).
+- **Fix:** installed `pngquant` (Homebrew, standard/reversible dev tool) and recompressed `onboarding.png` (`--quality=80-95 --strip`) — 1.88 MB → 512 KB (73% reduction). Moved `icon.png` from `assets/images/` (bundled per `pubspec.yaml`'s `assets:` list) to a new `assets/icon_source/` directory (not bundled), updating the 2 `pubspec.yaml` references (`image_path`, `adaptive_icon_foreground`) — removes the full 1.6 MB from the shipped app rather than just shrinking it, since it was never displayed at runtime at all.
+- **Green:** visually compared original vs. recompressed `onboarding.png` side-by-side (Read tool on both) — no perceptible artifacting on this flat-color illustration style. `flutter build ios --debug --simulator --no-codesign` succeeded; inspected the compiled `Runner.app`'s `flutter_assets` directory directly and confirmed only the new 512 KB `onboarding.png` ships — `icon.png` does not appear in the bundle at all anymore.
+- **Commit:** `88fbfa8`.
+- **Residual risk:** launcher icon regeneration itself (running `flutter_launcher_icons`/`flutter_native_splash`'s codegen) was not re-run in this pass since the icon content itself didn't change, only its source path — the existing generated native icon assets remain valid. If `icon.png` is ever regenerated from a new source image in the future, confirm the codegen tools still find it at the new `assets/icon_source/` path (they will, since both tools read the `pubspec.yaml`-configured path directly, independent of the runtime `assets:` bundle list).
+
+---
+
+**Phase 3 (Quick Wins) is now fully closed.** Phase 2 (Must-Fix-if-Apple-Rejects-Again) remains 4/6 closed — MFR-2 and MFR-6 are process/watch items, not code, and stay open until resubmission time / until Ad Boost work starts, respectively. Phase 4 (Medium Improvements) has 4 items remaining: MED-8, MED-9 (partial), MED-11, MED-12.
