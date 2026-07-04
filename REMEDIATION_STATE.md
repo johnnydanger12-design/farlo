@@ -2,26 +2,26 @@
 
 Working branch: `remediation/farlo-a-grade`. Supabase test branch: `remediation` (project ref `iwufrgjtlikkongopheu`, parent `weflrxyerxpsafcdetya`) — schema-only, no seed data except what a given test inserts (owners 1-3, trucks 1-3, a pending order, an event booking with a message, a canceled and an active subscription — all reusable for future tests). Get credentials via `supabase branches get remediation` when needed; never commit them. Note: this branch's own migration replay is broken (`MIGRATIONS_FAILED`) — it's usable only because the baseline schema dump was loaded directly via `psql`. If recreated, repeat that load step.
 
-**Iteration:** 7 (iteration 1 = last session's pre-protocol pass, reconciled below; iterations 2-7 = this protocol, same session).
+**Iteration:** 8 (iteration 1 = last session's pre-protocol pass, reconciled below; iterations 2-8 = this protocol, same session).
 
 ---
 
-## Scorecard (last updated: iteration 7)
+## Scorecard (last updated: iteration 8)
 
 | Area | Baseline | Now (est.) | Target | Weight |
 |---|---|---|---|---|
-| **Overall** | 64 (D+) | **~82** | ≥90 (A) | — |
+| **Overall** | 64 (D+) | **~83** | ≥90 (A) | — |
 | Security | 46 (F) | ~80 | ≥90 | 25% |
 | Engineering | 74 (C) | ~85 | ≥90 | 20% |
 | Backend/Supabase | 66 (D+) | ~89 | ≥90 | 15% |
 | UI/UX | 68 (C-) | 68 | ≥90 | 12% |
 | Product | 73 (C+) | 73 | ≥90 | 10% |
 | AI Agent System | 58 (D-) | ~70 | ≥90 | 10% |
-| App Store Readiness | 70 (C-) | ~82 | ≥90 | 8% |
+| App Store Readiness | 70 (C-) | ~85 | ≥90 | 8% |
 
 **Milestone: Phase 1 (Immediate Risks) is fully closed — all 15 items.** This is the biggest single driver of the Security/Backend jumps this iteration (payment tampering, the order-race, subscription-lapse, stranded-charge, and account-deletion findings all closed with real red/green evidence against the isolated Supabase branch — see LOG). Still not calling Security or Backend an "A": several Low findings remain open and none of these fixes have formal automated regression tests yet, only live red/green verification done during this pass (see Observed section).
 
-**Milestone: Phase 2 (Must-Fix-if-Apple-Rejects-Again) is 4/6 closed** — MFR-5 (privacy manifest), MFR-4 (Crashlytics), MFR-3 (background-location descope), and MFR-1 (pre-upload checklist script) all closed this iteration, each verified with a real `flutter build ios --debug --simulator --no-codesign` (or, for MFR-1, a real script run) rather than guessed. This is the driver of the App Store Readiness bump. Remaining: MFR-2 and MFR-6 are process/watch items, not code (see below) — Phase 2 is effectively code-complete pending those.
+**Milestone: Phase 2 (Must-Fix-if-Apple-Rejects-Again) is now fully closed — all 6 items.** MFR-5 (privacy manifest), MFR-4 (Crashlytics), MFR-3 (background-location descope), MFR-1 (pre-upload checklist script) closed in earlier iterations with real builds; MFR-2 closed this iteration on your direct confirmation that App Store Connect's App Review Notes has the tap-by-tap paywall path; MFR-6 closed this iteration as "correctly scoped, no action needed" — building Ad Boost now would be unscoped net-new feature work, not remediation, so the explicit call was not to build it. **This resolves the Hard Stop #5 ambiguity — Phase 5 is now unblocked.**
 
 **Milestone: Phase 3 (Quick Wins) is fully closed.** QW-3 (fail-open `SubscriptionStatus` default — a real security-relevant client-side gap, fixed alongside Phase 1's server-side subscription work), QW-4 (`.autoDispose` on all 19 flagged providers, including `pendingBookingCountProvider` — the single highest-leverage fix in the whole audit), QW-5 (2 dead files + 4 unused packages removed), QW-6 (`onboarding.png` recompressed 1.8MB→512KB, `icon.png` removed from the shipped bundle entirely) all closed this iteration.
 
@@ -52,13 +52,13 @@ Canonical IDs follow `FARLO_FINAL_AUDIT.md`'s Top 20 numbering where an item app
 - [x] #14 Stranded Stripe charges / no idempotency key (= MED-6) — closed iteration 4, see LOG (Idempotency-Key header not tested against real/test Stripe — see Observed)
 - [x] #15 Subscription lapse never rechecked (= MED-7) — closed iteration 4, see LOG
 
-### Phase 2 — Must-Fix-if-Apple-Rejects-Again — 4/6 closed, code-complete pending 2 process items
+### Phase 2 — Must-Fix-if-Apple-Rejects-Again — ✅ ALL 6 CLOSED
 - [x] MFR-1 Pre-upload checklist automation (dart-define/demo-account script) — closed iteration 5, see LOG
-- [ ] MFR-2 Paywall App Review Notes — process item, not code; revisit at resubmission time
+- [x] MFR-2 Paywall App Review Notes — closed iteration 8, user-confirmed: App Store Connect's App Review Notes field has the tap-by-tap path to the paywall.
 - [x] MFR-3 iOS background-location authorization gap — closed iteration 3, see LOG
 - [x] MFR-4 Crash reporting SDK (= MED-9 partial) — closed iteration 3, see LOG
 - [x] MFR-5 App-level `PrivacyInfo.xcprivacy` — closed iteration 3, see LOG
-- [ ] MFR-6 Ad Boost payment-model guardrail — no code exists yet; watch item, block if Ad Boost work starts before this is resolved
+- [x] MFR-6 Ad Boost payment-model guardrail — closed iteration 8 as "correctly scoped, no action needed": Ad Boost has no code and building it now would be unscoped net-new feature work, not remediation. Explicit call: do not build Ad Boost as part of this pass. Revisit only if/when Ad Boost work actually starts.
 
 ### Phase 3 — Quick Wins — ✅ ALL CLOSED
 - [x] QW searchTrucks + unescaped filter — see #11/#12 above
@@ -86,7 +86,7 @@ Canonical IDs follow `FARLO_FINAL_AUDIT.md`'s Top 20 numbering where an item app
 - [x] MED-12 Memoize map screen clustering (= #18) — closed iteration 7, see LOG. Also fixed the live-observed stacked-pin bug (same root cause).
 - [x] MED-13 Materialize migrations into git — closed iteration 1
 
-### Phase 5 — Major Architecture Improvements (blocked — Hard Stop #5, see judgment-call note below)
+### Phase 5 — Major Architecture Improvements (unblocked as of iteration 8 — Phase 2 fully closed)
 - [ ] ARCH-1 Domain/data-model layer separation — not started
 - [ ] ARCH-2 Testing seam/mocking infrastructure — not started (prerequisite for rigorous automated regression tests on every item closed via live/branch verification so far — see Observed section)
 - [ ] ARCH-3 Codebase-wide pagination + timeout pattern (= #17) — not started
@@ -124,18 +124,18 @@ Canonical IDs follow `FARLO_FINAL_AUDIT.md`'s Top 20 numbering where an item app
 - Stripe `Idempotency-Key` header behavior (#14) was not exercised against a real/test Stripe account — no Stripe test credentials configured on the branch. Standard, well-documented Stripe behavior, but flagged as lower-confidence than this pass's other items.
 - MED-6's "compensating refund/alert" sub-item and MED-10's storage-object-cleanup sub-item were each explicitly *not* done as part of closing their parent items — see the Phase 4 checklist notes above. Don't let the parent checkbox imply full scope was covered.
 
-## Judgment call, surfaced rather than silently decided
+## Judgment call — resolved iteration 8
 
-Hard Stop #5's literal wording is "merging Phase 5 before Phases 1-2 close" — Phase 1 is fully closed, Phase 2 is code-complete (4/6) with the 2 remaining items (MFR-2, MFR-6) being pure process/watch items with no code to write. Whether that counts as Phase 2 having "closed" for the purpose of unblocking Phase 5 work is genuinely ambiguous and reads like exactly the kind of call this protocol wants surfaced rather than assumed. Treating it conservatively for now: not starting Phase 5 (Major Architecture) work without your confirmation, since those are the largest, highest-blast-radius items in the whole roadmap (domain-layer separation, testing infrastructure, decomposing 6 god screens, image pipeline rebuild, agent trust-boundary library) and the cost of pausing to ask is low relative to the cost of a wrong call there. Proceeding instead to Phase 6 (non-code deliverables), which Hard Stop #5 doesn't mention at all and carries none of that risk.
+Hard Stop #5's literal wording is "merging Phase 5 before Phases 1-2 close." As of iteration 7 this was ambiguous (Phase 2 code-complete but 2 process items open) and was surfaced rather than assumed. Resolved this iteration: you confirmed MFR-2 directly (App Review Notes has the paywall path), and MFR-6 was assessed as correctly scoped with nothing to do until Ad Boost work actually starts (explicit call: not building Ad Boost now, since that would be unscoped net-new feature work, not remediation). Phase 2 is therefore genuinely closed, not just code-complete. **Phase 5 is unblocked.**
 
 ## Next action
 
-**Every autonomously-actionable item in Phases 1-4 and 6 is now closed.** What remains needs your input, not further unattended work:
+Working through the remaining punch list with you directly, one item at a time, per your request (iteration 8):
 
-1. **The Phase 5 judgment call** (see above) — whether Phase 2's code-complete-but-2-process-items-open state counts as "closed" for Hard Stop #5's purposes. If you say go ahead, Phase 5 (Major Architecture: domain-layer separation, testing infrastructure, decomposing 6 god screens, image pipeline, agent trust-boundary library) is the largest remaining body of work and should probably be scoped/sequenced with you rather than started blind.
-2. **Hard Stop #1** — `GOOGLE_PLACES_API_KEY` rotation in Google Cloud Console (yours to do; give me the new value to set as the Edge Function secret once rotated).
-3. **MFR-2** (App Review Notes confirmation) and **MFR-6** (Ad Boost payment-model guardrail, watch item) — process items, revisit at resubmission time / if Ad Boost work starts.
-4. **The `cold_start_gtm_memo.md` open questions** (launch city, pricing-sequencing option) and **`agent_architecture_decision.md`'s recommendation** (formalize vs. build a dispatcher) — both are explicitly your calls, not mine.
-5. **Hard Stop #6** — App Store resubmission, once you're satisfied with where things stand.
+1. ~~Phase 5 judgment call~~ — **resolved**, see above. Phase 5 unblocked.
+2. **Hard Stop #1** — `GOOGLE_PLACES_API_KEY` rotation in Google Cloud Console — in progress with you now.
+3. ~~MFR-2/MFR-6~~ — **resolved**, see Phase 2 milestone above.
+4. **The `cold_start_gtm_memo.md` open questions** (launch city, pricing-sequencing option) and **`agent_architecture_decision.md`'s recommendation** (formalize vs. build a dispatcher) — next up.
+5. **Hard Stop #6** — App Store resubmission, once the above are settled.
 
-Not blocking on any of these — just nothing left that's mine to decide or build without one of the above.
+Once all 5 are worked through, proceed into Phase 5 scoping/sequencing per item 1's resolution.

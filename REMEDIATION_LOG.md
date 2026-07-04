@@ -226,3 +226,13 @@ All four remaining Quick Wins items are self-contained Dart/asset/pubspec change
 ---
 
 **Phase 6 (non-code deliverables) is now fully closed.** Every autonomously-actionable item across Phases 1, 2 (code portion), 3, 4, and 6 is closed as of this iteration. What remains (Phase 5's start/no-start judgment call, Hard Stop #1's key rotation, MFR-2/MFR-6's process items, the GTM memo's and agent-architecture doc's open business/architecture decisions, and Hard Stop #6's resubmission) all genuinely need your input — see `REMEDIATION_STATE.md`'s "Next action" section for the full list.
+
+---
+
+## Iteration 8 — Phase 2 fully closed, Phase 5 unblocked (working the punch list directly with the user)
+
+**MFR-2 — Paywall App Review Notes.** Closed via direct user confirmation (not independently verifiable by this session — App Store Connect isn't accessible via any tool here): the App Review Notes field has the tap-by-tap path to the Subscription screen. No code change.
+
+**MFR-6 — Ad Boost payment-model guardrail.** Assessed and closed as "correctly scoped, no action needed." The user offered to build Ad Boost now if that's what closing this item required, explicitly deferring the scope call ("you are the executive engineer"). Judgment: declined to build Ad Boost. Building a new monetization feature (new payment surface, new UI, new pricing model) was never an audit finding — it's unscoped net-new product work, not remediation, and building it now would reintroduce exactly the kind of new attack surface this whole pass has been closing. MFR-6 stays exactly as originally scoped: a watch item with nothing to do until Ad Boost work actually starts.
+
+**Phase 2 is therefore genuinely closed** (not just code-complete), resolving iteration 7's surfaced judgment call about Hard Stop #5. **Phase 5 (Major Architecture) is now unblocked.** Per the user's request, working through the remaining punch list items one at a time before starting Phase 5 execution — see `REMEDIATION_STATE.md`'s "Next action."
