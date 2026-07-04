@@ -8,6 +8,8 @@ import { startRun, finishRun } from '../_shared/run-log.ts';
 import { sendEmail } from '../_shared/notify.ts';
 import { getGmailAccessToken, searchThreads, getThread, extractPlainTextBody, extractEmailAddress } from '../_shared/gmail.ts';
 import { runAgentLoop, MODEL_SONNET, type ToolDefinition } from '../_shared/claude-agent.ts';
+import { AIDEN_LOCKED_DIRECTIVES_NOTE, updateDirectiveTool } from '../_shared/aiden-persona.ts';
+import { wrapUntrusted } from '../_shared/prompt-boundaries.ts';
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
@@ -29,9 +31,7 @@ What counts as an instruction:
 - Questions: anything requiring a reply from you
 
 How to act:
-- Update the relevant agent_directives row via the update_directive tool. NEVER attempt to
-  update a row where locked=true — brand_guidelines, company_story, product_flows_owner,
-  product_flows_consumer are permanent and Johnny-only.
+- Update the relevant agent_directives row via the update_directive tool. ${AIDEN_LOCKED_DIRECTIVES_NOTE}
 - "Apple approved" / "app is live" -> update company_direction to reflect LAUNCHED status.
 - An instruction naming Miles, Piper, or Sage -> update that agent's operational directive
   (sales_targets, marketing_focus, support_kb respectively).
@@ -51,18 +51,7 @@ You do not send content, contact prospects, or act on behalf of Sage, Miles, or 
 directly — you only update their directives and report back to Johnny.`;
 
 const TOOLS: ToolDefinition[] = [
-  {
-    name: 'update_directive',
-    description: 'Update an operational agent_directives row (locked=false only). Fails if the key does not exist or is locked.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        directive_key: { type: 'string', enum: ['company_direction', 'farlo_context', 'marketing_focus', 'sales_targets', 'support_kb', 'website_content'] },
-        content: { type: 'string', description: 'The full new content for this directive (replaces the existing value).' },
-      },
-      required: ['directive_key', 'content'],
-    },
-  },
+  updateDirectiveTool('Update an operational agent_directives row (locked=false only). Fails if the key does not exist or is locked.'),
   {
     name: 'send_reply_to_johnny',
     description: 'Sends a real email to johnny@farlo.app (no human review — use only when Johnny asked a direct question or a reply is clearly warranted). The thread is marked as replied-to and will never be surfaced to you again, so only call this once per thread_id.',
@@ -190,7 +179,7 @@ Deno.serve(async (req: Request) => {
       JSON.stringify(recentReports, null, 2),
       ``,
       `New emails to aiden@farlo.app in the last 2 days:`,
-      JSON.stringify(threadContents, null, 2),
+      wrapUntrusted('inbox-emails', JSON.stringify(threadContents, null, 2)),
     ].join('\n');
 
     const result = await runAgentLoop({

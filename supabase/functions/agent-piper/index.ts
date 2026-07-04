@@ -7,6 +7,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { requireAgentSecret, isDryRun } from '../_shared/auth.ts';
 import { startRun, finishRun } from '../_shared/run-log.ts';
 import { runAgentLoop, MODEL_SONNET, type ToolDefinition } from '../_shared/claude-agent.ts';
+import { wrapUntrusted } from '../_shared/prompt-boundaries.ts';
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
@@ -109,7 +110,7 @@ Deno.serve(async (req: Request) => {
       JSON.stringify(directives, null, 2),
       ``,
       `Real active businesses on Farlo (use for the real-use-case piece):`,
-      JSON.stringify(trucks, null, 2),
+      wrapUntrusted('truck-profiles', JSON.stringify(trucks, null, 2)),
       ``,
       `Already queued content this run must not duplicate:`,
       JSON.stringify(queued, null, 2),

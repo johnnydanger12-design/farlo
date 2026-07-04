@@ -12,6 +12,7 @@ import { startRun, finishRun } from '../_shared/run-log.ts';
 import { getGmailAccessToken, searchThreads, getThread, extractPlainTextBody, extractEmailAddress, looksAutomated, sendMessage } from '../_shared/gmail.ts';
 import { runAgentLoop, MODEL_SONNET, type ToolDefinition } from '../_shared/claude-agent.ts';
 import type { UsageTotals } from '../_shared/pricing.ts';
+import { wrapUntrusted } from '../_shared/prompt-boundaries.ts';
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
@@ -245,7 +246,7 @@ Deno.serve(async (req: Request) => {
         JSON.stringify(directives, null, 2),
         ``,
         `Open tickets this run (call exactly one tool per ticket_id):`,
-        JSON.stringify(openTickets, null, 2),
+        wrapUntrusted('support-tickets', JSON.stringify(openTickets, null, 2)),
       ].join('\n');
 
       const result = await runAgentLoop({

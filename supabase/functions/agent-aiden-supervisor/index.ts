@@ -8,6 +8,8 @@ import { sendEmail } from '../_shared/notify.ts';
 import { getGmailAccessToken, searchThreads, getThread, extractPlainTextBody, extractEmailAddress } from '../_shared/gmail.ts';
 import { runAgentLoop, MODEL_SONNET, type ToolDefinition } from '../_shared/claude-agent.ts';
 import { estimateCostUsd } from '../_shared/pricing.ts';
+import { wrapUntrusted } from '../_shared/prompt-boundaries.ts';
+import { AIDEN_LOCKED_DIRECTIVES_NOTE, updateDirectiveTool } from '../_shared/aiden-persona.ts';
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
@@ -53,23 +55,12 @@ Do this, in order:
 2. Analyze the week: support ticket volume and themes — flag any issue that came up 3+ times as a product problem, not a one-off user issue. Sales: how many prospects got drafts saved but not yet sent, how many responded, any conversions. Marketing: what Piper produced, posted vs queued vs skipped, and whether the queue is backing up.
 3. Call write_weekly_brief with the full report content plus at most 3 top actions — Johnny is solo, keep it short and concrete.
 4. Call send_weekly_brief_email with a concise version of the same brief.
-5. If the week's data suggests an operational directive should change (a city's prospects exhausted, a new question came up 2+ times not yet in support_kb, marketing focus should shift), call update_directive. Never touch a locked row (brand_guidelines, company_story, product_flows_owner, product_flows_consumer).
+5. If the week's data suggests an operational directive should change (a city's prospects exhausted, a new question came up 2+ times not yet in support_kb, marketing focus should shift), call update_directive. ${AIDEN_LOCKED_DIRECTIVES_NOTE}
 
 You do not send customer-facing email, post content, or act directly on behalf of Sage, Miles, or Piper — you observe, update directives, and report to Johnny.`;
 
 const TOOLS: ToolDefinition[] = [
-  {
-    name: 'update_directive',
-    description: 'Update an operational agent_directives row (locked=false only).',
-    input_schema: {
-      type: 'object',
-      properties: {
-        directive_key: { type: 'string', enum: ['company_direction', 'farlo_context', 'marketing_focus', 'sales_targets', 'support_kb', 'website_content'] },
-        content: { type: 'string' },
-      },
-      required: ['directive_key', 'content'],
-    },
-  },
+  updateDirectiveTool('Update an operational agent_directives row (locked=false only).'),
   {
     name: 'write_weekly_brief',
     description: 'Writes the weekly brief as a new supervisor_reports row.',
@@ -222,7 +213,7 @@ Deno.serve(async (req: Request) => {
 
     const userMessage = [
       `This week's aiden@ email activity (context only, already acted on):`,
-      JSON.stringify(inboxContext, null, 2),
+      wrapUntrusted('inbox-activity', JSON.stringify(inboxContext, null, 2)),
       ``,
       `Current agent_directives:`,
       JSON.stringify(directives, null, 2),
@@ -231,22 +222,22 @@ Deno.serve(async (req: Request) => {
       JSON.stringify(recentReports, null, 2),
       ``,
       `Freshly fetched farlo.app text:`,
-      homeText,
+      wrapUntrusted('farlo-app-homepage', homeText),
       ``,
       `Freshly fetched /terms text:`,
-      termsText,
+      wrapUntrusted('farlo-app-terms', termsText),
       ``,
       `Freshly fetched /privacy text:`,
-      privacyText,
+      wrapUntrusted('farlo-app-privacy', privacyText),
       ``,
       `Support tickets (last 7 days):`,
-      JSON.stringify(tickets, null, 2),
+      wrapUntrusted('support-tickets', JSON.stringify(tickets, null, 2)),
       ``,
       `Sales prospects touched (last 7 days):`,
-      JSON.stringify(prospects, null, 2),
+      wrapUntrusted('sales-prospects', JSON.stringify(prospects, null, 2)),
       ``,
       `Content queue activity (last 7 days):`,
-      JSON.stringify(content, null, 2),
+      wrapUntrusted('content-queue', JSON.stringify(content, null, 2)),
     ].join('\n');
 
     const result = await runAgentLoop({

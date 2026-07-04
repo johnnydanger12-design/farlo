@@ -10,6 +10,7 @@ import { requireAgentSecret, isDryRun } from '../_shared/auth.ts';
 import { startRun, finishRun } from '../_shared/run-log.ts';
 import { getGmailAccessToken, createDraft } from '../_shared/gmail.ts';
 import { runAgentLoop, MODEL_SONNET, type ToolDefinition } from '../_shared/claude-agent.ts';
+import { wrapUntrusted } from '../_shared/prompt-boundaries.ts';
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
@@ -157,7 +158,7 @@ Deno.serve(async (req: Request) => {
       JSON.stringify([...existingNames]),
       ``,
       `Uncontacted prospects available this run (up to ${BATCH_SIZE}):`,
-      JSON.stringify(eligible, null, 2),
+      wrapUntrusted('sales-prospects', JSON.stringify(eligible, null, 2)),
     ].join('\n');
 
     const result = await runAgentLoop({
