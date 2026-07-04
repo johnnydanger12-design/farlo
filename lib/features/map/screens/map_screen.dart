@@ -28,6 +28,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   final _searchController = TextEditingController();
   final _searchFocusNode = FocusNode();
   StreamSubscription<MapEvent>? _mapEventSub;
+  Timer? _mapMoveDebounce;
   Timer? _badgeTimer;
   bool _isFollowing = true;
   String _searchQuery = '';
@@ -35,6 +36,17 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   Timer? _debounce;
   List<String> _recentSearches = [];
   bool _searchFocused = false;
+
+  // Memoized marker clustering — recomputed only when the truck list or the
+  // rounded visible bounds actually change, not on every map-move frame
+  // (map_screen.dart's mapEventStream emits on every intermediate frame of a
+  // pan/zoom gesture). Re-running the O(n log n) sort + offset math on every
+  // frame was also the root cause of a live-observed stacked-pin bug —
+  // clustering was being re-run so often it didn't reliably converge to a
+  // stable layout even at low truck counts.
+  List<FoodTruck>? _lastClusterTrucks;
+  String? _lastClusterBoundsKey;
+  List<(FoodTruck, LatLng)> _cachedClusterResult = const [];
 
   static const _defaultCenter = LatLng(34.375, -80.074);
 
@@ -70,7 +82,14 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         }
       }
       _mapEventSub = _mapController.mapEventStream.listen((_) {
-        if (mounted) setState(() {});
+        // Debounced, same pattern as search (_onSearchChanged) — mapEventStream
+        // emits on every intermediate frame of a pan/zoom gesture, not just at
+        // gesture-end, so an un-debounced setState here reruns this screen's
+        // full build() (including marker clustering) up to 60x/sec during a drag.
+        _mapMoveDebounce?.cancel();
+        _mapMoveDebounce = Timer(const Duration(milliseconds: 120), () {
+          if (mounted) setState(() {});
+        });
       });
     });
   }
@@ -78,6 +97,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   @override
   void dispose() {
     _mapEventSub?.cancel();
+    _mapMoveDebounce?.cancel();
     _badgeTimer?.cancel();
     _debounce?.cancel();
     _searchController.dispose();
@@ -252,6 +272,41 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     }
   }
 
+  // Rounds the visible bounds to ~110 m so the memoization key below is
+  // stable across sub-pixel jitter/tiny pans, only changing when the
+  // viewport moves meaningfully.
+  String _roundedBoundsKey() {
+    try {
+      final b = _mapController.camera.visibleBounds;
+      String r(double v) => v.toStringAsFixed(3);
+      return '${r(b.south)},${r(b.west)},${r(b.north)},${r(b.east)}';
+    } catch (_) {
+      return 'unbounded';
+    }
+  }
+
+  // Filters to visible bounds, sorts, and clusters — memoized against the
+  // truck list identity + rounded bounds so this only recomputes when either
+  // actually changes, not on every rebuild the debounced map-move listener
+  // above triggers.
+  List<(FoodTruck, LatLng)> _clusteredMarkers(List<FoodTruck> trucks) {
+    final boundsKey = _roundedBoundsKey();
+    if (identical(trucks, _lastClusterTrucks) && boundsKey == _lastClusterBoundsKey) {
+      return _cachedClusterResult;
+    }
+    final visible = trucks.where(_inVisibleBounds).toList()
+      ..sort((a, b) {
+        if (a.sessionStartedAt == null) return -1;
+        if (b.sessionStartedAt == null) return 1;
+        return b.sessionStartedAt!.compareTo(a.sessionStartedAt!);
+      });
+    final result = _applyClusterOffsets(visible);
+    _lastClusterTrucks = trucks;
+    _lastClusterBoundsKey = boundsKey;
+    _cachedClusterResult = result;
+    return result;
+  }
+
   // Returns (edge position, scale) for an off-screen truck, or null if on-screen.
   // Scale shrinks from 1.0 → 0.5 the farther the truck is beyond the visible area.
   (Offset, double)? _edgePosition(LatLng truckPos, Size stackSize) {
@@ -409,15 +464,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                 ),
               MarkerLayer(
                 markers: () {
-                  final sorted = trucksAsync.asData?.value
-                          .where(_inVisibleBounds)
-                          .toList() ?? [];
-                  sorted.sort((a, b) {
-                    if (a.sessionStartedAt == null) return -1;
-                    if (b.sessionStartedAt == null) return 1;
-                    return b.sessionStartedAt!.compareTo(a.sessionStartedAt!);
-                  });
-                  return _applyClusterOffsets(sorted).map(
+                  return _clusteredMarkers(activeTrucks).map(
                     ((FoodTruck, LatLng) pair) {
                       final (truck, point) = pair;
                       final diff = truck.sessionStartedAt != null
