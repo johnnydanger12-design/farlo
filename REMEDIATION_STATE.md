@@ -8,20 +8,22 @@ Working branch: `remediation/farlo-a-grade`. Supabase test branch: `remediation`
 
 ---
 
-## Scorecard (last updated: iteration 9, second update)
+## Scorecard (last updated: iteration 9, third update)
 
 | Area | Baseline | Now (est.) | Target | Weight |
 |---|---|---|---|---|
-| **Overall** | 64 (D+) | **~86** | ≥90 (A), Product excluded | — |
+| **Overall** | 64 (D+) | **~88** | ≥90 (A), Product excluded | — |
 | Security | 46 (F) | ~85 | ≥90 | 25% |
 | Engineering | 74 (C) | ~88 | ≥90 | 20% |
 | Backend/Supabase | 66 (D+) | ~91 | ≥90 | 15% |
-| UI/UX | 68 (C-) | 68 | ≥90 | 12% |
+| UI/UX | 68 (C-) | ~87 | ≥90 | 12% |
 | Product | 73 (C+) | 73 | excluded, see Goal above | 10% |
 | AI Agent System | 58 (D-) | ~70 | ≥90 | 10% |
 | App Store Readiness | 70 (C-) | ~85 | ≥90 | 8% |
 
-**Milestone: ARCH-2 (3/4 targets) + ARCH-3 (limits + timeouts across all 13 repositories) + the truck-logos/truck-photos storage gap all closed this iteration**, driving Security ~81→~85, Engineering ~86→~88, Backend ~89→~91 (first category to cross the ≥90 bar, pending the founder's independent re-audit). UI/UX and AI Agent System are next — those need the accessibility roadmap and ai-agents.md §7's recommendations respectively, neither started yet.
+**Milestone: ARCH-2 (3/4 targets) + ARCH-3 (limits + timeouts across all 13 repositories) + the truck-logos/truck-photos storage gap all closed this iteration**, driving Security ~81→~85, Engineering ~86→~88, Backend ~89→~91 (first category to cross the ≥90 bar, pending the founder's independent re-audit).
+
+**Milestone: the full accessibility roadmap (all 20 items + the bonus swipe-to-delete alternative) closed this iteration**, driving UI/UX 68→~87 — the single largest jump of any category, closing `ux-review.md`'s F/30 accessibility grade. Not calling this a full "A" yet: `ux-review.md`'s other findings (motion/haptics, 116+27 raw color literals bypassing the theme system, remaining touch-target-adjacent polish) weren't in scope for this pass and would need their own item to fully close the category. AI Agent System is the last untouched category — needs `ai-agents.md` §7's recommendations, not started yet.
 
 **Milestone: Phase 1 (Immediate Risks) is fully closed — all 15 items.** This is the biggest single driver of the Security/Backend jumps this iteration (payment tampering, the order-race, subscription-lapse, stranded-charge, and account-deletion findings all closed with real red/green evidence against the isolated Supabase branch — see LOG). Still not calling Security or Backend an "A": several Low findings remain open and none of these fixes have formal automated regression tests yet, only live red/green verification done during this pass (see Observed section).
 

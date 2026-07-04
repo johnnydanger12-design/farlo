@@ -323,3 +323,24 @@ This was the last item in the "Observed, not yet triaged" backlog from Phase 1.
 ## Iteration 9 (continued) — truck-logos/truck-photos gap: correction to earlier log entry
 
 Already logged in detail above (commit `7e721f0`) — cross-referencing here since it was tracked as an "Observed, not yet triaged" backlog item since iteration 2 and is now removed from that list.
+
+---
+
+## Iteration 9 (continued) — Accessibility roadmap closes (all 20 items + bonus)
+
+**Citation:** `audit/accessibility_roadmap.md` (all tiers), `ux-review.md` §5 Recommendation #5 / §7 (F/30 accessibility grade).
+
+Worked through the roadmap's own prioritized tiers in order:
+
+- **Tier 1 (destructive/paid actions, items 1-4) + item 20:** `my_requests_screen.dart`'s "Cancel Event" button (the audit's single most severe finding), `booking_requests_screen.dart`'s PDF-share icon, `dashboard_screen.dart`'s Go Live switch + orders-accepting switch + Stripe-connect CTA. Commit `de545ab`.
+- **Tier 2 (highest-traffic surfaces, items 5-11):** map screen truck pins/recenter button/off-screen indicator/search-clear icon, the favorite-heart toggle (2 separate implementations), booking chat's send button, order-cart quantity steppers + menu-item add-to-order control. Commits `de545ab`, `22f32b1`.
+- **Tier 3 (systemic touch-target pattern, items 12-19):** `account_screen.dart`'s 5 close buttons + edit-name pencil, `login_screen.dart`'s "Forgot password?"/"Sign up"/"Get listed"/"Browse as guest", `manage_menu_screen.dart`'s per-item switch/edit/delete controls, `employees_screen.dart`'s close button, `calendar_screen.dart`'s accept/decline glyphs. Commit `22f32b1`.
+- **Bonus, lower-urgency item:** `notifications_screen.dart`'s Dismissible swipe-to-delete had no tap-based alternative — added one. Commit `a360d21`.
+
+**Discrepancies found and corrected during implementation (not just executed blindly):**
+- Item #19's roadmap citation claimed the accept/decline glyph pattern was "duplicated in `shift_week_card.dart`" — checked, no such control exists in that file. Not fixed there since there was nothing to fix.
+- The swipe-to-delete item's roadmap citation said `booking_requests_screen.dart:66-82` — no `Dismissible` exists in that file at all. Found the actual match in `notifications_screen.dart:66-82` (same line range, wrong filename) and fixed it there.
+
+**Verified throughout:** `flutter analyze` clean project-wide after every batch, all 19 tests still pass, `flutter build ios --debug --simulator --no-codesign` succeeded after each commit.
+
+**Residual scope, not attempted:** `ux-review.md`'s other UI/UX findings — motion/haptics (near-absent), 116 raw `Colors.white` + 27 raw `Colors.black` literals bypassing the theme system, and the roadmap's own explicit caveat that "zero `Semantics`/`semanticLabel` across all 116 Dart files" means 20 controls is the audit's own "highest-traffic" framing, not full coverage. These remain open UI/UX gaps.
