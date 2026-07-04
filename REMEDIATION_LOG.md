@@ -305,3 +305,21 @@ Next: batch `manage_hours_screen.dart`'s write loop, then the `truck-logos`/`tru
 - **Residual risk:** none identified. Existing UPDATE/DELETE policies were already correctly scoped via Storage's built-in `owner` column (set to the uploader's `auth.uid()` at upload time) — only the INSERT gap needed closing.
 
 This was the last item in the "Observed, not yet triaged" backlog from Phase 1.
+
+---
+
+## Iteration 9 (continued) — ARCH-3 closes: limits + network timeouts
+
+**Citation:** `performance.md` §3/§5/Top 5 findings #1-2, `code-quality.md` §2.15.
+
+- Added `lib/core/extensions/future_timeout.dart` — a public `NetworkTimeout<T>` extension (15s), generalizing the pattern already used locally in `auth_provider.dart`'s `_authTimeout`.
+- Applied `.withNetworkTimeout` across all 13 repository files' public methods (~90 call sites): `orders_repository.dart`, `bookings_repository.dart`, `notification_prefs_repository.dart`, `auth_repository.dart`, `messaging_repository.dart`, `employees_repository.dart`, `planned_locations_repository.dart`, `favorites_repository.dart`, `food_truck_repository.dart`, `map_repository.dart`, `notifications_repository.dart`, `subscription_repository.dart`, `reviews_repository.dart`.
+- Added `.limit(200)` to the 4 originally-unbounded queries (`OrdersRepository.fetchOrdersForConsumer`/`fetchOrdersForTruck`, `BookingsRepository.fetchOwnerRequests`/`fetchMyRequests`).
+- **Deliberate scope decision:** left `auth_provider.dart`'s sign-in/sign-up call sites' internal `AuthRepository` calls unwrapped by the new extension — those already have a tested, appropriate 20-second timeout at the call site (`_authTimeout`/`withAuthTimeout`), and adding a redundant 15s inner timeout would silently shorten that tested behavior rather than improve it. Added `.withNetworkTimeout` instead to `AuthRepository`'s other methods that had zero timeout coverage before (`upgradeToOwner`, `resetPasswordForEmail`, `changePassword`, `updateDisplayName`, `deleteAccount`, `updateAvatar`, `fetchCurrentUser`/`_fetchProfile`).
+- **Not attempted, flagged honestly:** converting the 4 confirmed eager `ListView(children:)` sites to `.builder()` — each mixes static headers/empty-states with mapped dynamic content, a real per-screen restructuring job. At today's data volumes (single/double-digit rows per table, per Phase 2's own count) the audit frames this as latent-until-scale, not urgent — the risk of regressing 4 screens' layouts outweighs the benefit right now.
+- **Green:** `flutter analyze` clean project-wide, all 19 tests still pass, `flutter build ios --debug --simulator --no-codesign` succeeded.
+- **Commit:** `12955d1`.
+
+## Iteration 9 (continued) — truck-logos/truck-photos gap: correction to earlier log entry
+
+Already logged in detail above (commit `7e721f0`) — cross-referencing here since it was tracked as an "Observed, not yet triaged" backlog item since iteration 2 and is now removed from that list.

@@ -8,18 +8,20 @@ Working branch: `remediation/farlo-a-grade`. Supabase test branch: `remediation`
 
 ---
 
-## Scorecard (last updated: iteration 9)
+## Scorecard (last updated: iteration 9, second update)
 
 | Area | Baseline | Now (est.) | Target | Weight |
 |---|---|---|---|---|
-| **Overall** | 64 (D+) | **~84** | ≥90 (A), Product excluded | — |
-| Security | 46 (F) | ~81 | ≥90 | 25% |
-| Engineering | 74 (C) | ~86 | ≥90 | 20% |
-| Backend/Supabase | 66 (D+) | ~89 | ≥90 | 15% |
+| **Overall** | 64 (D+) | **~86** | ≥90 (A), Product excluded | — |
+| Security | 46 (F) | ~85 | ≥90 | 25% |
+| Engineering | 74 (C) | ~88 | ≥90 | 20% |
+| Backend/Supabase | 66 (D+) | ~91 | ≥90 | 15% |
 | UI/UX | 68 (C-) | 68 | ≥90 | 12% |
 | Product | 73 (C+) | 73 | excluded, see Goal above | 10% |
 | AI Agent System | 58 (D-) | ~70 | ≥90 | 10% |
 | App Store Readiness | 70 (C-) | ~85 | ≥90 | 8% |
+
+**Milestone: ARCH-2 (3/4 targets) + ARCH-3 (limits + timeouts across all 13 repositories) + the truck-logos/truck-photos storage gap all closed this iteration**, driving Security ~81→~85, Engineering ~86→~88, Backend ~89→~91 (first category to cross the ≥90 bar, pending the founder's independent re-audit). UI/UX and AI Agent System are next — those need the accessibility roadmap and ai-agents.md §7's recommendations respectively, neither started yet.
 
 **Milestone: Phase 1 (Immediate Risks) is fully closed — all 15 items.** This is the biggest single driver of the Security/Backend jumps this iteration (payment tampering, the order-race, subscription-lapse, stranded-charge, and account-deletion findings all closed with real red/green evidence against the isolated Supabase branch — see LOG). Still not calling Security or Backend an "A": several Low findings remain open and none of these fixes have formal automated regression tests yet, only live red/green verification done during this pass (see Observed section).
 
@@ -93,7 +95,7 @@ Canonical IDs follow `FARLO_FINAL_AUDIT.md`'s Top 20 numbering where an item app
 ### Phase 5 — Major Architecture Improvements (unblocked as of iteration 8 — Phase 2 fully closed)
 - [ ] ARCH-1 Domain/data-model layer separation — not started. Will likely be scoped down to "repository interfaces for the 2 repositories that block ARCH-2's 4th test target" rather than a full rewrite across every repository — proportionality call, will flag if that scoping turns out wrong.
 - [x] ARCH-2 Testing seam/mocking infrastructure — **3 of 4 highest-value targets closed iteration 9**, see LOG. Added `mocktail`/`fake_async`, 19 real passing tests (router redirect logic — extracted into a new pure `computeRedirect()` function — AuthNotifier timeout/rollback, OwnerTruckNotifier optimistic-rollback). 4th target (OrdersRepository/BookingsRepository quote/deposit flows) deliberately deferred — needs a repository-interface seam (ARCH-1) to be practically mockable, not attempted with a fragile mock-heavy workaround.
-- [ ] ARCH-3 Codebase-wide pagination + timeout pattern (= #17) — not started
+- [x] ARCH-3 Codebase-wide pagination + timeout pattern (= #17) — closed iteration 9, see LOG. `.limit(200)` added to the 4 originally-unbounded queries; new shared `withNetworkTimeout` extension applied across all 13 repository files (~90 call sites). **Narrowed scope: the 4 confirmed eager `ListView(children:)` sites (dashboard/order_queue/my_orders/booking_requests screens) were not converted to `.builder()`** — each mixes static headers/empty-states with mapped content, a real per-screen restructuring job, and at today's data volumes the audit itself frames this as "latent-until-scale, not today's problem." Flagged as remaining backlog, not attempted.
 - [ ] ARCH-4 Decompose six god screens — not started
 - [ ] ARCH-5 Rebuild image pipeline — not started
 - [ ] ARCH-6 AI agent trust-boundary shared library — not started
@@ -124,7 +126,7 @@ Canonical IDs follow `FARLO_FINAL_AUDIT.md`'s Top 20 numbering where an item app
 - Every item closed in this pass (iterations 2-4: #7, #9, #11, #12, #13, #14, #15) was verified via **live red/green testing against the isolated Supabase branch** — a real step up from iteration 1's live-deployment-only verification, but still not the same as a permanent, automated, runnable regression test living in the codebase. Once ARCH-2 (testing infrastructure) exists, backfill real test files for all of these before certifying Security-A or Backend-A. The branch-based verification transcripts are preserved in `REMEDIATION_LOG.md` and should transfer directly into real test cases.
 - Iteration 1's original nine items (#1, #2, #3, #4, #5, #6, #8, #10, MED-13) still only have live-deployment + direct-re-query verification, no red/green branch testing was done for those (the branch didn't exist yet in iteration 1). Same backfill note applies.
 - `create-booking-payment-intent`'s accidental backward-compatibility (old client already sends what the new server needs) should get an explicit regression test once ARCH-2 lands, so it doesn't silently regress later.
-- `truck-logos`/`truck-photos` storage buckets have the same class of gap `menu-item-photos` had on INSERT — checks only `auth.role() = 'authenticated'`, no path/truck-ownership scoping (`supabase-audit.md` §4). Not yet triaged as its own item; good Phase 4 candidate.
+- ~~`truck-logos`/`truck-photos` storage gap~~ — **closed iteration 9**, see LOG.
 - Stripe `Idempotency-Key` header behavior (#14) was not exercised against a real/test Stripe account — no Stripe test credentials configured on the branch. Standard, well-documented Stripe behavior, but flagged as lower-confidence than this pass's other items.
 - MED-6's "compensating refund/alert" sub-item and MED-10's storage-object-cleanup sub-item were each explicitly *not* done as part of closing their parent items — see the Phase 4 checklist notes above. Don't let the parent checkbox imply full scope was covered.
 
