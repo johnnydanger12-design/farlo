@@ -44,17 +44,17 @@ Deno.serve(async (req: Request) => {
   const { data: { user }, error: authError } = await userClient.auth.getUser();
   if (authError || !user) return new Response('Unauthorized', { status: 401 });
 
-  let body: { type: string; record_id: string; booking_id: string; amount_cents: number };
+  let body: { type: string; record_id: string; booking_id: string };
   try {
     body = await req.json();
   } catch {
     return new Response('Bad request', { status: 400 });
   }
 
-  const { type, record_id, booking_id, amount_cents } = body;
-  if (!type || !record_id || !booking_id || !amount_cents || amount_cents < 50) {
+  const { type, record_id, booking_id } = body;
+  if (!type || !record_id || !booking_id) {
     return new Response(
-      JSON.stringify({ error: 'type, record_id, booking_id, and amount_cents (min 50) required' }),
+      JSON.stringify({ error: 'type, record_id, and booking_id required' }),
       { status: 400, headers: { 'Content-Type': 'application/json' } },
     );
   }
@@ -82,6 +82,59 @@ Deno.serve(async (req: Request) => {
     return new Response('Forbidden', { status: 403 });
   }
 
+  // Recompute the charge amount server-side from the real stored deposit/quote
+  // amount — never trust a client-supplied amount_cents. Previously this function
+  // took the amount directly from the client, letting anyone mark a real
+  // high-value quote/deposit "paid" for an arbitrary amount (Phase 2 audit,
+  // Critical Finding #1).
+  let amountCents: number;
+  if (type === 'deposit') {
+    const { data: deposit, error: depositErr } = await supabase
+      .from('booking_deposits')
+      .select('amount, booking_id, status')
+      .eq('id', record_id)
+      .single();
+    if (depositErr || !deposit || deposit.booking_id !== booking_id) {
+      return new Response(
+        JSON.stringify({ error: 'deposit_not_found' }),
+        { status: 404, headers: { 'Content-Type': 'application/json' } },
+      );
+    }
+    if (deposit.status === 'paid') {
+      return new Response(
+        JSON.stringify({ error: 'deposit_already_paid' }),
+        { status: 409, headers: { 'Content-Type': 'application/json' } },
+      );
+    }
+    amountCents = Math.round(Number(deposit.amount) * 100);
+  } else {
+    const { data: quote, error: quoteErr } = await supabase
+      .from('booking_quotes')
+      .select('amount, booking_id, status, type')
+      .eq('id', record_id)
+      .single();
+    if (quoteErr || !quote || quote.booking_id !== booking_id || quote.type !== 'invoice') {
+      return new Response(
+        JSON.stringify({ error: 'invoice_not_found' }),
+        { status: 404, headers: { 'Content-Type': 'application/json' } },
+      );
+    }
+    if (quote.status === 'paid') {
+      return new Response(
+        JSON.stringify({ error: 'invoice_already_paid' }),
+        { status: 409, headers: { 'Content-Type': 'application/json' } },
+      );
+    }
+    amountCents = Math.round(Number(quote.amount) * 100);
+  }
+
+  if (amountCents < 50) {
+    return new Response(
+      JSON.stringify({ error: 'amount is below the minimum chargeable amount' }),
+      { status: 400, headers: { 'Content-Type': 'application/json' } },
+    );
+  }
+
   // Get the truck owner's Stripe Connect account
   const { data: truck } = await supabase
     .from('food_trucks')
@@ -103,7 +156,7 @@ Deno.serve(async (req: Request) => {
   }
 
   const piRes = await stripePost('/payment_intents', {
-    amount: String(amount_cents),
+    amount: String(amountCents),
     currency: 'usd',
     'payment_method_types[]': 'card',
     'transfer_data[destination]': profile.stripe_account_id,

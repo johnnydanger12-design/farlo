@@ -105,7 +105,10 @@ Deno.serve(async (req: Request) => {
         if (dryRun) return { dry_run: true, would_fetch: input.city };
         const res = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/prospect-businesses`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${Deno.env.get('AGENT_EMAIL_SECRET')}`,
+          },
           body: JSON.stringify({ city: input.city }),
         });
         return await res.json();

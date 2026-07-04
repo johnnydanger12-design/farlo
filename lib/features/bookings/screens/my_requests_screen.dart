@@ -645,14 +645,13 @@ class _ConsumerFinancialSectionState extends ConsumerState<_ConsumerFinancialSec
   bool _depositJustPaid = false;
   bool _invoiceJustPaid = false;
 
-  Future<void> _pay({required String type, required String recordId, required double amount}) async {
+  Future<void> _pay({required String type, required String recordId}) async {
     setState(() { _paying = true; _error = null; });
     try {
       final result = await ref.read(bookingsRepositoryProvider).createBookingPaymentIntent(
         type: type,
         recordId: recordId,
         bookingId: widget.request.id,
-        amount: amount,
       );
       await Stripe.instance.initPaymentSheet(
         paymentSheetParameters: SetupPaymentSheetParameters(
@@ -756,7 +755,7 @@ class _ConsumerFinancialSectionState extends ConsumerState<_ConsumerFinancialSec
           const SizedBox(height: AppSpacing.sm),
           if (deposit.status == DepositStatus.requested && !_depositJustPaid)
             FilledButton.icon(
-              onPressed: _paying ? null : () => _pay(type: 'deposit', recordId: deposit.id, amount: deposit.amount),
+              onPressed: _paying ? null : () => _pay(type: 'deposit', recordId: deposit.id),
               icon: _paying
                   ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                   : const Icon(Icons.lock_outline, size: 14),
@@ -777,7 +776,7 @@ class _ConsumerFinancialSectionState extends ConsumerState<_ConsumerFinancialSec
           const SizedBox(height: AppSpacing.sm),
           if (invoice.status == QuoteStatus.sent && !_invoiceJustPaid)
             FilledButton.icon(
-              onPressed: _paying ? null : () => _pay(type: 'invoice', recordId: invoice.id, amount: invoice.amount),
+              onPressed: _paying ? null : () => _pay(type: 'invoice', recordId: invoice.id),
               icon: _paying
                   ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                   : const Icon(Icons.receipt_outlined, size: 14),

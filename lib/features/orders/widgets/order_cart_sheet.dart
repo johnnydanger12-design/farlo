@@ -37,12 +37,12 @@ class _OrderCartSheetState extends ConsumerState<OrderCartSheet> {
     setState(() => _paying = true);
     try {
       final repo = OrdersRepository(Supabase.instance.client);
-      final amountCents = (cartNotifier.total * 100).round();
 
-      // 1. Create PaymentIntent server-side
+      // 1. Create PaymentIntent server-side (amount is recomputed from real
+      // menu prices there, not trusted from the client cart total)
       final (:clientSecret, :paymentIntentId) = await repo.createPaymentIntent(
         truckId: widget.truck.id,
-        amountCents: amountCents,
+        items: items,
       );
 
       // 2. Init + present Stripe PaymentSheet

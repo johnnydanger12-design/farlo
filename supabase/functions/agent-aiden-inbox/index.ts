@@ -6,7 +6,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { requireAgentSecret, isDryRun } from '../_shared/auth.ts';
 import { startRun, finishRun } from '../_shared/run-log.ts';
 import { sendEmail } from '../_shared/notify.ts';
-import { getGmailAccessToken, searchThreads, getThread, extractPlainTextBody } from '../_shared/gmail.ts';
+import { getGmailAccessToken, searchThreads, getThread, extractPlainTextBody, extractEmailAddress } from '../_shared/gmail.ts';
 import { runAgentLoop, MODEL_SONNET, type ToolDefinition } from '../_shared/claude-agent.ts';
 
 const supabase = createClient(
@@ -14,7 +14,11 @@ const supabase = createClient(
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
 );
 
-const ALLOWED_SENDERS = /johnny@farlo\.app|johnny\.danger12@gmail\.com/i;
+// Anchored, exact-match against the *extracted* address — never test a raw "From"
+// header directly (it's commonly `"Display Name" <email>`, and an unanchored/
+// substring regex against that raw string is spoofable by putting the allowed
+// address in the display name; see extractEmailAddress's own doc comment).
+const ALLOWED_SENDERS = /^(johnny@farlo\.app|johnny\.danger12@gmail\.com)$/i;
 
 const SYSTEM_PROMPT = `You are Aiden, the Farlo Supervisor Agent. Your job is to read emails Johnny (the founder) sent to aiden@farlo.app and act on any instructions or questions in them.
 
@@ -111,11 +115,12 @@ Deno.serve(async (req: Request) => {
       const last = messages[messages.length - 1];
       // deno-lint-ignore no-explicit-any
       const headers = Object.fromEntries((last.payload?.headers ?? []).map((h: any) => [h.name, h.value]));
-      const from: string = headers['From'] ?? '';
-      if (!ALLOWED_SENDERS.test(from)) continue;
+      const fromHeader: string = headers['From'] ?? '';
+      const fromEmail = extractEmailAddress(fromHeader);
+      if (!ALLOWED_SENDERS.test(fromEmail)) continue;
       threadContents.push({
         threadId: t.id,
-        from,
+        from: fromHeader,
         subject: headers['Subject'] ?? '',
         date: headers['Date'] ?? '',
         body: extractPlainTextBody(last.payload),

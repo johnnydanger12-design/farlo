@@ -3,7 +3,11 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
-const _apiKey = String.fromEnvironment('GOOGLE_PLACES_API_KEY');
+// Routed through a Farlo Edge Function proxy — GOOGLE_PLACES_API_KEY is no longer
+// compiled into the client at all (it was previously extractable from the built
+// APK/IPA via `strings`, a live billing-fraud exposure independent of any
+// server-side rate limiting Farlo could add later).
+const _supabaseUrl = String.fromEnvironment('SUPABASE_URL');
 
 class PlacesAutocompleteField extends StatefulWidget {
   const PlacesAutocompleteField({
@@ -67,11 +71,9 @@ class _PlacesAutocompleteFieldState extends State<PlacesAutocompleteField> {
   }
 
   Future<void> _fetchSuggestions(String query) async {
-    final uri = Uri.https('maps.googleapis.com', '/maps/api/place/autocomplete/json', {
-      'input': query,
-      'components': 'country:us',
-      'key': _apiKey,
-    });
+    final uri = Uri.parse('$_supabaseUrl/functions/v1/places-autocomplete').replace(
+      queryParameters: {'action': 'autocomplete', 'input': query},
+    );
     try {
       final res = await http.get(uri);
       if (!mounted) return;
@@ -95,11 +97,9 @@ class _PlacesAutocompleteFieldState extends State<PlacesAutocompleteField> {
     _selecting = true;
     _removeOverlay();
 
-    final uri = Uri.https('maps.googleapis.com', '/maps/api/place/details/json', {
-      'place_id': pred.placeId,
-      'fields': 'formatted_address,geometry',
-      'key': _apiKey,
-    });
+    final uri = Uri.parse('$_supabaseUrl/functions/v1/places-autocomplete').replace(
+      queryParameters: {'action': 'details', 'place_id': pred.placeId},
+    );
     try {
       final res = await http.get(uri);
       final data = json.decode(res.body) as Map<String, dynamic>;

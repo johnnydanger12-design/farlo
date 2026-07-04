@@ -50,19 +50,21 @@ final incomingTransferProvider = FutureProvider.autoDispose<TransferInfo?>((ref)
       .eq('id', truckId)
       .single();
 
-  final fromOwner = await supabase
-      .from('profiles')
-      .select('display_name, email')
-      .eq('id', fromOwnerId)
-      .single();
+  // profiles is self-read-only via RLS — this is the counterparty on a transfer
+  // the current user is a party to, so it goes through the scoped RPC instead.
+  final counterparty = (await supabase
+          .rpc('get_transfer_counterparty', params: {'p_transfer_id': transfer['id']})
+      as List)
+      .cast<Map<String, dynamic>>()
+      .single;
 
   return TransferInfo(
     id: transfer['id'] as String,
     truckId: truckId,
     truckName: truck['name'] as String,
     otherUserId: fromOwnerId,
-    otherUserName: fromOwner['display_name'] as String,
-    otherUserEmail: fromOwner['email'] as String,
+    otherUserName: counterparty['display_name'] as String,
+    otherUserEmail: counterparty['email'] as String,
     expiresAt: expiresAt,
   );
 });
@@ -91,19 +93,19 @@ final outgoingTransferProvider = FutureProvider.autoDispose<TransferInfo?>((ref)
       .eq('id', transfer['truck_id'] as String)
       .single();
 
-  final toUser = await supabase
-      .from('profiles')
-      .select('display_name, email')
-      .eq('id', toUserId)
-      .single();
+  final counterparty = (await supabase
+          .rpc('get_transfer_counterparty', params: {'p_transfer_id': transfer['id']})
+      as List)
+      .cast<Map<String, dynamic>>()
+      .single;
 
   return TransferInfo(
     id: transfer['id'] as String,
     truckId: transfer['truck_id'] as String,
     truckName: truck['name'] as String,
     otherUserId: toUserId,
-    otherUserName: toUser['display_name'] as String,
-    otherUserEmail: toUser['email'] as String,
+    otherUserName: counterparty['display_name'] as String,
+    otherUserEmail: counterparty['email'] as String,
     expiresAt: DateTime.parse(transfer['expires_at'] as String),
   );
 });

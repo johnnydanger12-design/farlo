@@ -269,16 +269,15 @@ class BookingsRepository {
     required String type,
     required String recordId,
     required String bookingId,
-    required double amount,
   }) async {
-    final amountCents = (amount * 100).round();
+    // The server recomputes the charge amount from the real stored deposit/quote
+    // row — it no longer trusts a client-supplied amount.
     final res = await _supabase.functions.invoke(
       'create-booking-payment-intent',
       body: {
         'type': type,
         'record_id': recordId,
         'booking_id': bookingId,
-        'amount_cents': amountCents,
       },
     );
     final data = res.data as Map<String, dynamic>;

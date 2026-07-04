@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -37,11 +38,12 @@ class _TransferTruckSheetState extends ConsumerState<TransferTruckSheet> {
       final supabase = Supabase.instance.client;
       final currentUserId = supabase.auth.currentUser?.id;
 
-      final result = await supabase
-          .from('profiles')
-          .select('id, display_name, email')
-          .ilike('email', email)
-          .maybeSingle();
+      // profiles is self-read-only via RLS — email lookup for the transfer
+      // recipient goes through the narrow find_profile_by_email RPC instead.
+      final rows = (await supabase
+              .rpc('find_profile_by_email', params: {'p_email': email}) as List)
+          .cast<Map<String, dynamic>>();
+      final result = rows.isEmpty ? null : {...rows.first, 'email': email};
 
       if (!mounted) return;
 
@@ -122,7 +124,7 @@ class _TransferTruckSheetState extends ConsumerState<TransferTruckSheet> {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
-                  'This permanently transfers ownership of the business and its active subscription to the new owner. Your account will become a consumer account. This cannot be undone once accepted.\n\nImportant: cancel your subscription in App Store Settings → Subscriptions to stop being charged.',
+                  'This permanently transfers ownership of the business and its active subscription to the new owner. Your account will become a consumer account. This cannot be undone once accepted.\n\nImportant: cancel your subscription in ${Platform.isIOS ? 'App Store' : 'Google Play'} Settings → Subscriptions to stop being charged.',
                   style: AppTextStyles.caption.copyWith(color: AppColors.error),
                 ),
               ),

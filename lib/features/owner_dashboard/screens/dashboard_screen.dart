@@ -58,12 +58,11 @@ final _activeOrdersProvider =
 
 final _profileDisplayNameProvider =
     FutureProvider.family<String?, String>((ref, userId) async {
-  final data = await Supabase.instance.client
-      .from('profiles')
-      .select('display_name')
-      .eq('id', userId)
-      .maybeSingle();
-  return data?['display_name'] as String?;
+  // profiles is self-read-only via RLS — use the narrow RPC for another
+  // user's display name (e.g. "opened by <employee name>").
+  final name = await Supabase.instance.client
+      .rpc('profile_display_name', params: {'p_user_id': userId});
+  return name as String?;
 });
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────

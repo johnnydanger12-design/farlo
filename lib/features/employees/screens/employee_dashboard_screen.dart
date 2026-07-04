@@ -23,14 +23,13 @@ import '../providers/shifts_provider.dart';
 import '../widgets/shift_week_card.dart';
 
 // Checks whether a truck owner has Stripe Connect set up.
+// profiles is self-read-only via RLS — this is a cross-user (employee viewing
+// their owner's) lookup, so it goes through the narrow profile_stripe_connected RPC.
 final _ownerStripeConnectedProvider =
     FutureProvider.autoDispose.family<bool, String>((ref, ownerId) async {
-  final row = await Supabase.instance.client
-      .from('profiles')
-      .select('stripe_account_id')
-      .eq('id', ownerId)
-      .single();
-  return (row['stripe_account_id'] as String?) != null;
+  final connected = await Supabase.instance.client
+      .rpc('profile_stripe_connected', params: {'p_user_id': ownerId});
+  return connected as bool? ?? false;
 });
 
 class EmployeeDashboardScreen extends ConsumerStatefulWidget {

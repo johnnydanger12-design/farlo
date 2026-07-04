@@ -16,11 +16,18 @@ class OrdersRepository {
 
   Future<({String clientSecret, String paymentIntentId})> createPaymentIntent({
     required String truckId,
-    required int amountCents,
+    required List<CartItem> items,
   }) async {
+    // The server recomputes the charge amount from real menu_items prices — it
+    // no longer trusts a client-supplied total, so only item/quantity is sent.
     final res = await _supabase.functions.invoke(
       'create-payment-intent',
-      body: {'truck_id': truckId, 'amount_cents': amountCents},
+      body: {
+        'truck_id': truckId,
+        'items': items
+            .map((i) => {'menu_item_id': i.menuItemId, 'quantity': i.quantity})
+            .toList(),
+      },
     );
     final data = res.data as Map<String, dynamic>;
     if (data['error'] != null) throw Exception(data['error']);

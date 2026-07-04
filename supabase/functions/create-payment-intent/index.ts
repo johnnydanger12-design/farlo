@@ -48,17 +48,62 @@ Deno.serve(async (req: Request) => {
     return new Response('Unauthorized', { status: 401 });
   }
 
-  let body: { truck_id: string; amount_cents: number };
+  let body: { truck_id: string; items: { menu_item_id: string; quantity: number }[] };
   try {
     body = await req.json();
   } catch {
     return new Response('Bad request', { status: 400 });
   }
 
-  const { truck_id: truckId, amount_cents: amountCents } = body;
-  if (!truckId || !amountCents || amountCents < 50) {
+  const { truck_id: truckId, items } = body;
+  if (!truckId || !Array.isArray(items) || items.length === 0) {
     return new Response(
-      JSON.stringify({ error: 'truck_id and amount_cents (min 50) required' }),
+      JSON.stringify({ error: 'truck_id and a non-empty items array are required' }),
+      { status: 400, headers: { 'Content-Type': 'application/json' } },
+    );
+  }
+  for (const it of items) {
+    if (!it.menu_item_id || !Number.isInteger(it.quantity) || it.quantity < 1) {
+      return new Response(
+        JSON.stringify({ error: 'each item requires menu_item_id and a positive integer quantity' }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } },
+      );
+    }
+  }
+
+  // Recompute the charge amount server-side from real menu_items prices — never
+  // trust a client-supplied amount_cents. Previously this function took the total
+  // directly from the client, letting anyone pay an arbitrary amount for a real
+  // order (Phase 2 audit, Critical Finding #1).
+  const menuItemIds = [...new Set(items.map((i) => i.menu_item_id))];
+  const { data: menuItems, error: menuErr } = await supabase
+    .from('menu_items')
+    .select('id, price, truck_id')
+    .in('id', menuItemIds);
+
+  if (menuErr || !menuItems || menuItems.length !== menuItemIds.length) {
+    return new Response(
+      JSON.stringify({ error: 'one or more menu items were not found' }),
+      { status: 400, headers: { 'Content-Type': 'application/json' } },
+    );
+  }
+
+  const menuItemById = new Map(menuItems.map((m) => [m.id as string, m]));
+  let amountCents = 0;
+  for (const it of items) {
+    const menuItem = menuItemById.get(it.menu_item_id);
+    if (!menuItem || menuItem.truck_id !== truckId) {
+      return new Response(
+        JSON.stringify({ error: `menu item ${it.menu_item_id} does not belong to truck ${truckId}` }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } },
+      );
+    }
+    amountCents += Math.round(Number(menuItem.price) * 100) * it.quantity;
+  }
+
+  if (amountCents < 50) {
+    return new Response(
+      JSON.stringify({ error: 'order total is below the minimum chargeable amount' }),
       { status: 400, headers: { 'Content-Type': 'application/json' } },
     );
   }

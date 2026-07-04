@@ -5,7 +5,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { requireAgentSecret, isDryRun } from '../_shared/auth.ts';
 import { startRun, finishRun } from '../_shared/run-log.ts';
 import { sendEmail } from '../_shared/notify.ts';
-import { getGmailAccessToken, searchThreads, getThread, extractPlainTextBody } from '../_shared/gmail.ts';
+import { getGmailAccessToken, searchThreads, getThread, extractPlainTextBody, extractEmailAddress } from '../_shared/gmail.ts';
 import { runAgentLoop, MODEL_SONNET, type ToolDefinition } from '../_shared/claude-agent.ts';
 import { estimateCostUsd } from '../_shared/pricing.ts';
 
@@ -13,6 +13,15 @@ const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
 );
+
+// This weekly-synthesis context is meant to be a summary of what already happened
+// (Johnny's own instructions, already handled by agent-aiden-inbox, plus Aiden's own
+// sent replies) — not a live ingestion point for arbitrary inbound mail. Without this
+// filter, anyone who emails the discoverable aiden@farlo.app address gets their message
+// fed verbatim into a synthesis prompt with standing write access to every other
+// agent's operating directives. Anchored, exact-match against the extracted address —
+// same reasoning as agent-aiden-inbox's ALLOWED_SENDERS.
+const ALLOWED_INBOX_SENDERS = /^(johnny@farlo\.app|johnny\.danger12@gmail\.com|aiden@farlo\.app)$/i;
 
 function stripHtml(html: string): string {
   return html
@@ -109,8 +118,11 @@ Deno.serve(async (req: Request) => {
       for (const m of messages) {
         // deno-lint-ignore no-explicit-any
         const headers = Object.fromEntries((m.payload?.headers ?? []).map((h: any) => [h.name, h.value]));
+        const fromHeader: string = headers['From'] ?? '';
+        const fromEmail = extractEmailAddress(fromHeader);
+        if (!ALLOWED_INBOX_SENDERS.test(fromEmail)) continue; // never feed a third-party sender into the synthesis prompt
         inboxContext.push({
-          from: headers['From'] ?? '',
+          from: fromHeader,
           subject: headers['Subject'] ?? '',
           date: headers['Date'] ?? '',
           snippet: extractPlainTextBody(m.payload).slice(0, 500),
