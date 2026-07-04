@@ -1,6 +1,6 @@
 # Farlo — Agent Architecture Decision Doc (Phase 6, P6-3 / Phase 5, ARCH-7)
 
-**Status: a decision doc, not a decision.** This lays out the actual question `ai-agents.md` and `FARLO_FINAL_AUDIT.md` raise — whether to build a real agent dispatcher/supervisor or formalize the current "independent cron jobs + shared config" model — with the tradeoffs made concrete, so you can make the call rather than have it made for you. This is exactly the kind of architecture decision the remediation protocol treats as needing your sign-off before code gets written, not something to decide autonomously.
+**Status: decided, as of iteration 8.** No near-term plans for an agent whose inputs would overlap an existing one, so the doc's own default recommendation (§4) applies as-is: **Option A — formalize the current model, don't build a dispatcher now.** Revisit Option B specifically if/when a consumer-engagement or review-response agent (`ai-agents.md` §5 #3/#4) actually gets built. Kept in `audit/` for the reasoning, not as an open question anymore.
 
 **Source:** `audit/ai-agents.md` §4 (Orchestration Topology), §5 (Missing Agents), §7 (Future Architecture Recommendations #4), §8 (Cross-Agent Comparison Matrix); `FARLO_FINAL_AUDIT.md`'s Top 20 #19 equivalent and its own framing ("Decide, deliberately, whether the agent fleet needs a real supervisor/dispatcher or should formalize its current... model").
 
@@ -32,11 +32,13 @@ This isn't a question with a universally correct answer — it depends on near-t
 - **If the near-term plan is "keep the current four+ov-op agents, maybe add one more narrowly-scoped one" (e.g., just the churn/re-engagement agent from §5, which has a clean non-overlapping trigger — `owner hasn't opened in N days` — same shape as the existing cron-triggered agents)** — Option A is very likely the right call. Building a dispatcher for a system where routing is still unambiguous is premature infrastructure.
 - **Either way, Option A's four sub-items (shared prompts, trust-boundary convention, observability, tool registry) are worth doing regardless of which path is chosen** — they're not in tension with Option B, they're prerequisites for it being safe to build (a dispatcher routing into agents that don't share a trust-boundary convention or a tool registry is arguably worse than no dispatcher, since it adds a new component with the same undifferentiated-trust problem `ai-agents.md`'s Top Risks already flagged).
 
-## 4. Recommendation, if a default is needed
+## 4. Decision (settled iteration 8)
 
-**Option A, for now, with the four sub-items as real backlog items** (not urgent, but real) **— revisit Option B specifically if/when either of the two "missing agents" most likely to create routing overlap (`ai-agents.md` §5 items #3 consumer-engagement, #4 review-response) actually gets built.** This is the lower-commitment path: it doesn't foreclose Option B later, and it fixes real, already-identified maintainability/trust gaps (§6's prompt-drift risk, the trust-boundary convention) that are worth doing independent of the dispatcher question. Building a dispatcher today, before there's a second agent that actually needs routing, would be solving a problem Farlo doesn't have yet at the cost of real engineering time that the cold-start problem (see the companion GTM memo) more urgently needs.
+**Option A — formalize the current independent-cron model, don't build a dispatcher now.** Confirmed directly: no near-term plans for an agent whose inputs would overlap an existing one. This is the lower-commitment path: it doesn't foreclose Option B later, and its four sub-items (shared prompt/persona layer, trust-boundary convention, observability beyond `agent_run_log`, unified tool registry) are worth doing regardless of the dispatcher question — they're real, already-identified maintainability/trust gaps, not busywork.
 
-**This recommendation is not a decision on your behalf** — it's a default to make explicit and either confirm or override. If there are near-term plans for the consumer-engagement or review-response agents that this remediation pass doesn't know about, that changes the calculus toward Option B sooner.
+**Revisit Option B specifically if/when a consumer-engagement or review-response agent (`ai-agents.md` §5 items #3/#4) actually gets built** — that's the concrete trigger condition, not a vague "someday." Until then, building a dispatcher would be solving a routing problem Farlo doesn't have yet, at the cost of engineering time the cold-start plan (see the companion GTM memo) more urgently needs.
+
+Option A's four sub-items are not yet scheduled as their own Fix-Protocol items — noted here as real backlog, picked up when there's capacity.
 
 ## 5. What doesn't wait on this decision
 
