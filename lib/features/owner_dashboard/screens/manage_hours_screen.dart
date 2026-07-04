@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../core/widgets/snackbar_extensions.dart';
 import '../../food_trucks/models/operating_hours.dart';
 import '../../food_trucks/providers/food_truck_provider.dart';
 
@@ -50,20 +51,12 @@ class _ManageHoursScreenState extends ConsumerState<ManageHoursScreen> {
       }
       await ref.read(ownerTruckProvider.notifier).refresh();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Hours saved!'),
-            backgroundColor: AppColors.openGreen,
-            duration: Duration(seconds: 2),
-          ),
-        );
+        context.showSuccess('Hours saved!', duration: const Duration(seconds: 2), backgroundColor: AppColors.openGreen);
         context.canPop() ? context.pop() : context.go('/dashboard');
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
+        context.showError('Could not save: ${sanitizeErrorMessage(e)}');
       }
     } finally {
       if (mounted) setState(() => _saving = false);

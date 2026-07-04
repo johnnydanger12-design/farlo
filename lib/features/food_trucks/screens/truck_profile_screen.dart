@@ -8,6 +8,7 @@ import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/widgets/star_rating_widget.dart';
 import '../../../core/widgets/error_view.dart';
+import '../../../core/widgets/snackbar_extensions.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../map/models/food_truck.dart';
 import '../../food_trucks/models/menu_item.dart';
@@ -143,11 +144,7 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
     if (!mounted) return;
 
     if (hasSubscription != true) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('This business isn\'t currently accepting booking requests.'),
-        ),
-      );
+      context.showInfo('This business isn\'t currently accepting booking requests.');
       return;
     }
 
@@ -159,9 +156,7 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
       builder: (_) => BookTruckSheet(truckId: truck.id, truckName: truck.name, topPadding: topPadding),
     );
     if (result == true && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Request sent! The owner will be in touch.')),
-      );
+      context.showSuccess('Request sent! The owner will be in touch.');
     }
   }
 
@@ -1411,14 +1406,10 @@ class _AnnouncementBellButton extends ConsumerWidget {
         await ref.read(announcementPrefProvider(truckId).notifier).toggle();
         if (!context.mounted) return;
         final nowEnabled = ref.read(announcementPrefProvider(truckId)).asData?.value ?? true;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(nowEnabled
-                ? 'Announcements turned on'
-                : 'Announcements muted for this business'),
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 2),
-          ),
+        context.showInfo(
+          nowEnabled ? 'Announcements turned on' : 'Announcements muted for this business',
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
         );
       },
     );

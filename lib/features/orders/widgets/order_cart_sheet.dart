@@ -9,6 +9,7 @@ import '../../../core/constants/app_text_styles.dart';
 import '../../map/models/food_truck.dart';
 import '../models/order_item.dart';
 import '../providers/orders_provider.dart';
+import '../../../core/widgets/snackbar_extensions.dart';
 import '../repositories/orders_repository.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -55,9 +56,7 @@ class _OrderCartSheetState extends ConsumerState<OrderCartSheet> {
     // successful charge (bugs.md's stranded-charge root cause).
     final consumerId = Supabase.instance.client.auth.currentUser?.id;
     if (consumerId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please sign in again to complete this order.'), backgroundColor: Colors.red),
-      );
+      context.showError('Please sign in again to complete this order.');
       return;
     }
 
@@ -109,20 +108,13 @@ class _OrderCartSheetState extends ConsumerState<OrderCartSheet> {
     } on StripeException catch (e) {
       // User cancelled or card declined — Stripe already showed the error
       if (e.error.code != FailureCode.Canceled && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.error.localizedMessage ?? 'Payment failed'), backgroundColor: Colors.red),
-        );
+        context.showError(e.error.localizedMessage ?? 'Payment failed');
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Your payment may have gone through, but we couldn\'t confirm your order. '
-              'Please check "My Orders" before trying again, or contact support if this repeats.',
-            ),
-            backgroundColor: Colors.red,
-          ),
+        context.showError(
+          'Your payment may have gone through, but we couldn\'t confirm your order. '
+          'Please check "My Orders" before trying again, or contact support if this repeats.',
         );
       }
     } finally {

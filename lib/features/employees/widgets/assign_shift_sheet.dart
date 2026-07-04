@@ -9,6 +9,7 @@ import '../../../core/widgets/app_button.dart';
 import '../../../core/push_notification_service.dart';
 import '../models/truck_employee.dart';
 import '../providers/employees_provider.dart';
+import '../../../core/widgets/snackbar_extensions.dart';
 import '../providers/shifts_provider.dart';
 import '../repositories/employees_repository.dart';
 
@@ -65,8 +66,7 @@ class _AssignShiftSheetState extends ConsumerState<AssignShiftSheet> {
     final start = _combine(_date, _startTime);
     final end = _combine(_date, _endTime);
     if (!end.isAfter(start)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('End time must be after start time')));
+      context.showError('End time must be after start time');
       return;
     }
 
@@ -92,8 +92,7 @@ class _AssignShiftSheetState extends ConsumerState<AssignShiftSheet> {
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Could not assign shift: $e')));
+        context.showError('Could not assign shift: ${sanitizeErrorMessage(e)}');
         setState(() => _saving = false);
       }
     }
@@ -297,8 +296,7 @@ class _EditWorkedShiftDialogState extends ConsumerState<EditWorkedShiftDialog> {
       final clockedOut = DateTime(date.year, date.month, date.day, _outTime.hour, _outTime.minute);
 
       if (!clockedOut.isAfter(clockedIn)) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Clock-out must be after clock-in')));
+        context.showError('Clock-out must be after clock-in');
         setState(() => _saving = false);
         return;
       }
@@ -320,8 +318,7 @@ class _EditWorkedShiftDialogState extends ConsumerState<EditWorkedShiftDialog> {
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Could not update shift: $e')));
+        context.showError('Could not update shift: ${sanitizeErrorMessage(e)}');
         setState(() => _saving = false);
       }
     }

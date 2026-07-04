@@ -13,6 +13,7 @@ import '../../../core/constants/supabase_constants.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_text_field.dart';
 import '../../../services/storage_service.dart';
+import '../../../core/widgets/snackbar_extensions.dart';
 import '../../bookings/widgets/places_autocomplete_field.dart';
 import '../../food_trucks/providers/food_truck_provider.dart';
 
@@ -210,20 +211,12 @@ class _EditTruckScreenState extends ConsumerState<EditTruckScreen> {
       await ref.read(ownerTruckProvider.notifier).updateProfile(fields);
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Profile updated!'),
-            backgroundColor: AppColors.openGreen,
-            duration: Duration(seconds: 2),
-          ),
-        );
+        context.showSuccess('Profile updated!', duration: const Duration(seconds: 2), backgroundColor: AppColors.openGreen);
         context.pop();
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
+        context.showError('Could not update profile: ${sanitizeErrorMessage(e)}');
       }
     } finally {
       if (mounted) setState(() => _loading = false);

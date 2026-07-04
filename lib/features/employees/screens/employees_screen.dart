@@ -10,6 +10,7 @@ import '../../food_trucks/providers/food_truck_provider.dart';
 import '../../owner_dashboard/providers/subscription_provider.dart';
 import '../models/truck_employee.dart';
 import '../providers/employees_provider.dart';
+import '../../../core/widgets/snackbar_extensions.dart';
 
 class EmployeesScreen extends ConsumerWidget {
   const EmployeesScreen({super.key});
@@ -143,14 +144,14 @@ class _EmployeesListState extends ConsumerState<_EmployeesList> {
   void _showAddDialog(BuildContext context, WidgetRef ref) {
     final sub = ref.read(subscriptionProvider).asData?.value;
     if (sub?.hasAccess != true) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: const Text('Employee management requires an active subscription'),
+      context.showError(
+        'Employee management requires an active subscription',
         showCloseIcon: true,
         action: SnackBarAction(
           label: 'Upgrade',
           onPressed: () => context.go('/dashboard/subscription'),
         ),
-      ));
+      );
       return;
     }
     final ctrl = TextEditingController();
@@ -209,14 +210,14 @@ class _EmployeesListState extends ConsumerState<_EmployeesList> {
                             'isExistingUser': alreadyUser,
                           }).ignore();
                           if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                              content: Text(alreadyUser ? '$email has been added to your team.' : '$email invited — they\'ll get access when they sign up.'),
+                            context.showSuccess(
+                              alreadyUser ? '$email has been added to your team.' : '$email invited — they\'ll get access when they sign up.',
                               backgroundColor: AppColors.openGreen,
-                            ));
+                            );
                           }
                         } catch (e) {
                           if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error));
+                            context.showError(sanitizeErrorMessage(e));
                           }
                         }
                       },

@@ -5,6 +5,7 @@ import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../auth/providers/auth_provider.dart';
+import '../../../core/widgets/snackbar_extensions.dart';
 import '../models/review.dart';
 import '../providers/reviews_provider.dart';
 
@@ -47,9 +48,7 @@ class _WriteReviewSheetState extends ConsumerState<WriteReviewSheet> {
 
   Future<void> _submit() async {
     if (_rating == 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a star rating.')),
-      );
+      context.showError('Please select a star rating.');
       return;
     }
     setState(() => _loading = true);
@@ -67,9 +66,7 @@ class _WriteReviewSheetState extends ConsumerState<WriteReviewSheet> {
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
+        context.showError(sanitizeErrorMessage(e));
       }
     } finally {
       if (mounted) setState(() => _loading = false);

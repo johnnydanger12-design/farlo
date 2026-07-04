@@ -7,6 +7,7 @@ import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_text_field.dart';
+import '../../../core/widgets/snackbar_extensions.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/social_auth_buttons.dart';
 
@@ -64,13 +65,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: AppColors.error,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    context.showError(message, behavior: SnackBarBehavior.floating);
   }
 
   void _showForgotPasswordDialog(BuildContext context) {

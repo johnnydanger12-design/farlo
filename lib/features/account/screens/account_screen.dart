@@ -12,6 +12,7 @@ import '../../../core/constants/app_text_styles.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/providers/theme_provider.dart';
 import '../../../core/widgets/app_button.dart';
+import '../../../core/widgets/snackbar_extensions.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../auth/widgets/business_type_picker.dart';
 import '../../bookings/widgets/places_autocomplete_field.dart';
@@ -264,9 +265,7 @@ class AccountScreen extends ConsumerWidget {
       await ref.read(authProvider.notifier).refreshUser();
     } catch (_) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to accept transfer. Please try again.')),
-        );
+        context.showError('Failed to accept transfer. Please try again.');
       }
     }
   }
@@ -297,9 +296,7 @@ class AccountScreen extends ConsumerWidget {
       ref.invalidate(incomingTransferProvider);
     } catch (_) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to decline. Please try again.')),
-        );
+        context.showError('Failed to decline. Please try again.');
       }
     }
   }
@@ -440,9 +437,7 @@ class AccountSettingsScreen extends ConsumerWidget {
       ref.invalidate(outgoingTransferProvider);
     } catch (_) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to cancel. Please try again.')),
-        );
+        context.showError('Failed to cancel. Please try again.');
       }
     }
   }
@@ -500,9 +495,7 @@ class _ProfileTileState extends ConsumerState<_ProfileTile> {
       await ref.read(authProvider.notifier).updateAvatar(bytes);
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to update photo. Please try again.')),
-        );
+        context.showError('Failed to update photo. Please try again.');
       }
     } finally {
       if (mounted) setState(() => _uploading = false);
@@ -998,9 +991,7 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
         setState(() => _error = error);
       } else {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Password updated successfully')),
-        );
+        context.showSuccess('Password updated successfully');
       }
     } catch (e) {
       if (mounted) setState(() => _error = 'Incorrect current password.');

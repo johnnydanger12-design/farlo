@@ -21,6 +21,7 @@ import '../../employees/providers/shifts_provider.dart';
 import '../../employees/widgets/shift_week_card.dart';
 import '../../map/models/food_truck.dart';
 import '../../../core/widgets/truck_map_pin.dart';
+import '../../../core/widgets/snackbar_extensions.dart';
 import '../../food_trucks/screens/truck_profile_screen.dart';
 import '../../orders/models/order.dart';
 import '../../orders/repositories/orders_repository.dart';
@@ -109,14 +110,14 @@ class DashboardScreen extends ConsumerWidget {
                 onAnnouncement: () {
                   final sub = ref.read(subscriptionProvider).asData?.value;
                   if (sub?.hasAccess != true) {
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                      content: const Text('Announcements require an active subscription'),
+                    context.showError(
+                      'Announcements require an active subscription',
                       showCloseIcon: true,
                       action: SnackBarAction(
                         label: 'Upgrade',
                         onPressed: () => context.go('/dashboard/subscription'),
                       ),
-                    ));
+                    );
                     return;
                   }
                   _showAnnouncementSheet(context, truck.id, truck.name);
@@ -165,14 +166,14 @@ class DashboardScreen extends ConsumerWidget {
     final sub = ref.read(subscriptionProvider).asData?.value;
     if (sub?.hasAccess != true) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: const Text('An active subscription is required to open'),
+        context.showError(
+          'An active subscription is required to open',
           showCloseIcon: true,
           action: SnackBarAction(
             label: 'Upgrade',
             onPressed: () => context.go('/dashboard/subscription'),
           ),
-        ));
+        );
       }
       return;
     }
@@ -190,19 +191,15 @@ class DashboardScreen extends ConsumerWidget {
           }
         }
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('You\'re open — customers can find you now!'),
-              backgroundColor: AppColors.openGreen,
-              duration: Duration(seconds: 3),
-            ),
+          context.showSuccess(
+            'You\'re open — customers can find you now!',
+            duration: const Duration(seconds: 3),
+            backgroundColor: AppColors.openGreen,
           );
         }
       } catch (e) {
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Could not update status: $e')),
-          );
+          context.showError('Could not update status: ${sanitizeErrorMessage(e)}');
         }
       }
       return;
@@ -214,9 +211,7 @@ class DashboardScreen extends ConsumerWidget {
     if (!locationGranted) return;
 
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Getting your location…')),
-      );
+      context.showInfo('Getting your location…');
     }
 
     try {
@@ -262,20 +257,16 @@ class DashboardScreen extends ConsumerWidget {
 
       if (context.mounted) {
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('You\'re open — customers can find you now!'),
-            backgroundColor: AppColors.openGreen,
-            duration: Duration(seconds: 3),
-          ),
+        context.showSuccess(
+          'You\'re open — customers can find you now!',
+          duration: const Duration(seconds: 3),
+          backgroundColor: AppColors.openGreen,
         );
       }
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not get location: $e')),
-        );
+        context.showError('Could not get location: ${sanitizeErrorMessage(e)}');
       }
     }
   }
@@ -1379,19 +1370,15 @@ class _AnnouncementSheetState extends State<_AnnouncementSheet> {
       );
       if (!mounted) return;
       Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(sent == 0
-              ? 'No followers with notifications enabled.'
-              : 'Sent to $sent follower${sent == 1 ? '' : 's'}.'),
-          backgroundColor: sent > 0 ? AppColors.openGreen : null,
-        ),
+      context.showSuccess(
+        sent == 0
+            ? 'No followers with notifications enabled.'
+            : 'Sent to $sent follower${sent == 1 ? '' : 's'}.',
+        backgroundColor: sent > 0 ? AppColors.openGreen : null,
       );
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to send: $e')),
-        );
+        context.showError('Failed to send: ${sanitizeErrorMessage(e)}');
       }
     } finally {
       if (mounted) setState(() => _loading = false);

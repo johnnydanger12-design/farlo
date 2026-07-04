@@ -11,6 +11,7 @@ import '../../../core/constants/app_text_styles.dart';
 import '../../../core/constants/supabase_constants.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../services/storage_service.dart';
+import '../../../core/widgets/snackbar_extensions.dart';
 import '../../food_trucks/models/menu_item.dart';
 import '../../food_trucks/providers/food_truck_provider.dart';
 
@@ -375,7 +376,7 @@ class _MenuItemSheetState extends State<_MenuItemSheet> {
       if (mounted) Navigator.pop(context);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+        context.showError('Could not save menu item: ${sanitizeErrorMessage(e)}');
       }
     } finally {
       if (mounted) setState(() => _saving = false);

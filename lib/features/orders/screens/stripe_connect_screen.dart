@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../core/widgets/snackbar_extensions.dart';
 import '../../../core/widgets/app_button.dart';
 import '../repositories/orders_repository.dart';
 
@@ -71,9 +72,7 @@ class _StripeConnectScreenState extends ConsumerState<StripeConnectScreen>
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-        );
+        context.showError(sanitizeErrorMessage(e));
       }
     } finally {
       if (mounted) setState(() => _loading = false);

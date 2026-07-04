@@ -4,6 +4,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/widgets/app_button.dart';
+import '../../../core/widgets/snackbar_extensions.dart';
 import '../../bookings/widgets/places_autocomplete_field.dart';
 import '../providers/planned_locations_provider.dart';
 
@@ -63,9 +64,7 @@ class _PlanLocationSheetState extends ConsumerState<PlanLocationSheet> {
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not save: $e'), backgroundColor: AppColors.error),
-        );
+        context.showError('Could not save: ${sanitizeErrorMessage(e)}');
       }
     } finally {
       if (mounted) setState(() => _saving = false);

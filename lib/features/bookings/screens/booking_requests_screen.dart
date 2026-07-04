@@ -19,6 +19,7 @@ import '../providers/bookings_provider.dart';
 import '../screens/booking_chat_screen.dart';
 import '../widgets/book_truck_sheet.dart';
 import '../widgets/request_deposit_sheet.dart';
+import '../../../core/widgets/snackbar_extensions.dart';
 import '../widgets/send_estimate_sheet.dart';
 import '../widgets/send_invoice_sheet.dart';
 
@@ -900,9 +901,7 @@ class _OwnerFinancialSectionState extends ConsumerState<_OwnerFinancialSection> 
       );
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not generate PDF: $e')),
-        );
+        context.showError('Could not generate PDF: ${sanitizeErrorMessage(e)}');
       }
     } finally {
       if (mounted) setState(() => _generatingPdf = false);

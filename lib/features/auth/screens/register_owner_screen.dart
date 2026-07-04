@@ -11,6 +11,7 @@ import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_text_field.dart';
 import '../../bookings/widgets/places_autocomplete_field.dart';
 import '../providers/auth_provider.dart';
+import '../../../core/widgets/snackbar_extensions.dart';
 import '../widgets/business_type_picker.dart';
 import '../widgets/social_auth_buttons.dart';
 
@@ -110,13 +111,7 @@ class _RegisterOwnerScreenState extends ConsumerState<RegisterOwnerScreen> {
   }
 
   void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: AppColors.error,
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 4),
-      ),
+    context.showError(message, behavior: SnackBarBehavior.floating, duration: const Duration(seconds: 4),
     );
   }
 

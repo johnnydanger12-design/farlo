@@ -19,6 +19,7 @@ import '../../orders/providers/orders_provider.dart';
 import '../../orders/screens/order_queue_screen.dart';
 import '../models/employee_shift.dart';
 import '../providers/employees_provider.dart';
+import '../../../core/widgets/snackbar_extensions.dart';
 import '../providers/shifts_provider.dart';
 import '../widgets/shift_week_card.dart';
 
@@ -142,11 +143,11 @@ class _EmployeeDashboardScreenState extends ConsumerState<EmployeeDashboardScree
           // Fixed business — no GPS needed, just mark as open.
           await notifier.setOpenStatus(true);
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-              content: Text('Truck is open — customers can find you now!'),
+            context.showSuccess(
+              'Truck is open — customers can find you now!',
               backgroundColor: AppColors.openGreen,
-              duration: Duration(seconds: 3),
-            ));
+              duration: const Duration(seconds: 3),
+            );
           }
         } else {
           // Mobile business — get location first.
@@ -155,8 +156,7 @@ class _EmployeeDashboardScreenState extends ConsumerState<EmployeeDashboardScree
           if (!mounted) return;
           if (!locationGranted) return;
 
-          ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Getting your location…')));
+          context.showInfo('Getting your location…');
 
           final pos = await Geolocator.getCurrentPosition(
             locationSettings:
@@ -192,11 +192,11 @@ class _EmployeeDashboardScreenState extends ConsumerState<EmployeeDashboardScree
 
           if (mounted) {
             ScaffoldMessenger.of(context).hideCurrentSnackBar();
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-              content: Text('Truck is open — customers can find you now!'),
+            context.showSuccess(
+              'Truck is open — customers can find you now!',
               backgroundColor: AppColors.openGreen,
-              duration: Duration(seconds: 3),
-            ));
+              duration: const Duration(seconds: 3),
+            );
           }
         }
       }
@@ -212,8 +212,7 @@ class _EmployeeDashboardScreenState extends ConsumerState<EmployeeDashboardScree
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Could not clock in: $e')));
+        context.showError('Could not clock in: ${sanitizeErrorMessage(e)}');
       }
     } finally {
       if (mounted) setState(() => _clockingIn = false);
@@ -270,8 +269,7 @@ class _EmployeeDashboardScreenState extends ConsumerState<EmployeeDashboardScree
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Could not clock out: $e')));
+        context.showError('Could not clock out: ${sanitizeErrorMessage(e)}');
       }
     } finally {
       if (mounted) setState(() => _clockingOut = false);
@@ -302,9 +300,7 @@ class _EmployeeDashboardScreenState extends ConsumerState<EmployeeDashboardScree
       canPop: !isClockedIn,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop && isClockedIn) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Clock out before leaving your shift.'),
-          ));
+          context.showError('Clock out before leaving your shift.');
         }
       },
       child: Scaffold(
@@ -632,12 +628,9 @@ class _EmployeeOrdersCard extends ConsumerWidget {
                             .read(employeeGoLiveProvider(truckId).notifier)
                             .updateOrdersAccepting(!ordersAccepting)
                         : (_) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Online orders unavailable — the owner needs to connect Stripe first.'),
-                                behavior: SnackBarBehavior.floating,
-                              ),
+                            context.showError(
+                              'Online orders unavailable — the owner needs to connect Stripe first.',
+                              behavior: SnackBarBehavior.floating,
                             );
                           },
                     activeThumbColor: AppColors.openGreen,
@@ -721,8 +714,7 @@ class _EmployeeCalendarSectionState
           )));
         } catch (e) {
           if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Could not update shift: $e')));
+            context.showError('Could not update shift: ${sanitizeErrorMessage(e)}');
           }
         }
       },

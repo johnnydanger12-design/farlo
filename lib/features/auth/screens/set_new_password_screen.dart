@@ -6,6 +6,7 @@ import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_text_field.dart';
+import '../../../core/widgets/snackbar_extensions.dart';
 
 class SetNewPasswordScreen extends StatefulWidget {
   const SetNewPasswordScreen({super.key});
@@ -37,24 +38,13 @@ class _SetNewPasswordScreenState extends State<SetNewPasswordScreen> {
         UserAttributes(password: _passwordController.text),
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Password updated — please sign in.'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        context.showSuccess('Password updated — please sign in.', behavior: SnackBarBehavior.floating);
         await Supabase.instance.client.auth.signOut();
         if (mounted) context.go('/login');
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(e.toString()),
-            backgroundColor: AppColors.error,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        context.showError(sanitizeErrorMessage(e), behavior: SnackBarBehavior.floating);
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);

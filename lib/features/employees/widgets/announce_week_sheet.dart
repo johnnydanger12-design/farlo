@@ -5,6 +5,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/widgets/app_button.dart';
+import '../../../core/widgets/snackbar_extensions.dart';
 import '../models/planned_location.dart';
 import '../providers/planned_locations_provider.dart';
 
@@ -72,9 +73,7 @@ class _AnnounceWeekSheetState extends ConsumerState<AnnounceWeekSheet> {
   Future<void> _send(List<PlannedLocation> locations) async {
     final message = _buildMessage(locations);
     if (message.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Add at least one planned location first.')),
-      );
+      context.showError('Add at least one planned location first.');
       return;
     }
 
@@ -93,15 +92,11 @@ class _AnnounceWeekSheetState extends ConsumerState<AnnounceWeekSheet> {
       if (resp.status != 200) throw Exception('Server error ${resp.status}');
       if (mounted) {
         Navigator.pop(context, true);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Weekly schedule announced!')),
-        );
+        context.showSuccess('Weekly schedule announced!');
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not send: $e'), backgroundColor: AppColors.error),
-        );
+        context.showError('Could not send: ${sanitizeErrorMessage(e)}');
       }
     } finally {
       if (mounted) setState(() => _sending = false);

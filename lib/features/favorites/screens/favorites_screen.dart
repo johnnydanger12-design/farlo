@@ -6,6 +6,7 @@ import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/widgets/star_rating_widget.dart';
 import '../models/favorite_entry.dart';
+import '../../../core/widgets/snackbar_extensions.dart';
 import '../providers/favorites_provider.dart';
 import '../../food_trucks/providers/announcement_prefs_provider.dart';
 
@@ -188,13 +189,13 @@ class _FavoriteTile extends ConsumerWidget {
                           await ref.read(announcementPrefProvider(entry.truckId).notifier).toggle();
                           final enabled = ref.read(announcementPrefProvider(entry.truckId)).asData?.value ?? true;
                           if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                              content: Text(enabled
+                            context.showInfo(
+                              enabled
                                   ? 'Announcements on for ${truck.name}'
-                                  : 'Announcements muted for ${truck.name}'),
+                                  : 'Announcements muted for ${truck.name}',
                               behavior: SnackBarBehavior.floating,
                               duration: const Duration(seconds: 2),
-                            ));
+                            );
                           }
                         },
                         child: Builder(builder: (ctx) {

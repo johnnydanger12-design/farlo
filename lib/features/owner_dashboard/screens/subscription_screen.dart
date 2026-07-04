@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../core/widgets/snackbar_extensions.dart';
 import '../models/subscription.dart';
 import '../providers/subscription_provider.dart' show subscriptionProvider, subscriptionPricesProvider;
 
@@ -82,9 +83,7 @@ class _SubscriptionBodyState extends ConsumerState<_SubscriptionBody> {
     try {
       await ref.read(subscriptionProvider.notifier).restore();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Purchases restored successfully')),
-        );
+        context.showSuccess('Purchases restored successfully');
       }
     } catch (e) {
       if (mounted) setState(() => _errorMessage = 'No purchases found to restore.');

@@ -8,6 +8,7 @@ import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../models/booking_request.dart';
+import '../../../core/widgets/snackbar_extensions.dart';
 import '../providers/bookings_provider.dart';
 import 'places_autocomplete_field.dart';
 
@@ -108,24 +109,14 @@ class _BookTruckSheetState extends ConsumerState<BookTruckSheet> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     if (_eventDate == null || _eventTime == null || _duration == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please complete the event schedule.'),
-          backgroundColor: AppColors.error,
-        ),
-      );
+      context.showError('Please complete the event schedule.');
       return;
     }
 
     final today = DateTime.now();
     final minDate = DateTime(today.year, today.month, today.day).add(const Duration(days: 7));
     if (_eventDate!.isBefore(minDate)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Event date must be at least 7 days from today.'),
-          backgroundColor: AppColors.error,
-        ),
-      );
+      context.showError('Event date must be at least 7 days from today.');
       return;
     }
 
@@ -154,9 +145,7 @@ class _BookTruckSheetState extends ConsumerState<BookTruckSheet> {
     } catch (e) {
       if (mounted) {
         setState(() => _submitting = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Something went wrong. Please try again.'), backgroundColor: AppColors.error),
-        );
+        context.showError('Something went wrong. Please try again.');
       }
     }
   }
@@ -552,9 +541,7 @@ class _ManualBookingSheetState extends ConsumerState<ManualBookingSheet> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     if (_eventDate == null || _eventTime == null || _duration == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please complete the event schedule.'), backgroundColor: AppColors.error),
-      );
+      context.showError('Please complete the event schedule.');
       return;
     }
 
@@ -578,9 +565,7 @@ class _ManualBookingSheetState extends ConsumerState<ManualBookingSheet> {
     } catch (e) {
       if (mounted) {
         setState(() => _submitting = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Something went wrong. Please try again.'), backgroundColor: AppColors.error),
-        );
+        context.showError('Something went wrong. Please try again.');
       }
       return;
     }

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../core/widgets/snackbar_extensions.dart';
 import '../models/order.dart';
 import '../providers/orders_provider.dart';
 
@@ -31,9 +32,7 @@ class _OrderStatusSheetState extends ConsumerState<OrderStatusSheet> {
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-        );
+        context.showError(sanitizeErrorMessage(e));
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -62,9 +61,7 @@ class _OrderStatusSheetState extends ConsumerState<OrderStatusSheet> {
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-        );
+        context.showError(sanitizeErrorMessage(e));
       }
     } finally {
       if (mounted) setState(() => _loading = false);
