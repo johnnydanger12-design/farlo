@@ -75,12 +75,19 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     // After the first frame the MapController is guaranteed to be attached.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      if (_isFollowing) {
-        final pos = cached ?? ref.read(userLocationProvider).asData?.value;
-        if (pos != null) {
-          _mapController.move(LatLng(pos.latitude, pos.longitude), 14.0);
-        }
-      }
+      // Attach the listener BEFORE the initial re-centering move below — if
+      // MapController.move() emits its event synchronously (it does), a
+      // listener attached afterward misses that very first event entirely.
+      // With _clusteredMarkers' bounds-keyed memoization (MED-12), missing it
+      // meant the marker layer stayed cached against the stale initial-camera
+      // bounds (MapOptions.initialCenter, e.g. Hartsville) even though the
+      // map had already visually moved to the user's real location (e.g.
+      // Cupertino) — every truck there reads as "outside the cached bounds"
+      // and renders as zero pins, correcting itself only when some unrelated
+      // setState() (in practice, _badgeTimer's 1-minute tick) forced a
+      // rebuild. This was a live, user-reported bug: trucks missing for up
+      // to a full minute after returning to the map from a screen outside
+      // the shell (e.g. the guest login redirect).
       _mapEventSub = _mapController.mapEventStream.listen((_) {
         // Debounced, same pattern as search (_onSearchChanged) — mapEventStream
         // emits on every intermediate frame of a pan/zoom gesture, not just at
@@ -91,6 +98,17 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           if (mounted) setState(() {});
         });
       });
+      if (_isFollowing) {
+        final pos = cached ?? ref.read(userLocationProvider).asData?.value;
+        if (pos != null) {
+          _mapController.move(LatLng(pos.latitude, pos.longitude), 14.0);
+          // Belt-and-suspenders on top of the listener reordering above:
+          // force one immediate rebuild with the new camera position rather
+          // than depend entirely on mapEventStream firing/being caught for
+          // this specific, critical one-time centering move.
+          if (mounted) setState(() {});
+        }
+      }
     });
   }
 
