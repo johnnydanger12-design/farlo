@@ -2,22 +2,24 @@
 
 Working branch: `remediation/farlo-a-grade`. Supabase test branch: `remediation` (project ref `iwufrgjtlikkongopheu`, parent `weflrxyerxpsafcdetya`) — schema-only, no seed data except what a given test inserts. Get credentials via `supabase branches get remediation` when needed; never commit them.
 
-**Iteration:** 2 (iteration 1 = last session's pre-protocol pass, reconciled below; iteration 2 = first pass under this protocol).
+**Iteration:** 3 (iteration 1 = last session's pre-protocol pass, reconciled below; iteration 2-3 = this protocol, same session).
 
 ---
 
-## Scorecard (last updated: iteration 2)
+## Scorecard (last updated: iteration 3)
 
 | Area | Baseline | Now (est.) | Target | Weight |
 |---|---|---|---|---|
-| **Overall** | 64 (D+) | **~68** | ≥90 (A) | — |
-| Security | 46 (F) | ~60 | ≥90 | 25% |
+| **Overall** | 64 (D+) | **~70** | ≥90 (A) | — |
+| Security | 46 (F) | ~63 | ≥90 | 25% |
 | Engineering | 74 (C) | ~76 | ≥90 | 20% |
-| Backend/Supabase | 66 (D+) | ~78 | ≥90 | 15% |
+| Backend/Supabase | 66 (D+) | ~88 | ≥90 | 15% |
 | UI/UX | 68 (C-) | 68 | ≥90 | 12% |
 | Product | 73 (C+) | 73 | ≥90 | 10% |
 | AI Agent System | 58 (D-) | ~70 | ≥90 | 10% |
 | App Store Readiness | 70 (C-) | 70 | ≥90 | 8% |
+
+**Backend/Supabase note:** all 4 Critical findings from `supabase-audit.md` are now closed, and migrations are materialized — that's both literal criteria in §10's Definition of A for this category. Held below 90 rather than called A because: (a) several Medium/Low backend findings remain open (56 RLS perf re-eval issues, 27 unindexed FKs, duplicate policies, `truck-logos`/`truck-photos` bucket scoping — see Observed below), and (b) none of the Critical fixes have formal automated regression tests yet, only the red/green verification done live during this pass. Treat "all 4 Criticals closed" as real progress, not yet a certified A.
 
 These are rough re-estimates, not a formal re-audit — treat with the same skepticism the rest of this doc asks you to apply to the original citations. None of the seven categories meet their Definition of A (§10 of the operating prompt) yet, even where individual findings are closed, because several Definitions require things not yet done (formal tests on last session's fixes, remaining Criticals, the testing/accessibility/architecture work).
 
@@ -36,7 +38,7 @@ Canonical IDs follow `FARLO_FINAL_AUDIT.md`'s Top 20 numbering where an item app
 - [x] #6 `profiles` readable by every authenticated user — closed iteration 1
 - [ ] #7 Account deletion FK-violation "zombie" accounts — not started
 - [x] #8 `employee_shifts_update_own`/`scheduled_shifts` no `WITH CHECK` — closed iteration 1
-- [ ] #9 `menu-item-photos` storage bucket over-permissive (Backend Critical #4, still open — blocks Backend-A) — not started
+- [x] #9 `menu-item-photos` storage bucket over-permissive (Backend Critical #4) — closed iteration 3, see LOG (real red/green via minted JWTs against the Supabase branch's actual Storage API)
 - [x] #10 `prospect-businesses` zero auth — closed iteration 1
 - [x] #11 `searchTrucks()` null-coordinate crash — closed iteration 2, see LOG
 - [x] #12 Unescaped search input breaking PostgREST filter — closed iteration 2, see LOG (same fix as #11)
@@ -66,7 +68,7 @@ Canonical IDs follow `FARLO_FINAL_AUDIT.md`'s Top 20 numbering where an item app
 ### Phase 4 — Medium Improvements
 - [x] MED server-side amount recomputation — see #1 above
 - [x] MED ownership/`WITH CHECK` fixes — see #2/#8 above
-- [ ] MED-3 `menu-item-photos` storage policy scoping — see #9 above
+- [x] MED-3 `menu-item-photos` storage policy scoping — see #9 above
 - [x] MED tighten `profiles` SELECT — see #6 above
 - [x] MED agent sender-check fixes — see #4/#5 above
 - [ ] MED-6 Idempotency key + compensating refund/alert + order-cancel precondition — see #13/#14 above
@@ -111,7 +113,9 @@ Canonical IDs follow `FARLO_FINAL_AUDIT.md`'s Top 20 numbering where an item app
 
 - Iteration 1's nine closed items (marked `[x]` above) were verified via live deployment + direct re-query (checked `pg_policies`, ran `flutter analyze`, spot-checked via SQL) — not via the formal red/green automated-test protocol this session is now operating under. They are almost certainly still correctly fixed (the underlying vulnerability is gone), but per §14's validation checklist ("no 'fixed' claim without a runnable test"), they don't yet have regression coverage. Once ARCH-2 (testing infrastructure) exists, backfill tests for these before certifying Security-A or Backend-A.
 - `create-booking-payment-intent`'s accidental backward-compatibility (old client already sends what the new server needs) should get an explicit regression test once ARCH-2 lands, so it doesn't silently regress later.
+- `truck-logos`/`truck-photos` storage buckets have the same class of gap `menu-item-photos` had on INSERT — checks only `auth.role() = 'authenticated'`, no path/truck-ownership scoping (`supabase-audit.md` §4). Not yet triaged as its own item; add to Phase 1/4 backlog next pass.
+- The `remediation` Supabase branch's own migration replay is broken (`MIGRATIONS_FAILED` — see LOG #11/#12) — it's usable today only because the baseline schema dump was loaded directly via `psql`. If the branch is ever recreated, repeat that load step; don't assume `create_branch`/`branches create` alone leaves it schema-complete.
 
 ## Next action
 
-Resume with #13 (consumer-cancel vs. owner-accept race) or #9 (`menu-item-photos` storage scoping) — both pure Phase 1, both usable on the `remediation` Supabase branch already provisioned. Recommend #9 next since it's the one remaining open Backend Critical and unblocks Backend/Supabase-A once closed alongside #7.
+Resume with #13 (consumer-cancel vs. owner-accept race) or #15 (subscription-lapse recheck) — both remaining Phase 1 items usable on the `remediation` Supabase branch already provisioned (test data for two owners/trucks already exists there from the #9 test). #7 (account deletion FK violation) is also a strong candidate — same branch, same FK-violation-reproduction pattern as #9's cross-tenant test.
