@@ -57,12 +57,42 @@ class MapRepository {
   Future<List<FoodTruck>> searchTrucks(String query) async {
     final q = query.trim();
     if (q.isEmpty) return [];
-    final data = await _supabase
-        .from(SupabaseConstants.foodTrucksTable)
-        .select()
-        .eq('is_active', true)
-        .or('name.ilike.%$q%,cuisine_type.ilike.%$q%')
-        .limit(10);
-    return (data as List).map((e) => FoodTruck.fromMap(e as Map<String, dynamic>)).toList();
+
+    // Two separate .ilike() queries merged client-side, not a single .or()
+    // combinator string — PostgREST's .or() syntax treats "," and "(" ")" in
+    // the *value* as structural separators, so ordinary search text like
+    // "mac, cheese" or "bbq (smoked)" previously threw a parse error (bugs.md
+    // §2.7.1). Each .ilike() call passes its pattern as a normal query
+    // parameter, so no manual escaping/parsing is needed. Also adds the same
+    // not-null location filter fetchActiveTrucks() already has — its absence
+    // let a truck that had never gone live (null lat/lng) into search
+    // results, crashing the results screen (bugs.md Executive Summary #1).
+    final results = await Future.wait([
+      _supabase
+          .from(SupabaseConstants.foodTrucksTable)
+          .select()
+          .eq('is_active', true)
+          .not('latitude', 'is', null)
+          .not('longitude', 'is', null)
+          .ilike('name', '%$q%')
+          .limit(10),
+      _supabase
+          .from(SupabaseConstants.foodTrucksTable)
+          .select()
+          .eq('is_active', true)
+          .not('latitude', 'is', null)
+          .not('longitude', 'is', null)
+          .ilike('cuisine_type', '%$q%')
+          .limit(10),
+    ]);
+
+    final byId = <String, FoodTruck>{};
+    for (final rows in results) {
+      for (final row in rows as List) {
+        final truck = FoodTruck.fromMap(row as Map<String, dynamic>);
+        byId[truck.id] = truck;
+      }
+    }
+    return byId.values.take(10).toList();
   }
 }
