@@ -4,11 +4,16 @@ enum SubscriptionStatus {
   pastDue,
   canceled;
 
+  // Unrecognized/unexpected values (typos, a future Stripe/RevenueCat status
+  // this enum doesn't model yet) must fail closed to `canceled`, not
+  // `trialing` — `trialing` grants `hasAccess`, so defaulting to it would
+  // silently unlock the paywall for any status string this switch doesn't
+  // explicitly know about.
   static SubscriptionStatus fromString(String s) => switch (s) {
         'active' => SubscriptionStatus.active,
+        'trialing' => SubscriptionStatus.trialing,
         'past_due' => SubscriptionStatus.pastDue,
-        'canceled' => SubscriptionStatus.canceled,
-        _ => SubscriptionStatus.trialing,
+        _ => SubscriptionStatus.canceled,
       };
 }
 
@@ -38,7 +43,7 @@ class Subscription {
   factory Subscription.fromMap(Map<String, dynamic> m) => Subscription(
         id: m['id'] as String,
         ownerId: m['owner_id'] as String,
-        status: SubscriptionStatus.fromString(m['status'] as String? ?? 'trialing'),
+        status: SubscriptionStatus.fromString(m['status'] as String? ?? 'canceled'),
         revenuecatCustomerId: m['revenuecat_customer_id'] as String?,
         productIdentifier: m['product_identifier'] as String?,
         currentPeriodEnd: m['current_period_end'] == null
