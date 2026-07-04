@@ -24,45 +24,18 @@ Deno.serve(async (req: Request) => {
   const userId = user.id;
 
   try {
-    // Delete push tokens
-    await supabaseAdmin.from('push_tokens').delete().eq('user_id', userId);
+    // All app-data cleanup happens in one atomic Postgres transaction — see
+    // the delete_account_data() migration. This also clears the NO ACTION
+    // foreign keys (booking_messages.sender_id, food_trucks.opened_by_user_id,
+    // support_tickets.user_id, sales_prospects.converted_owner_id) that
+    // previously made the auth.users delete below throw partway through,
+    // leaving a half-deleted "zombie" account (security.md N2).
+    const { error: cleanupError } = await supabaseAdmin.rpc('delete_account_data', {
+      p_user_id: userId,
+    });
+    if (cleanupError) throw cleanupError;
 
-    // Delete favorites
-    await supabaseAdmin.from('favorites').delete().eq('user_id', userId);
-
-    // Delete reviews
-    await supabaseAdmin.from('reviews').delete().eq('user_id', userId);
-
-    // Delete consumer booking requests
-    await supabaseAdmin
-      .from('event_booking_requests')
-      .delete()
-      .eq('requester_id', userId);
-
-    // If owner: delete truck data first
-    const { data: truck } = await supabaseAdmin
-      .from('food_trucks')
-      .select('id')
-      .eq('owner_id', userId)
-      .maybeSingle();
-
-    if (truck) {
-      await supabaseAdmin
-        .from('event_booking_requests')
-        .delete()
-        .eq('truck_id', truck.id);
-
-      await supabaseAdmin
-        .from('truck_employees')
-        .delete()
-        .eq('truck_id', truck.id);
-
-      await supabaseAdmin.from('food_trucks').delete().eq('owner_id', userId);
-    }
-
-    await supabaseAdmin.from('subscriptions').delete().eq('owner_id', userId);
-
-    // Delete the auth user last — cascades to profiles
+    // Delete the auth user last — cascades to profiles.
     const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(userId);
     if (deleteError) throw deleteError;
 
