@@ -176,16 +176,14 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
       builder: (_) => WriteReviewSheet(truckId: widget.truck.id, truckOwnerId: widget.truck.ownerId, existing: existing),
     );
     if (result == true) {
-      ref.invalidate(truckReviewsProvider(widget.truck.id));
-      ref.invalidate(myReviewProvider(widget.truck.id));
+      ref.invalidate(truckReviewsBundleProvider(widget.truck.id));
       ref.invalidate(foodTruckProvider(widget.truck.id));
     }
   }
 
   Future<void> _deleteReview(String reviewId) async {
     await ref.read(reviewsRepositoryProvider).deleteReview(reviewId);
-    ref.invalidate(truckReviewsProvider(widget.truck.id));
-    ref.invalidate(myReviewProvider(widget.truck.id));
+    ref.invalidate(truckReviewsBundleProvider(widget.truck.id));
     ref.invalidate(foodTruckProvider(widget.truck.id));
   }
 
@@ -200,8 +198,7 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
     try {
       await ref.read(reviewsRepositoryProvider).respondToReview(review.id, response);
     } finally {
-      ref.invalidate(truckReviewsProvider(widget.truck.id));
-      ref.invalidate(myReviewProvider(widget.truck.id));
+      ref.invalidate(truckReviewsBundleProvider(widget.truck.id));
       ref.invalidate(foodTruckProvider(widget.truck.id));
     }
   }
@@ -210,8 +207,7 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
     try {
       await ref.read(reviewsRepositoryProvider).deleteOwnerResponse(review.id);
     } finally {
-      ref.invalidate(truckReviewsProvider(widget.truck.id));
-      ref.invalidate(myReviewProvider(widget.truck.id));
+      ref.invalidate(truckReviewsBundleProvider(widget.truck.id));
       ref.invalidate(foodTruckProvider(widget.truck.id));
     }
   }
@@ -220,8 +216,13 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
   Widget build(BuildContext context) {
     final truck = widget.truck;
     final hasPhotos = truck.photoUrls.isNotEmpty;
-    final asyncReviews = ref.watch(truckReviewsProvider(truck.id));
-    final asyncMyReview = ref.watch(myReviewProvider(truck.id));
+    // Reviews + the current user's own review used to be 2 independent
+    // round trips; now 1 combined fetch (see truckReviewsBundleProvider).
+    // Derived here as separate AsyncValues via whenData so the rest of this
+    // screen's loading/error handling didn't need to change.
+    final asyncReviewsBundle = ref.watch(truckReviewsBundleProvider(truck.id));
+    final asyncReviews = asyncReviewsBundle.whenData((b) => b.reviews);
+    final asyncMyReview = asyncReviewsBundle.whenData((b) => b.myReview);
     final user = ref.watch(authProvider).asData?.value;
     final isAuthenticated = user != null;
     final isOwnerOfTruck = user?.id == truck.ownerId;

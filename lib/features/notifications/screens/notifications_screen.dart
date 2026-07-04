@@ -125,12 +125,12 @@ class NotificationsScreen extends ConsumerWidget {
         }
       case 'new_review':
         if (n.relatedId != null) {
-          ref.invalidate(truckReviewsProvider(n.relatedId!));
+          ref.invalidate(truckReviewsBundleProvider(n.relatedId!));
           context.go('/dashboard/truck/${n.relatedId}', extra: true);
         }
       case 'review_response':
         if (n.relatedId != null) {
-          ref.invalidate(truckReviewsProvider(n.relatedId!));
+          ref.invalidate(truckReviewsBundleProvider(n.relatedId!));
           context.go('/map/truck/${n.relatedId}', extra: true);
         }
       case 'order_placed':
