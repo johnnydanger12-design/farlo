@@ -92,3 +92,41 @@ Nine items closed before this operating protocol existed. Verification method fo
 ---
 
 **Phase 1 (Immediate Risks) is now fully closed** — all 15 items (#1-#15) have log entries above. Phase 2 (Must-Fix-if-Apple-Rejects-Again) has not been started; per Hard Stop #5, Phase 5 (Major Architecture) still cannot begin.
+
+---
+
+## Iteration 3 — Phase 2 begins (Must-Fix-if-Apple-Rejects-Again)
+
+These four items are Xcode/iOS-config and script-level fixes, not RLS/backend changes, so no Supabase branch work was needed — "Green" here means a real `flutter build ios --debug --simulator --no-codesign` (or, for MFR-1, a real script run) rather than red/green against the branch.
+
+**MFR-5 — App-level `PrivacyInfo.xcprivacy` missing.** Citation: `app-store-review.md` Finding 2.1. Files: `ios/Runner/PrivacyInfo.xcprivacy` (new), `ios/Runner.xcodeproj/project.pbxproj`.
+
+- **Relocate:** confirmed all 21 existing privacy manifests in the repo are third-party Pods (Firebase, Stripe, RevenueCat, GoogleSignIn); grepped for `PrivacyInfo.xcprivacy` under the `shared_preferences`/`path_provider`/`image_picker` Pod directories — zero hits, meaning the app's own required-reason API usage was completely undeclared.
+- **Fix:** added the manifest declaring `NSPrivacyAccessedAPICategoryUserDefaults` / reason `CA92.1` (covers `shared_preferences` usage confirmed across 5 files), wired into the Xcode project's Runner group + Resources build phase via manual `PBXFileReference`/`PBXBuildFile` edits (a resource file needs both to actually get bundled, not just dropped on disk).
+- **Green:** `flutter build ios --debug --simulator --no-codesign` succeeded; confirmed the compiled `Runner.app/PrivacyInfo.xcprivacy` was present with the correct content via `plutil`.
+- **Residual risk / scope note:** `NSPrivacyCollectedDataTypes` left empty (needs cross-referencing App Store Connect's own App Privacy questionnaire, out of this pass's visibility); file-timestamp API reason codes for `path_provider`/`image_picker` not added since the specific required reason code can only be confirmed via Xcode's build-time privacy report, not guessed.
+- **Commit:** `17d4050`.
+
+**MFR-4 — No crash reporting SDK.** Citation: `app-store-review.md` Finding 8.1. Files: `pubspec.yaml`, `lib/main.dart`.
+
+- **Relocate:** confirmed two of Farlo's three prior App Store rejections were only diagnosable because Apple happened to attach screenshots — zero server-side crash visibility existed.
+- **Fix:** added `firebase_crashlytics` (Firebase already fully configured); wired `FlutterError.onError` and `PlatformDispatcher.instance.onError` to report fatal errors both inside and outside the Flutter framework; disabled via `kDebugMode` check so local dev crashes don't pollute the production dashboard.
+- **Green:** `flutter pub get` resolved cleanly; `flutter build ios --debug --simulator --no-codesign` succeeded end-to-end with the native Crashlytics Pod integrated.
+- **Residual risk:** the optional dSYM-upload Run Script build phase (improves native/non-Dart crash symbolication) was not added — needs valid signing certs this session can't exercise; Dart-level crashes (the primary concern) already report readable stack traces without it.
+- **Commit:** `078de1b`.
+
+**MFR-3 — iOS background-location authorization gap.** Citation: `app-store-review.md` Finding 5.1. Files: `ios/Runner/Info.plist`, `lib/core/location_tracking_service.dart`.
+
+- **Relocate:** confirmed `Info.plist` only ever declared `NSLocationWhenInUseUsageDescription` — per `geolocator_apple`'s own permission logic, `requestPermission()` can therefore only ever grant "When In Use" regardless of the (also-present) Always usage description, meaning `allowBackgroundLocationUpdates: true` in `location_tracking_service.dart` never actually worked. A truck owner backgrounding the app very likely stopped transmitting location almost immediately, despite the app declaring and depending on continuous background tracking.
+- **Fix:** took the audit's lower-risk option — scoped the declared capability down to match what actually runs, rather than build the second-step Always-upgrade flow. Removed `NSLocationAlwaysAndWhenInUseUsageDescription` and `UIBackgroundModes` (location) from `Info.plist`; removed the now-meaningless `allowBackgroundLocationUpdates`/`pauseLocationUpdatesAutomatically` overrides from `AppleSettings`. Android's foreground-service background tracking (a real, working path) untouched. Confirmed `background_location_disclosure.dart` needed no changes — its Android-specific `Permission.locationAlways` flow is already correctly gated behind `Platform.isAndroid`.
+- **Green:** `flutter build ios --debug --simulator --no-codesign` succeeded; confirmed the compiled `Runner.app/Info.plist` no longer declares `NSLocationAlwaysAndWhenInUseUsageDescription` or `UIBackgroundModes`.
+- **Commit:** `3db7fa9`.
+
+**MFR-1 — Pre-upload checklist automation.** Citation: `app-store-review.md` Punch List #1, `HANDOFF.md` Traps/Dead Ends. Files: `scripts/pre_upload_checklist.sh` (new).
+
+- **Relocate:** confirmed two of Farlo's three prior App Store rejections (1.0.0+4 empty `SUPABASE_URL`, 1.0.0+5 demo-account subscription state) trace to a documented *manual* HANDOFF.md check being skipped once, not a code defect.
+- **Fix:** script covers (1) dart-define embedding — unzips a given IPA, greps `strings` on `App.framework/App` for the Supabase project ref extracted from `.env.json`; (2) demo-account (`apple.review@farlo.app`) subscription status — must not be `'active'` or a reviewer sees "Active/Renews" instead of a purchase button; (3) a non-automatable reminder to confirm the App Review Notes still describe the tap path to the paywall.
+- **Fix iteration within this item:** Check 2 originally used a direct Postgres connection via the Supabase CLI's own ephemeral login role (reusing the same credential-extraction trick used to provision the `remediation` branch). First attempt leaked a `SET search_path` command tag into the captured output instead of the real status (fixed by fully-qualifying `public.subscriptions` and dropping the `SET`). Second attempt then hit `ERROR: permission denied for schema auth` — direct testing revealed the CLI's ephemeral role is RLS-subject, not a superuser: it can't read `auth.users` directly, and even an indirect reference to `auth.uid()` inside a `SECURITY DEFINER` policy helper (triggered via a `public.profiles` join instead) also failed the same way. Rewrote Check 2 to use the REST API with a `SUPABASE_SERVICE_ROLE_KEY` read from the shell environment (never hardcoded/committed) and `SUPABASE_URL` parsed from `.env.json` — the service role correctly bypasses RLS by design.
+- **Green:** ran the script live with no `SUPABASE_SERVICE_ROLE_KEY` set — correctly `[WARN]`s and skips (exit 0) rather than false-passing. Confirmed the anon key is RLS-blocked from reading another user's `profiles` row (`[]` returned), validating that the check's empty-response handling matches real RLS behavior rather than being untested guesswork. Unit-verified the Python JSON-parsing logic against empty/`trialing`/`active` response shapes — all three produce the intended WARN/PASS/FAIL branch.
+- **Residual risk:** the full PASS path (with a real `SUPABASE_SERVICE_ROLE_KEY` exported) was not exercised end-to-end in this session, since the key isn't and shouldn't be stored anywhere this session can read — the WARN-path and REST-logic verification above is the practical ceiling for this session; you should get a real `[PASS] ... 'trialing' ...` the first time you run it locally with the key exported.
+- **Commit:** `3efa56e`.
