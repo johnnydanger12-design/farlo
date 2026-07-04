@@ -264,3 +264,29 @@ Worked through both documents' open questions directly with the founder.
 **Commit:** `d219f73`.
 
 Both documents converted from open recommendation memos to decision records. This closes item #4 of the punch list being worked through with the founder — only Hard Stop #6 (App Store resubmission) remains before proceeding into Phase 5.
+
+---
+
+## Iteration 9 — Phase 5 begins: 3 bugs closed, ARCH-2 substantially done
+
+Founder set an explicit goal: A (≥90) in every scorecard category except Product (excluded by mutual agreement — it moves with real-world Hartsville traction, not engineering work) before resubmitting to Apple. A fresh independent audit will confirm the grade once this pass believes it's done, rather than trusting this file's running self-estimate.
+
+**3 bugs from code-quality.md's own recommendation list, never picked up under any tracked item.** Citation: `code-quality.md` §2.16/§2.17/Remediation #3.
+
+- `booking_chat_screen.dart:118` — the audit's own "single clearest error-handling bug": `_textController.clear()` ran before the send call was confirmed, silently discarding the user's typed message on failure with only a `debugPrint`. Fixed: clear only on confirmed success, real error shown via the MED-9 `context.showError()` helper.
+- `my_orders_screen.dart:65-72` / `order_queue_screen.dart:99-108` — `_openSheet` didn't check `mounted` after `await showModalBottomSheet` before touching `ref`/calling `_load()`. Added the check to both.
+- `calendar_screen.dart` / `shift_week_card.dart`'s `_showAddEvent` — correctly checks `mounted` after the first `await showModalBottomSheet`, but each of 3 switch cases does a second `await` + `ref.invalidate(...)` with no repeated check. Fixed all 3 cases in both files.
+- Verified: `flutter analyze` clean, `flutter build ios --debug --simulator --no-codesign` succeeded.
+- **Commit:** `a640319`.
+
+**ARCH-2 — testing infrastructure, 3 of 4 highest-value targets.** Citation: `code-quality.md` §2.14/Remediation #9.
+
+- Added `mocktail`+`fake_async`. Deleted the stale 1-line placeholder `test/widget_test.dart`.
+- Extracted the router's redirect logic into a new pure function (`lib/router_redirect.dart`'s `computeRedirect()`) — no Riverpod/go_router/Supabase dependency, matching the audit's own "easily unit-testable" framing. 11 tests, every branch covered.
+- `AuthNotifier`'s timeout/rollback logic: 4 tests via a mocked `AuthRepository` (Riverpod `ProviderContainer` overrides) — unauthenticated build, sign-in success/failure, and the actual 20-second timeout firing via `fake_async`'s virtual clock (no real 20s wait).
+- `OwnerTruckNotifier.setOpenStatus`/`updateOrdersAccepting`'s optimistic-write-then-rollback: 4 tests via a mocked `FoodTruckRepository` and a `build()`-overriding notifier subclass (sidesteps the real `build()`'s non-injectable `Supabase.instance.client` realtime setup). Confirms rollback actually restores prior state and rethrows.
+- **Deliberately not attempted:** target #4 (`OrdersRepository.placeOrder`/`bookings_repository.dart`'s quote/deposit flows) — repositories take a concrete `SupabaseClient` with no interface seam, and mocking its fluent query-builder chain isn't practical without first introducing a repository interface (ARCH-1's job). Flagged as a real gap, not forced with a fragile mock.
+- Verified: all 19 tests pass, `flutter analyze` clean project-wide, `flutter build ios --debug --simulator --no-codesign` succeeded.
+- **Commit:** `ae78371`.
+
+Next: batch `manage_hours_screen.dart`'s write loop, then the `truck-logos`/`truck-photos` storage gap, per `REMEDIATION_STATE.md`'s "Next action."

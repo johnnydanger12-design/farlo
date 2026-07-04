@@ -2,20 +2,22 @@
 
 Working branch: `remediation/farlo-a-grade`. Supabase test branch: `remediation` (project ref `iwufrgjtlikkongopheu`, parent `weflrxyerxpsafcdetya`) — schema-only, no seed data except what a given test inserts (owners 1-3, trucks 1-3, a pending order, an event booking with a message, a canceled and an active subscription — all reusable for future tests). Get credentials via `supabase branches get remediation` when needed; never commit them. Note: this branch's own migration replay is broken (`MIGRATIONS_FAILED`) — it's usable only because the baseline schema dump was loaded directly via `psql`. If recreated, repeat that load step.
 
-**Iteration:** 8 (iteration 1 = last session's pre-protocol pass, reconciled below; iterations 2-8 = this protocol, same session).
+**Iteration:** 9 (iteration 1 = last session's pre-protocol pass, reconciled below; iterations 2-9 = this protocol, same session).
+
+**Goal, set explicitly by the founder (iteration 9):** an A (≥90) in every scorecard category before resubmitting to Apple, with one agreed exception — **Product** is excluded from this bar, since it's graded on real-world market readiness/trust/retention that only moves with actual Hartsville traction, not engineering work (recommended and accepted, see iteration 8's discussion). The founder will run a fresh independent audit once this pass believes it's done, rather than trusting this file's running self-estimate — correct call, this scorecard has said "rough re-estimates, not a formal re-audit" the whole time.
 
 ---
 
-## Scorecard (last updated: iteration 8)
+## Scorecard (last updated: iteration 9)
 
 | Area | Baseline | Now (est.) | Target | Weight |
 |---|---|---|---|---|
-| **Overall** | 64 (D+) | **~83** | ≥90 (A) | — |
-| Security | 46 (F) | ~80 | ≥90 | 25% |
-| Engineering | 74 (C) | ~85 | ≥90 | 20% |
+| **Overall** | 64 (D+) | **~84** | ≥90 (A), Product excluded | — |
+| Security | 46 (F) | ~81 | ≥90 | 25% |
+| Engineering | 74 (C) | ~86 | ≥90 | 20% |
 | Backend/Supabase | 66 (D+) | ~89 | ≥90 | 15% |
 | UI/UX | 68 (C-) | 68 | ≥90 | 12% |
-| Product | 73 (C+) | 73 | ≥90 | 10% |
+| Product | 73 (C+) | 73 | excluded, see Goal above | 10% |
 | AI Agent System | 58 (D-) | ~70 | ≥90 | 10% |
 | App Store Readiness | 70 (C-) | ~85 | ≥90 | 8% |
 
@@ -26,6 +28,8 @@ Working branch: `remediation/farlo-a-grade`. Supabase test branch: `remediation`
 **Milestone: Phase 3 (Quick Wins) is fully closed.** QW-3 (fail-open `SubscriptionStatus` default — a real security-relevant client-side gap, fixed alongside Phase 1's server-side subscription work), QW-4 (`.autoDispose` on all 19 flagged providers, including `pendingBookingCountProvider` — the single highest-leverage fix in the whole audit), QW-5 (2 dead files + 4 unused packages removed), QW-6 (`onboarding.png` recompressed 1.8MB→512KB, `icon.png` removed from the shipped bundle entirely) all closed this iteration.
 
 **Milestone: Phase 4 (Medium Improvements) is now fully closed** (with 2 items' scope honestly narrowed, not silently claimed — see checklist notes). MED-8 (session tokens now in Keychain/Keystore via `flutter_secure_storage`, closing security.md's last remaining Medium-High client-side finding), MED-9 (shared error/snackbar helper — all 64 raw call sites migrated, not just a sample), MED-11 (2 of `truck_profile_screen.dart`'s 5 fan-out providers combined into 1 round trip), MED-12 (map clustering memoized + debounced, also fixing a live-observed stacked-pin bug) all closed this iteration. This is the driver of the Engineering jump (~82→~85) and the Security jump (~76→~80).
+
+**Milestone: Phase 5 (Major Architecture) started, iteration 9.** Ahead of Phase 5's own items, closed 3 concrete bugs from `code-quality.md`'s own prioritized recommendation list that had never been picked up under any tracked QW-/MED- item: the `booking_chat_screen.dart:118` message-loss bug (the audit's own "single clearest error-handling bug"), and the 2 missing-`mounted`-check bugs in `my_orders_screen.dart`/`order_queue_screen.dart` and `calendar_screen.dart`/`shift_week_card.dart`. Then closed 3 of ARCH-2's 4 highest-value testing targets — see Phase 5 checklist below.
 
 These are rough re-estimates, not a formal re-audit — treat with the same skepticism the rest of this doc asks you to apply to the original citations.
 
@@ -87,8 +91,8 @@ Canonical IDs follow `FARLO_FINAL_AUDIT.md`'s Top 20 numbering where an item app
 - [x] MED-13 Materialize migrations into git — closed iteration 1
 
 ### Phase 5 — Major Architecture Improvements (unblocked as of iteration 8 — Phase 2 fully closed)
-- [ ] ARCH-1 Domain/data-model layer separation — not started
-- [ ] ARCH-2 Testing seam/mocking infrastructure — not started (prerequisite for rigorous automated regression tests on every item closed via live/branch verification so far — see Observed section)
+- [ ] ARCH-1 Domain/data-model layer separation — not started. Will likely be scoped down to "repository interfaces for the 2 repositories that block ARCH-2's 4th test target" rather than a full rewrite across every repository — proportionality call, will flag if that scoping turns out wrong.
+- [x] ARCH-2 Testing seam/mocking infrastructure — **3 of 4 highest-value targets closed iteration 9**, see LOG. Added `mocktail`/`fake_async`, 19 real passing tests (router redirect logic — extracted into a new pure `computeRedirect()` function — AuthNotifier timeout/rollback, OwnerTruckNotifier optimistic-rollback). 4th target (OrdersRepository/BookingsRepository quote/deposit flows) deliberately deferred — needs a repository-interface seam (ARCH-1) to be practically mockable, not attempted with a fragile mock-heavy workaround.
 - [ ] ARCH-3 Codebase-wide pagination + timeout pattern (= #17) — not started
 - [ ] ARCH-4 Decompose six god screens — not started
 - [ ] ARCH-5 Rebuild image pipeline — not started
@@ -130,12 +134,10 @@ Hard Stop #5's literal wording is "merging Phase 5 before Phases 1-2 close." As 
 
 ## Next action
 
-Working through the remaining punch list with you directly, one item at a time, per your request (iteration 8):
+Punch list items 1-4 all resolved (iteration 8). Hard Stop #6 (resubmission) is explicitly deferred by the founder until every category except Product hits A (iteration 9) — see Goal note at the top of this file. Currently executing Phase 5 + remaining findings toward that bar. Order, roughly by leverage/risk:
 
-1. ~~Phase 5 judgment call~~ — **resolved**, see above. Phase 5 unblocked.
-2. ~~Hard Stop #1~~ — **resolved**, see above. Key rotated, set, and end-to-end verified.
-3. ~~MFR-2/MFR-6~~ — **resolved**, see Phase 2 milestone above.
-4. ~~GTM memo + agent architecture open questions~~ — **resolved.** Launch city: Hartsville, SC, worldwide availability otherwise (organic growth, no waitlist gate — existing empty state already fits). Pricing: unchanged, with a manual 44-day RevenueCat grant for early Hartsville owners specifically (operational, not code). Agent architecture: formalize current model, no dispatcher for now. See `audit/cold_start_gtm_memo.md` and `audit/agent_architecture_decision.md` for full reasoning.
-5. **Hard Stop #6** — App Store resubmission — last item on the punch list.
-
-Once #5 is settled, proceed into Phase 5 scoping/sequencing per item 1's resolution.
+1. ~~3 concrete bugs from code-quality.md's recommendation list~~ (chat message-loss, 2 missing-mounted-checks) — **closed iteration 9**, see LOG.
+2. ~~ARCH-2 (testing infrastructure)~~ — **3 of 4 targets closed iteration 9**, see LOG and Phase 5 checklist.
+3. **Next up:** batch `manage_hours_screen.dart`'s 7-call write loop (small, contained, already identified in code-quality.md §2.8/§2.15), then the `truck-logos`/`truck-photos` storage-policy gap (mirrors the already-fixed `menu-item-photos` pattern from Phase 1, so low-risk/fast).
+4. Then the larger items: ARCH-3 (pagination/timeouts), the accessibility roadmap's 20 items, ai-agents.md §7's remaining recommendations, ARCH-1 (scoped down, see Phase 5 checklist note), ARCH-4 (decompose god screens).
+5. Hard Stop #6 stays the founder's own action once the above closes and a fresh audit confirms the grade.
