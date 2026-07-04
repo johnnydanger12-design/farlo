@@ -122,6 +122,21 @@ Deno.serve(async (req: Request) => {
     );
   }
 
+  // A lapsed subscription now hides the truck from the public map (RLS), but a
+  // consumer who already has the truck_id (favorited earlier, deep link, or a
+  // direct API call) could otherwise still pay this truck's owner indefinitely
+  // after their subscription lapsed (bugs.md Executive Summary #4). This check
+  // cannot be bypassed by the client, unlike the map-visibility filter alone.
+  const { data: hasSub } = await supabase.rpc('owner_has_active_subscription', {
+    p_owner_id: truck.owner_id,
+  });
+  if (!hasSub) {
+    return new Response(
+      JSON.stringify({ error: 'truck_subscription_inactive' }),
+      { status: 422, headers: { 'Content-Type': 'application/json' } },
+    );
+  }
+
   const { data: profile, error: profileErr } = await supabase
     .from('profiles')
     .select('stripe_account_id')

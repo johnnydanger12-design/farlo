@@ -142,6 +142,19 @@ Deno.serve(async (req: Request) => {
     .eq('id', booking.truck_id)
     .single();
 
+  // Same subscription-lapse recheck as create-payment-intent — a lapsed truck
+  // should not be able to keep collecting booking deposit/invoice payments
+  // either (bugs.md Executive Summary #4).
+  const { data: hasSub } = await supabase.rpc('owner_has_active_subscription', {
+    p_owner_id: truck?.owner_id,
+  });
+  if (!hasSub) {
+    return new Response(
+      JSON.stringify({ error: 'truck_subscription_inactive' }),
+      { status: 422, headers: { 'Content-Type': 'application/json' } },
+    );
+  }
+
   const { data: profile } = await supabase
     .from('profiles')
     .select('stripe_account_id')
