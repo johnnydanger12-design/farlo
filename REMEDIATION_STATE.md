@@ -135,7 +135,7 @@ Working through the remaining punch list with you directly, one item at a time, 
 1. ~~Phase 5 judgment call~~ — **resolved**, see above. Phase 5 unblocked.
 2. ~~Hard Stop #1~~ — **resolved**, see above. Key rotated, set, and end-to-end verified.
 3. ~~MFR-2/MFR-6~~ — **resolved**, see Phase 2 milestone above.
-4. **The `cold_start_gtm_memo.md` open questions** (launch city, pricing-sequencing option) and **`agent_architecture_decision.md`'s recommendation** (formalize vs. build a dispatcher) — next up.
-5. **Hard Stop #6** — App Store resubmission, once the above are settled.
+4. ~~GTM memo + agent architecture open questions~~ — **resolved.** Launch city: Hartsville, SC, worldwide availability otherwise (organic growth, no waitlist gate — existing empty state already fits). Pricing: unchanged, with a manual 44-day RevenueCat grant for early Hartsville owners specifically (operational, not code). Agent architecture: formalize current model, no dispatcher for now. See `audit/cold_start_gtm_memo.md` and `audit/agent_architecture_decision.md` for full reasoning.
+5. **Hard Stop #6** — App Store resubmission — last item on the punch list.
 
-Once all 5 are worked through, proceed into Phase 5 scoping/sequencing per item 1's resolution.
+Once #5 is settled, proceed into Phase 5 scoping/sequencing per item 1's resolution.

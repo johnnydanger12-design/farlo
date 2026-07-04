@@ -250,3 +250,17 @@ All four remaining Quick Wins items are self-contained Dart/asset/pubspec change
 - **Commit:** none (this is a Supabase secret + external GCP action, nothing in git changed) — logged here as the record of closure.
 
 Hard Stop #1 is now closed.
+
+---
+
+## Iteration 8 (continued) — GTM memo + agent architecture decisions closed
+
+Worked through both documents' open questions directly with the founder.
+
+**cold_start_gtm_memo.md:** Launch city confirmed as Hartsville, SC — but with a twist the memo hadn't anticipated: the app stays available worldwide, marketing spend is Hartsville-only, growth elsewhere is deliberately organic rather than gated. This changed the recommendation on the memo's one code-shaped item (§3.2's waitlist/email-capture state) — checked `map_screen.dart:543-548` and confirmed a non-blocking "No active businesses in this area" empty-state chip already exists and already fits the decided strategy; the originally-scoped gating/lead-capture feature was explicitly not built, since it would work against organic spread. A referral-nudge idea surfaced by the founder was captured as an unscoped backlog idea rather than half-specified and built. Pricing: kept as-is, with a manual 44-day (30+14) RevenueCat promotional-entitlement grant for hand-picked early Hartsville owners — an operational dashboard action, not a code change. Recorded the commission-per-order industry-standard data point for awareness without recommending it as a change now.
+
+**agent_architecture_decision.md:** Confirmed no near-term plans for a routing-overlapping agent, so the doc's own stated default applies: formalize the current independent-cron model, don't build a dispatcher. Concrete revisit trigger recorded (consumer-engagement or review-response agent actually getting built).
+
+**Commit:** `d219f73`.
+
+Both documents converted from open recommendation memos to decision records. This closes item #4 of the punch list being worked through with the founder — only Hard Stop #6 (App Store resubmission) remains before proceeding into Phase 5.
