@@ -290,3 +290,18 @@ Founder set an explicit goal: A (≥90) in every scorecard category except Produ
 - **Commit:** `ae78371`.
 
 Next: batch `manage_hours_screen.dart`'s write loop, then the `truck-logos`/`truck-photos` storage gap, per `REMEDIATION_STATE.md`'s "Next action."
+
+---
+
+## Iteration 9 (continued) — truck-logos/truck-photos storage gap closed
+
+**Citation:** `supabase-audit.md` §4, flagged as an "Observed, not yet triaged" item since Phase 1 ("same class of gap `menu-item-photos` had on INSERT").
+
+- **Relocate:** re-queried production `pg_policies` — confirmed `logos_upload_auth`/`photos_upload_auth` (INSERT) checked only `auth.role() = 'authenticated'`, no ownership scoping. Checked the actual upload path convention (`lib/services/storage_service.dart`, called from `edit_truck_screen.dart:185,198` with `ownerId: user.id`) — **different from `menu-item-photos`**: these two buckets key paths by the *uploading owner's user id*, not the truck id. The `menu-item-photos` fix's `auth_user_owns_truck(...)` helper doesn't apply here; the correct check is simpler — the path's first segment must equal the caller's own `auth.uid()`.
+- **Red:** recreated both buckets + current (vulnerable) policies on the `remediation` branch (storage schema isn't in the baseline dump). Minted 2 synthetic-user JWTs directly from the branch's JWT secret. Owner1 uploaded a file directly into owner2's logo folder path (`<owner2-id>/attack.jpg`) — succeeded, `200` — confirming a real cross-tenant content-injection/defacement path: any authenticated user (including an unrelated owner or a consumer account) could upload arbitrary images into another truck's logo/photo folder.
+- **Fix:** both INSERT policies now require `auth.uid()::text = (storage.foldername(name))[1]` — the first path segment must be the caller's own user id.
+- **Green:** re-ran on the branch — owner1 uploading into owner2's folder now `403` (RLS violation) on both buckets; owner1 uploading into their own folder still `200`.
+- **Applied to production** via `apply_migration` (`scope_truck_logos_photos_upload_to_own_user_folder`), re-queried `pg_policies` to confirm the live policy text matches the branch-validated version exactly.
+- **Residual risk:** none identified. Existing UPDATE/DELETE policies were already correctly scoped via Storage's built-in `owner` column (set to the uploader's `auth.uid()` at upload time) — only the INSERT gap needed closing.
+
+This was the last item in the "Observed, not yet triaged" backlog from Phase 1.
