@@ -41,7 +41,7 @@ final _stripeConnectedProvider = FutureProvider.autoDispose<bool>((ref) async {
 
 
 final _activeOrdersProvider =
-    FutureProvider.family<List<Order>, String>((ref, truckId) async {
+    FutureProvider.autoDispose.family<List<Order>, String>((ref, truckId) async {
   final data = await Supabase.instance.client
       .from('orders')
       .select(
@@ -57,7 +57,7 @@ final _activeOrdersProvider =
 });
 
 final _profileDisplayNameProvider =
-    FutureProvider.family<String?, String>((ref, userId) async {
+    FutureProvider.autoDispose.family<String?, String>((ref, userId) async {
   // profiles is self-read-only via RLS — use the narrow RPC for another
   // user's display name (e.g. "opened by <employee name>").
   final name = await Supabase.instance.client

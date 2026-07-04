@@ -15,7 +15,7 @@ final employeesRepositoryProvider = Provider<EmployeesRepository>((ref) {
 
 // Owner: watch employees list for their truck
 final truckEmployeesProvider =
-    AsyncNotifierProvider.family<TruckEmployeesNotifier, List<TruckEmployee>, String>(
+    AsyncNotifierProvider.autoDispose.family<TruckEmployeesNotifier, List<TruckEmployee>, String>(
   (truckId) => TruckEmployeesNotifier(truckId),
 );
 
@@ -59,7 +59,7 @@ class MyEmployeeTrucksNotifier extends AsyncNotifier<List<FoodTruck>> {
 
 // Employee: go-live notifier for a specific truck (parameterised by truckId)
 final employeeGoLiveProvider =
-    AsyncNotifierProvider.family<EmployeeGoLiveNotifier, FoodTruck?, String>(
+    AsyncNotifierProvider.autoDispose.family<EmployeeGoLiveNotifier, FoodTruck?, String>(
   (truckId) => EmployeeGoLiveNotifier(truckId),
 );
 

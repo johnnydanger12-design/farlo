@@ -52,7 +52,7 @@ class ActiveShiftNotifier extends AsyncNotifier<EmployeeShift?> {
 }
 
 final activeShiftProvider =
-    AsyncNotifierProvider.family<ActiveShiftNotifier, EmployeeShift?, String>(
+    AsyncNotifierProvider.autoDispose.family<ActiveShiftNotifier, EmployeeShift?, String>(
   (truckId) => ActiveShiftNotifier(truckId),
 );
 
@@ -84,7 +84,7 @@ class MyShiftsNotifier extends AsyncNotifier<List<EmployeeShift>> {
   }
 }
 
-final myShiftsProvider = AsyncNotifierProvider.family<MyShiftsNotifier,
+final myShiftsProvider = AsyncNotifierProvider.autoDispose.family<MyShiftsNotifier,
     List<EmployeeShift>, _ShiftMonthKey>(
   (key) => MyShiftsNotifier(key),
 );
@@ -117,7 +117,7 @@ class MyScheduledShiftsNotifier extends AsyncNotifier<List<ScheduledShift>> {
   }
 }
 
-final myScheduledShiftsProvider = AsyncNotifierProvider.family<
+final myScheduledShiftsProvider = AsyncNotifierProvider.autoDispose.family<
     MyScheduledShiftsNotifier, List<ScheduledShift>, _ShiftMonthKey>(
   (key) => MyScheduledShiftsNotifier(key),
 );
@@ -142,7 +142,7 @@ class TruckShiftsNotifier extends AsyncNotifier<List<EmployeeShift>> {
   }
 }
 
-final truckShiftsProvider = AsyncNotifierProvider.family<TruckShiftsNotifier,
+final truckShiftsProvider = AsyncNotifierProvider.autoDispose.family<TruckShiftsNotifier,
     List<EmployeeShift>, _ShiftMonthKey>(
   (key) => TruckShiftsNotifier(key),
 );
@@ -168,7 +168,7 @@ class TruckScheduledShiftsNotifier
   }
 }
 
-final truckScheduledShiftsProvider = AsyncNotifierProvider.family<
+final truckScheduledShiftsProvider = AsyncNotifierProvider.autoDispose.family<
     TruckScheduledShiftsNotifier, List<ScheduledShift>, _ShiftMonthKey>(
   (key) => TruckScheduledShiftsNotifier(key),
 );

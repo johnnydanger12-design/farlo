@@ -10,7 +10,7 @@ final plannedLocationsRepositoryProvider = Provider<PlannedLocationsRepository>(
 typedef _MonthKey = (String, int, int);
 
 // Owner/employee: planned locations for a calendar month
-final truckPlannedLocationsProvider = FutureProvider.family<List<PlannedLocation>, _MonthKey>(
+final truckPlannedLocationsProvider = FutureProvider.autoDispose.family<List<PlannedLocation>, _MonthKey>(
   (ref, key) {
     final (truckId, year, month) = key;
     return ref
@@ -21,7 +21,7 @@ final truckPlannedLocationsProvider = FutureProvider.family<List<PlannedLocation
 
 // Planned locations for the current week (used by ShiftWeekCard)
 final truckPlannedLocationsWeekProvider =
-    FutureProvider.family<List<PlannedLocation>, (String, DateTime)>(
+    FutureProvider.autoDispose.family<List<PlannedLocation>, (String, DateTime)>(
   (ref, key) {
     final (truckId, monday) = key;
     return ref

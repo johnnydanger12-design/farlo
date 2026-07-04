@@ -44,7 +44,7 @@ final selectedTruckProvider = NotifierProvider<SelectedTruckNotifier, FoodTruck?
   SelectedTruckNotifier.new,
 );
 
-final truckSearchProvider = FutureProvider.family<List<FoodTruck>, String>((ref, query) {
+final truckSearchProvider = FutureProvider.autoDispose.family<List<FoodTruck>, String>((ref, query) {
   if (query.trim().isEmpty) return Future.value([]);
   return ref.read(mapRepositoryProvider).searchTrucks(query);
 });

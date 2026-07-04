@@ -43,7 +43,7 @@ class AnnouncementPrefNotifier extends AsyncNotifier<bool> {
   }
 }
 
-final announcementPrefProvider = AsyncNotifierProvider.family<
+final announcementPrefProvider = AsyncNotifierProvider.autoDispose.family<
     AnnouncementPrefNotifier, bool, String>(
   (truckId) => AnnouncementPrefNotifier(truckId),
 );

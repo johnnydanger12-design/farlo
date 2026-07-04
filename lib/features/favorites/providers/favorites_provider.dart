@@ -76,6 +76,6 @@ final favoritedTruckIdsProvider =
 
 // Follower count for a single truck — invalidated on every heart toggle.
 final truckFollowerCountProvider =
-    FutureProvider.family<int, String>((ref, truckId) {
+    FutureProvider.autoDispose.family<int, String>((ref, truckId) {
   return ref.read(favoritesRepositoryProvider).fetchFollowerCount(truckId);
 });

@@ -41,7 +41,7 @@ class _FoodTruckNotifier extends AsyncNotifier<FoodTruck> {
 }
 
 final foodTruckProvider =
-    AsyncNotifierProvider.family<_FoodTruckNotifier, FoodTruck, String>(
+    AsyncNotifierProvider.autoDispose.family<_FoodTruckNotifier, FoodTruck, String>(
   (id) => _FoodTruckNotifier(id),
 );
 

@@ -9,7 +9,7 @@ import '../repositories/messaging_repository.dart';
 
 // Realtime pending booking count for a truck — used by owner shell badge + dashboard.
 final pendingBookingCountProvider =
-    StreamProvider.family<int, String>((ref, truckId) {
+    StreamProvider.autoDispose.family<int, String>((ref, truckId) {
   final controller = StreamController<int>();
 
   Future<void> refresh() async {
@@ -55,7 +55,7 @@ final bookingsRepositoryProvider = Provider<BookingsRepository>((ref) {
 });
 
 // Accepted bookings for a truck scoped to a calendar month — shared by calendar views.
-final acceptedBookingsForMonthProvider = FutureProvider.family<
+final acceptedBookingsForMonthProvider = FutureProvider.autoDispose.family<
     List<BookingRequest>, (String, int, int)>((ref, key) async {
   final (truckId, year, month) = key;
   return BookingsRepository(Supabase.instance.client)
