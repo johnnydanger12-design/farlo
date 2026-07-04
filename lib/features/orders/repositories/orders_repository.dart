@@ -3,6 +3,17 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/order.dart';
 import '../models/order_item.dart';
 
+/// Thrown when a status-changing action (cancel/accept/decline/etc.) didn't
+/// apply because the order had already moved to a different status —
+/// surfaces the real "someone else already acted on this" case to the UI
+/// instead of silently succeeding or throwing a generic error.
+class OrderAlreadyActedOnException implements Exception {
+  OrderAlreadyActedOnException(this.message);
+  final String message;
+  @override
+  String toString() => message;
+}
+
 class OrdersRepository {
   OrdersRepository(this._supabase);
   final SupabaseClient _supabase;
@@ -95,11 +106,24 @@ class OrdersRepository {
         .toList();
   }
 
+  // Only cancels an order still 'pending' — without this precondition, a
+  // consumer's cancel could silently overwrite an owner's concurrent accept
+  // (bugs.md Executive Summary #2 / #2.3.1), refunding an order the truck is
+  // already preparing. Throws OrderAlreadyActedOnException if the order moved
+  // out of 'pending' before this reached the server, so the UI can tell the
+  // user rather than silently proceeding to refund.
   Future<void> cancelOrder(String orderId) async {
-    await _supabase
+    final updated = await _supabase
         .from('orders')
         .update({'status': 'cancelled'})
-        .eq('id', orderId);
+        .eq('id', orderId)
+        .eq('status', 'pending')
+        .select('id');
+    if ((updated as List).isEmpty) {
+      throw OrderAlreadyActedOnException(
+        'This order has already been accepted by the truck and can no longer be cancelled.',
+      );
+    }
     _invokeNotification('order_cancelled', orderId);
     _invokeRefund(orderId);
   }
@@ -119,11 +143,33 @@ class OrdersRepository {
         .toList();
   }
 
+  // Requires the order currently be in the one valid prior status for the
+  // requested transition — without this, two concurrent owner devices (or a
+  // consumer's cancel racing an owner's accept, bugs.md #2.3.1) can silently
+  // clobber each other with no error. Throws OrderAlreadyActedOnException if
+  // the order isn't in the expected prior status.
+  static const _validPriorStatus = {
+    'accepted': 'pending',
+    'declined': 'pending',
+    'ready': 'accepted',
+    'completed': 'ready',
+  };
+
   Future<void> updateOrderStatus(String orderId, String status) async {
-    await _supabase
-        .from('orders')
-        .update({'status': status, 'updated_at': DateTime.now().toUtc().toIso8601String()})
-        .eq('id', orderId);
+    final priorStatus = _validPriorStatus[status];
+    var query = _supabase.from('orders').update({
+      'status': status,
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
+    }).eq('id', orderId);
+    if (priorStatus != null) {
+      query = query.eq('status', priorStatus);
+    }
+    final updated = await query.select('id');
+    if ((updated as List).isEmpty) {
+      throw OrderAlreadyActedOnException(
+        'This order was already updated — refresh to see its current status.',
+      );
+    }
 
     final notifAction = switch (status) {
       'accepted' => 'order_accepted',
