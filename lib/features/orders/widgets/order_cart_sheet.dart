@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
@@ -11,6 +12,14 @@ import '../providers/orders_provider.dart';
 import '../repositories/orders_repository.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+/// A random per-attempt key, not a cryptographic identifier — only needs to
+/// be unique enough to scope one checkout attempt to Stripe. Avoids adding a
+/// `uuid` package dependency for this one use.
+String _generateIdempotencyKey() {
+  final rand = Random.secure();
+  return List.generate(32, (_) => rand.nextInt(16).toRadixString(16)).join();
+}
+
 class OrderCartSheet extends ConsumerStatefulWidget {
   const OrderCartSheet({super.key, required this.truck});
   final FoodTruck truck;
@@ -23,6 +32,12 @@ class _OrderCartSheetState extends ConsumerState<OrderCartSheet> {
   final _pickupNoteCtrl = TextEditingController();
   bool _paying = false;
 
+  // Generated once per checkout attempt and reused across retries of that
+  // same attempt (network blip, user re-tapping Pay after an error) so the
+  // server can recognize a retry and avoid double-charging (bugs.md
+  // Executive Summary #3). Reset only after a successful order placement.
+  String? _idempotencyKey;
+
   @override
   void dispose() {
     _pickupNoteCtrl.dispose();
@@ -34,6 +49,20 @@ class _OrderCartSheetState extends ConsumerState<OrderCartSheet> {
     final items = cartNotifier.items;
     if (items.isEmpty) return;
 
+    // Captured before the (potentially long, 3DS-involving) Stripe flow
+    // rather than re-read from auth.currentUser afterward, so a session
+    // hiccup during that flow can't throw a null-check crash right after a
+    // successful charge (bugs.md's stranded-charge root cause).
+    final consumerId = Supabase.instance.client.auth.currentUser?.id;
+    if (consumerId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please sign in again to complete this order.'), backgroundColor: Colors.red),
+      );
+      return;
+    }
+
+    _idempotencyKey ??= _generateIdempotencyKey();
+
     setState(() => _paying = true);
     try {
       final repo = OrdersRepository(Supabase.instance.client);
@@ -43,6 +72,7 @@ class _OrderCartSheetState extends ConsumerState<OrderCartSheet> {
       final (:clientSecret, :paymentIntentId) = await repo.createPaymentIntent(
         truckId: widget.truck.id,
         items: items,
+        idempotencyKey: _idempotencyKey!,
       );
 
       // 2. Init + present Stripe PaymentSheet
@@ -57,15 +87,21 @@ class _OrderCartSheetState extends ConsumerState<OrderCartSheet> {
       );
       await Stripe.instance.presentPaymentSheet();
 
-      // 3. Payment succeeded — place order in DB
+      // 3. Payment succeeded — place order in DB. Idempotent by
+      // paymentIntentId, so if this step is what fails and the user retries,
+      // step 1 returns the same PaymentIntent (same idempotency key) and this
+      // step recognizes the already-charged intent instead of erroring or
+      // double-booking.
       final order = await repo.placeOrder(
         truckId: widget.truck.id,
+        consumerId: consumerId,
         items: items,
         pickupNote: _pickupNoteCtrl.text.trim().isEmpty ? null : _pickupNoteCtrl.text.trim(),
         paymentIntentId: paymentIntentId,
       );
 
       cartNotifier.clear();
+      _idempotencyKey = null;
 
       if (mounted) {
         Navigator.of(context).pop(order);
@@ -80,7 +116,13 @@ class _OrderCartSheetState extends ConsumerState<OrderCartSheet> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text(
+              'Your payment may have gone through, but we couldn\'t confirm your order. '
+              'Please check "My Orders" before trying again, or contact support if this repeats.',
+            ),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     } finally {

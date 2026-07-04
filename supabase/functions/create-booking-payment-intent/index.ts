@@ -5,7 +5,12 @@ const supabase = createClient(
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
 );
 
-function stripePost(path: string, params: Record<string, string>, secretKey: string) {
+function stripePost(
+  path: string,
+  params: Record<string, string>,
+  secretKey: string,
+  idempotencyKey?: string,
+) {
   const body = Object.entries(params)
     .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
     .join('&');
@@ -14,6 +19,7 @@ function stripePost(path: string, params: Record<string, string>, secretKey: str
     headers: {
       Authorization: `Bearer ${secretKey}`,
       'Content-Type': 'application/x-www-form-urlencoded',
+      ...(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}),
     },
     body,
   });
@@ -44,14 +50,14 @@ Deno.serve(async (req: Request) => {
   const { data: { user }, error: authError } = await userClient.auth.getUser();
   if (authError || !user) return new Response('Unauthorized', { status: 401 });
 
-  let body: { type: string; record_id: string; booking_id: string };
+  let body: { type: string; record_id: string; booking_id: string; idempotency_key?: string };
   try {
     body = await req.json();
   } catch {
     return new Response('Bad request', { status: 400 });
   }
 
-  const { type, record_id, booking_id } = body;
+  const { type, record_id, booking_id, idempotency_key: idempotencyKey } = body;
   if (!type || !record_id || !booking_id) {
     return new Response(
       JSON.stringify({ error: 'type, record_id, and booking_id required' }),
@@ -168,6 +174,8 @@ Deno.serve(async (req: Request) => {
     );
   }
 
+  // Same idempotency-key reasoning as create-payment-intent — a retry of the
+  // same payment attempt reuses this PaymentIntent instead of double-charging.
   const piRes = await stripePost('/payment_intents', {
     amount: String(amountCents),
     currency: 'usd',
@@ -176,7 +184,7 @@ Deno.serve(async (req: Request) => {
     'metadata[type]': type,
     'metadata[record_id]': record_id,
     'metadata[booking_id]': booking_id,
-  }, stripeKey);
+  }, stripeKey, idempotencyKey);
 
   const pi = await piRes.json();
   if (!piRes.ok) {

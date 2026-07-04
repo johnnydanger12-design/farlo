@@ -269,15 +269,20 @@ class BookingsRepository {
     required String type,
     required String recordId,
     required String bookingId,
+    required String idempotencyKey,
   }) async {
     // The server recomputes the charge amount from the real stored deposit/quote
-    // row — it no longer trusts a client-supplied amount.
+    // row — it no longer trusts a client-supplied amount. idempotencyKey is
+    // generated once per payment attempt by the caller and reused across
+    // retries, so a network-blip retry reuses the same Stripe PaymentIntent
+    // instead of charging twice.
     final res = await _supabase.functions.invoke(
       'create-booking-payment-intent',
       body: {
         'type': type,
         'record_id': recordId,
         'booking_id': bookingId,
+        'idempotency_key': idempotencyKey,
       },
     );
     final data = res.data as Map<String, dynamic>;

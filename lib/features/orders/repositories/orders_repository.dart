@@ -28,9 +28,14 @@ class OrdersRepository {
   Future<({String clientSecret, String paymentIntentId})> createPaymentIntent({
     required String truckId,
     required List<CartItem> items,
+    required String idempotencyKey,
   }) async {
     // The server recomputes the charge amount from real menu_items prices — it
     // no longer trusts a client-supplied total, so only item/quantity is sent.
+    // idempotencyKey is generated once per checkout attempt by the caller and
+    // reused across retries of that same attempt, so a network-blip retry
+    // reuses the same Stripe PaymentIntent instead of charging twice
+    // (bugs.md Executive Summary #3).
     final res = await _supabase.functions.invoke(
       'create-payment-intent',
       body: {
@@ -38,6 +43,7 @@ class OrdersRepository {
         'items': items
             .map((i) => {'menu_item_id': i.menuItemId, 'quantity': i.quantity})
             .toList(),
+        'idempotency_key': idempotencyKey,
       },
     );
     final data = res.data as Map<String, dynamic>;
@@ -50,11 +56,24 @@ class OrdersRepository {
 
   Future<Order> placeOrder({
     required String truckId,
+    required String consumerId,
     required List<CartItem> items,
     String? pickupNote,
     required String paymentIntentId,
   }) async {
-    final consumerId = _supabase.auth.currentUser!.id;
+    // Idempotent by paymentIntentId: if a prior attempt already inserted the
+    // order for this same charge (e.g. the charge succeeded but a later step
+    // in that attempt failed and the caller retried), return the existing
+    // order instead of inserting a duplicate — this is what actually makes a
+    // retry after a stranded charge safe end-to-end, on top of the Stripe
+    // idempotency key covering the charge itself.
+    final existing = await _supabase
+        .from('orders')
+        .select(_orderSelect)
+        .eq('stripe_payment_intent_id', paymentIntentId)
+        .maybeSingle();
+    if (existing != null) return Order.fromMap(existing);
+
     final totalPrice = items.fold(0.0, (sum, i) => sum + i.lineTotal);
 
     final orderRow = await _supabase

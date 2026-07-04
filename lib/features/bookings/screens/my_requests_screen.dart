@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
@@ -645,6 +646,19 @@ class _ConsumerFinancialSectionState extends ConsumerState<_ConsumerFinancialSec
   bool _depositJustPaid = false;
   bool _invoiceJustPaid = false;
 
+  // One key per distinct payment target (deposit vs. invoice), generated once
+  // and reused across retries of that same payment attempt so a network-blip
+  // retry reuses the same Stripe PaymentIntent instead of charging twice.
+  final _idempotencyKeys = <String, String>{};
+
+  String _idempotencyKeyFor(String type, String recordId) {
+    final cacheKey = '$type:$recordId';
+    return _idempotencyKeys.putIfAbsent(cacheKey, () {
+      final rand = Random.secure();
+      return List.generate(32, (_) => rand.nextInt(16).toRadixString(16)).join();
+    });
+  }
+
   Future<void> _pay({required String type, required String recordId}) async {
     setState(() { _paying = true; _error = null; });
     try {
@@ -652,6 +666,7 @@ class _ConsumerFinancialSectionState extends ConsumerState<_ConsumerFinancialSec
         type: type,
         recordId: recordId,
         bookingId: widget.request.id,
+        idempotencyKey: _idempotencyKeyFor(type, recordId),
       );
       await Stripe.instance.initPaymentSheet(
         paymentSheetParameters: SetupPaymentSheetParameters(

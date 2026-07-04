@@ -5,7 +5,12 @@ const supabase = createClient(
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
 );
 
-function stripePost(path: string, params: Record<string, string>, secretKey: string) {
+function stripePost(
+  path: string,
+  params: Record<string, string>,
+  secretKey: string,
+  idempotencyKey?: string,
+) {
   const body = Object.entries(params)
     .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
     .join('&');
@@ -14,6 +19,7 @@ function stripePost(path: string, params: Record<string, string>, secretKey: str
     headers: {
       Authorization: `Bearer ${secretKey}`,
       'Content-Type': 'application/x-www-form-urlencoded',
+      ...(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}),
     },
     body,
   });
@@ -48,14 +54,18 @@ Deno.serve(async (req: Request) => {
     return new Response('Unauthorized', { status: 401 });
   }
 
-  let body: { truck_id: string; items: { menu_item_id: string; quantity: number }[] };
+  let body: {
+    truck_id: string;
+    items: { menu_item_id: string; quantity: number }[];
+    idempotency_key?: string;
+  };
   try {
     body = await req.json();
   } catch {
     return new Response('Bad request', { status: 400 });
   }
 
-  const { truck_id: truckId, items } = body;
+  const { truck_id: truckId, items, idempotency_key: idempotencyKey } = body;
   if (!truckId || !Array.isArray(items) || items.length === 0) {
     return new Response(
       JSON.stringify({ error: 'truck_id and a non-empty items array are required' }),
@@ -150,12 +160,18 @@ Deno.serve(async (req: Request) => {
     );
   }
 
+  // Idempotency-Key: a retry of the same checkout attempt (network blip,
+  // user re-tapping Pay after an error) reuses the same PaymentIntent instead
+  // of creating a second real charge. Scoped per-request by the client
+  // generating one key per checkout attempt and reusing it across retries of
+  // that same attempt (bugs.md Executive Summary #3 — stranded charge with no
+  // idempotency key, inviting an immediate double-charge retry).
   const piRes = await stripePost('/payment_intents', {
     amount: String(amountCents),
     currency: 'usd',
     'payment_method_types[]': 'card',
     'transfer_data[destination]': profile.stripe_account_id,
-  }, stripeKey);
+  }, stripeKey, idempotencyKey);
 
   const pi = await piRes.json();
   if (!piRes.ok) {
