@@ -236,3 +236,17 @@ All four remaining Quick Wins items are self-contained Dart/asset/pubspec change
 **MFR-6 — Ad Boost payment-model guardrail.** Assessed and closed as "correctly scoped, no action needed." The user offered to build Ad Boost now if that's what closing this item required, explicitly deferring the scope call ("you are the executive engineer"). Judgment: declined to build Ad Boost. Building a new monetization feature (new payment surface, new UI, new pricing model) was never an audit finding — it's unscoped net-new product work, not remediation, and building it now would reintroduce exactly the kind of new attack surface this whole pass has been closing. MFR-6 stays exactly as originally scoped: a watch item with nothing to do until Ad Boost work actually starts.
 
 **Phase 2 is therefore genuinely closed** (not just code-complete), resolving iteration 7's surfaced judgment call about Hard Stop #5. **Phase 5 (Major Architecture) is now unblocked.** Per the user's request, working through the remaining punch list items one at a time before starting Phase 5 execution — see `REMEDIATION_STATE.md`'s "Next action."
+
+---
+
+## Iteration 8 (continued) — Hard Stop #1 closed
+
+**Hard Stop #1 — `GOOGLE_PLACES_API_KEY` rotation.** Citation: `security.md` N1, `FARLO_FINAL_AUDIT.md`'s Hard Stop list.
+
+- User rotated the key in Google Cloud Console (their action, outside this session's visibility) and set the new value via `supabase secrets set GOOGLE_PLACES_API_KEY=... --project-ref weflrxyerxpsafcdetya` run directly in their own terminal — by design, the plaintext value never passed through this session or this chat at any point.
+- **First check** (`supabase secrets list`) showed the secret's `updated_at` timestamp was stale (`2026-06-30`, predating this entire remediation session) — caught that the set command hadn't actually landed yet before declaring done.
+- **Second check**, after the user re-ran the set command: `updated_at` now `2026-07-04T19:58:21Z` (today) and the secret's digest hash changed (`5cbb5f1e...` → `3c993072...`), confirming the value actually changed (the digest is a one-way hash, never the plaintext — safe to compare without exposure).
+- **Green, end-to-end:** called the live `places-autocomplete` Edge Function directly (`GET .../functions/v1/places-autocomplete?action=autocomplete&input=1600+Amphitheatre`) with the project's anon key and got back real Google Places predictions with `"status":"OK"` — confirms the new key is not just set but actually functioning against Google's API.
+- **Commit:** none (this is a Supabase secret + external GCP action, nothing in git changed) — logged here as the record of closure.
+
+Hard Stop #1 is now closed.

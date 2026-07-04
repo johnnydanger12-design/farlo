@@ -104,8 +104,8 @@ Canonical IDs follow `FARLO_FINAL_AUDIT.md`'s Top 20 numbering where an item app
 
 ## Awaiting sign-off (Hard Stops)
 
-- **Hard Stop #1 (rotate/regenerate secret):** `GOOGLE_PLACES_API_KEY`'s actual value was never rotated in Google Cloud Console — only proxied so it stops shipping in *future* builds. If it leaked from any previously-built APK/IPA before today, it's still valid and usable until rotated. Need you to rotate it in GCP and give me the new value to set as the Edge Function secret (not committed anywhere).
-- **Hard Stop #6 (App Store submission):** current build was pulled from review per your decision last session — resubmission stays yours to trigger once Ship-Readiness Gate (§12) passes. Not close yet — Phase 2 hasn't started.
+- ~~Hard Stop #1~~ — **closed iteration 8.** User rotated `GOOGLE_PLACES_API_KEY` in Google Cloud Console and set the new value via `supabase secrets set` directly in their own terminal (the plaintext value never passed through this session at any point — verified only via the secret's digest hash changing and `updated_at` timestamp updating to today). End-to-end verified: called the live `places-autocomplete` Edge Function with a real autocomplete query and got back real Google Places predictions (`"status":"OK"`), confirming the new key is both set and actually working.
+- **Hard Stop #6 (App Store submission):** current build was pulled from review per your decision last session — resubmission stays yours to trigger once Ship-Readiness Gate (§12) passes. Not close yet — working through the remaining punch list first (see Next action).
 
 ## Blocked-technical
 
@@ -133,7 +133,7 @@ Hard Stop #5's literal wording is "merging Phase 5 before Phases 1-2 close." As 
 Working through the remaining punch list with you directly, one item at a time, per your request (iteration 8):
 
 1. ~~Phase 5 judgment call~~ — **resolved**, see above. Phase 5 unblocked.
-2. **Hard Stop #1** — `GOOGLE_PLACES_API_KEY` rotation in Google Cloud Console — in progress with you now.
+2. ~~Hard Stop #1~~ — **resolved**, see above. Key rotated, set, and end-to-end verified.
 3. ~~MFR-2/MFR-6~~ — **resolved**, see Phase 2 milestone above.
 4. **The `cold_start_gtm_memo.md` open questions** (launch city, pricing-sequencing option) and **`agent_architecture_decision.md`'s recommendation** (formalize vs. build a dispatcher) — next up.
 5. **Hard Stop #6** — App Store resubmission, once the above are settled.
