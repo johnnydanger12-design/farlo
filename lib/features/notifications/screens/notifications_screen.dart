@@ -78,6 +78,7 @@ class NotificationsScreen extends ConsumerWidget {
                 child: _NotificationTile(
                   notification: n,
                   onTap: () => _handleTap(context, ref, n, user?.isOwner ?? false),
+                  onDelete: () => ref.read(notificationsRepositoryProvider).deleteNotification(n.id),
                 ),
               );
             },
@@ -223,10 +224,11 @@ class NotificationsScreen extends ConsumerWidget {
 }
 
 class _NotificationTile extends StatelessWidget {
-  const _NotificationTile({required this.notification, required this.onTap});
+  const _NotificationTile({required this.notification, required this.onTap, required this.onDelete});
 
   final AppNotification notification;
   final VoidCallback onTap;
+  final VoidCallback onDelete;
 
   IconData get _icon {
     return switch (notification.type) {
@@ -331,6 +333,17 @@ class _NotificationTile extends StatelessWidget {
                           fontSize: 11,
                           color: AppColors.textHint,
                         ),
+                      ),
+                      // Tap-based alternative to the Dismissible swipe gesture
+                      // above — a user who can't perform a swipe gesture
+                      // (e.g. via a switch-access/assistive input device)
+                      // otherwise has no way to delete a notification at all.
+                      IconButton(
+                        icon: const Icon(Icons.close, size: 16),
+                        color: AppColors.textHint,
+                        tooltip: 'Delete notification',
+                        visualDensity: VisualDensity.compact,
+                        onPressed: onDelete,
                       ),
                     ],
                   ),
