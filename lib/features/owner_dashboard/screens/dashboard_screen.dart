@@ -589,12 +589,16 @@ class _StatusCard extends ConsumerWidget {
                     child: const Text('End Session'),
                   )
                 else
-                  Switch(
-                    value: truck.isOpen,
-                    onChanged: onGoLive,
-                    activeThumbColor: AppColors.openGreen,
-                    activeTrackColor:
-                        AppColors.openGreen.withValues(alpha: 0.4),
+                  Semantics(
+                    label: 'Go live — start accepting customers',
+                    toggled: truck.isOpen,
+                    child: Switch(
+                      value: truck.isOpen,
+                      onChanged: onGoLive,
+                      activeThumbColor: AppColors.openGreen,
+                      activeTrackColor:
+                          AppColors.openGreen.withValues(alpha: 0.4),
+                    ),
                   ),
               ],
             ),
@@ -632,14 +636,17 @@ class _StatusCard extends ConsumerWidget {
                       ],
                     ),
                   ),
-                  Switch(
-                    value: truck.ordersAccepting,
-                    onChanged: (v) =>
-                        _toggleOrdersAccepting(context, ref, v, stripeConnected),
-                    activeThumbColor: AppColors.openGreen,
-                    activeTrackColor:
-                        AppColors.openGreen.withValues(alpha: 0.4),
-                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  Semantics(
+                    label: 'Accept online orders',
+                    toggled: truck.ordersAccepting,
+                    child: Switch(
+                      value: truck.ordersAccepting,
+                      onChanged: (v) =>
+                          _toggleOrdersAccepting(context, ref, v, stripeConnected),
+                      activeThumbColor: AppColors.openGreen,
+                      activeTrackColor:
+                          AppColors.openGreen.withValues(alpha: 0.4),
+                    ),
                   ),
                 ],
               ),
@@ -984,21 +991,23 @@ class _StripeStatusCardState extends ConsumerState<_StripeStatusCard> {
                 child: CircularProgressIndicator(strokeWidth: 2),
               )
             else
-              TextButton(
-                onPressed: () => _openStripe(isConnected),
-                style: TextButton.styleFrom(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-                child: Text(
-                  isConnected ? 'Dashboard →' : 'Set Up →',
-                  style: AppTextStyles.caption.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: isConnected
-                        ? AppColors.openGreen
-                        : Theme.of(context).colorScheme.primary,
+              Semantics(
+                label: isConnected ? 'Open Stripe payout dashboard' : 'Set up Stripe payouts',
+                button: true,
+                child: TextButton(
+                  onPressed: () => _openStripe(isConnected),
+                  style: TextButton.styleFrom(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  ),
+                  child: Text(
+                    isConnected ? 'Dashboard →' : 'Set Up →',
+                    style: AppTextStyles.caption.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: isConnected
+                          ? AppColors.openGreen
+                          : Theme.of(context).colorScheme.primary,
+                    ),
                   ),
                 ),
               ),

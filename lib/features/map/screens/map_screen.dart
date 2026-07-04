@@ -478,12 +478,16 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                         alignment: showBadge
                             ? const Alignment(0, -0.33)
                             : Alignment.center,
-                        child: GestureDetector(
-                          onTap: () => _onTruckTapped(truck),
-                          child: _TruckPin(
-                            isOpen: truck.isOpen,
-                            logoUrl: truck.logoUrl,
-                            sessionStartedAt: truck.sessionStartedAt,
+                        child: Semantics(
+                          label: '${truck.name}, ${truck.isOpen ? "open" : "closed"}',
+                          button: true,
+                          child: GestureDetector(
+                            onTap: () => _onTruckTapped(truck),
+                            child: _TruckPin(
+                              isOpen: truck.isOpen,
+                              logoUrl: truck.logoUrl,
+                              sessionStartedAt: truck.sessionStartedAt,
+                            ),
                           ),
                         ),
                       );
@@ -580,7 +584,10 @@ class _OffScreenIndicator extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final primary = Theme.of(context).colorScheme.primary;
-    return GestureDetector(
+    return Semantics(
+      label: '${truck.name}, off screen',
+      button: true,
+      child: GestureDetector(
       onTap: onTap,
       child: Container(
         width: 40,
@@ -612,6 +619,7 @@ class _OffScreenIndicator extends StatelessWidget {
                 )
               : const Icon(Icons.storefront_outlined, color: Colors.white, size: 22),
         ),
+      ),
       ),
     );
   }
@@ -718,7 +726,10 @@ class _RecenterButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return Semantics(
+      label: 'Recenter map on my location',
+      button: true,
+      child: GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
@@ -748,6 +759,7 @@ class _RecenterButton extends StatelessWidget {
             ),
           ],
         ),
+      ),
       ),
     );
   }

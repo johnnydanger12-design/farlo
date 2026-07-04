@@ -405,16 +405,17 @@ class _MyUpcomingCard extends ConsumerWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        TextButton.icon(
-                          onPressed: () => _confirmCancel(context, ref),
-                          icon: const Icon(Icons.cancel_outlined, size: 14),
-                          label: const Text('Cancel Event'),
-                          style: TextButton.styleFrom(
-                            foregroundColor: AppColors.closedRed,
-                            padding: EdgeInsets.zero,
-                            minimumSize: Size.zero,
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            textStyle: const TextStyle(fontSize: 12),
+                        Semantics(
+                          label: 'Cancel event booking',
+                          button: true,
+                          child: TextButton.icon(
+                            onPressed: () => _confirmCancel(context, ref),
+                            icon: const Icon(Icons.cancel_outlined, size: 14),
+                            label: const Text('Cancel Event'),
+                            style: TextButton.styleFrom(
+                              foregroundColor: AppColors.closedRed,
+                              textStyle: const TextStyle(fontSize: 12),
+                            ),
                           ),
                         ),
                         Row(
