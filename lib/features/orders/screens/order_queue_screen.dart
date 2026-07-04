@@ -103,6 +103,7 @@ class _OrderQueueListState extends ConsumerState<_OrderQueueList> with WidgetsBi
       backgroundColor: Colors.transparent,
       builder: (_) => OrderStatusSheet(order: order, isOwner: true),
     );
+    if (!mounted) return;
     if (result == true) {
       ref.read(ownerOrdersProvider.notifier).load(widget.truckId);
     }

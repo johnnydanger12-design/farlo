@@ -69,6 +69,7 @@ class _MyOrdersScreenState extends ConsumerState<MyOrdersScreen> with WidgetsBin
       backgroundColor: Colors.transparent,
       builder: (_) => OrderStatusSheet(order: order, isOwner: false),
     );
+    if (!mounted) return;
     if (result == true) _load();
   }
 

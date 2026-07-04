@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../core/widgets/snackbar_extensions.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../models/booking_message.dart';
 import '../repositories/messaging_repository.dart';
@@ -115,7 +116,6 @@ class _BookingChatScreenState extends ConsumerState<BookingChatScreen> {
     if (userId == null) return;
 
     setState(() => _sending = true);
-    _textController.clear();
 
     try {
       await _repo.sendMessage(
@@ -124,8 +124,12 @@ class _BookingChatScreenState extends ConsumerState<BookingChatScreen> {
         body: text,
       );
       // Realtime will deliver the message and deduplicate.
+      // Only clear the input once the send is actually confirmed — clearing
+      // it beforehand meant a failed send silently discarded the user's
+      // typed message with no error shown and no way to recover the text.
+      _textController.clear();
     } catch (e) {
-      debugPrint('send message failed: $e');
+      if (mounted) context.showError('Message not sent: ${sanitizeErrorMessage(e)}');
     } finally {
       if (mounted) setState(() => _sending = false);
     }

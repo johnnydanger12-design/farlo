@@ -123,6 +123,7 @@ class _ShiftWeekCardState extends ConsumerState<ShiftWeekCard> {
           backgroundColor: Colors.transparent,
           builder: (_) => AssignShiftSheet(truckId: widget.truckId, initialDate: date),
         );
+        if (!mounted) return;
         ref.invalidate(truckScheduledShiftsProvider((widget.truckId, y, m)));
       case AddEventType.location:
         await showModalBottomSheet<bool>(
@@ -131,6 +132,7 @@ class _ShiftWeekCardState extends ConsumerState<ShiftWeekCard> {
           backgroundColor: Colors.transparent,
           builder: (_) => PlanLocationSheet(truckId: widget.truckId, initialDate: date),
         );
+        if (!mounted) return;
         ref.invalidate(truckPlannedLocationsProvider((widget.truckId, y, m)));
       case AddEventType.booking:
         await showModalBottomSheet<bool>(
@@ -142,6 +144,7 @@ class _ShiftWeekCardState extends ConsumerState<ShiftWeekCard> {
             truckName: widget.truckName,
           ),
         );
+        if (!mounted) return;
         ref.invalidate(acceptedBookingsForMonthProvider(
             (widget.truckId, date.year, date.month)));
       case AddEventType.announceWeek:

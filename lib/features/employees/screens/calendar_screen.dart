@@ -125,6 +125,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
           backgroundColor: Colors.transparent,
           builder: (_) => AssignShiftSheet(truckId: widget.truckId, initialDate: date),
         );
+        if (!mounted) return;
         ref.invalidate(truckScheduledShiftsProvider((widget.truckId, _year, _month)));
       case AddEventType.location:
         await showModalBottomSheet<bool>(
@@ -133,6 +134,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
           backgroundColor: Colors.transparent,
           builder: (_) => PlanLocationSheet(truckId: widget.truckId, initialDate: date),
         );
+        if (!mounted) return;
         ref.invalidate(truckPlannedLocationsProvider((widget.truckId, _year, _month)));
       case AddEventType.booking:
         await showModalBottomSheet<bool>(
@@ -144,6 +146,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
             truckName: widget.truckName,
           ),
         );
+        if (!mounted) return;
         ref.invalidate(acceptedBookingsForMonthProvider((widget.truckId, _year, _month)));
       case AddEventType.announceWeek:
         final monday = DateTime(date.year, date.month, date.day - (date.weekday - 1));
