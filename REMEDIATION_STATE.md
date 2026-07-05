@@ -17,7 +17,7 @@ Working branch: `remediation/farlo-a-grade`. Supabase test branch: `remediation`
 | **Overall** (weighted, Product excluded) | ~85 | **~91** | ≥97 | — | ~6 pts |
 | Security | 86 | **~92** | zero Medium+ findings + permanent tests | 25% | GDPR export gap; Low findings not required but noted |
 | Backend/Supabase | 83 | **~90** | verified-reproducible migrations | 15% | met the specific criterion; general polish (56 duplicate/re-evaluated RLS policies, 27 unindexed FKs) not required by A+ definition but would help score |
-| Engineering | 88 | **~94** | domain layer + god-screens + image pipeline + fully clean analyze | 20% | ARCH-1 not started, ARCH-4 **fully closed (6/6)**, ARCH-5 not started — **largest remaining gap** |
+| Engineering | 88 | **~95** | domain layer + god-screens + image pipeline + fully clean analyze | 20% | ARCH-1 **closed (scoped)**, ARCH-4 **fully closed (6/6)**, ARCH-5 not started — **largest remaining gap** |
 | UI/UX | 86 | **~88** | full-app Semantics + Tooltip-vs-Semantics decision | 12% | ~35-40 controls labeled total, not "full-app" (116 files) |
 | AI Agent System | 80 | **~88** | architecture decision actually implemented | 10% | Option A fully implemented; #5/#8 from ai-agents.md §7 remain (external-action-dependent) |
 | App Store Readiness | 85 | **~90** | checklist actually re-run this session | 8% | met; App Review Notes not independently re-verifiable (no App Store Connect access) |
@@ -107,8 +107,8 @@ Canonical IDs follow `FARLO_FINAL_AUDIT.md`'s Top 20 numbering where an item app
 - [x] MED-13 Materialize migrations into git — closed iteration 1
 
 ### Phase 5 — Major Architecture Improvements (unblocked as of iteration 8 — Phase 2 fully closed)
-- [ ] ARCH-1 Domain/data-model layer separation — not started. Will likely be scoped down to "repository interfaces for the 2 repositories that block ARCH-2's 4th test target" rather than a full rewrite across every repository — proportionality call, will flag if that scoping turns out wrong. **Required for Engineering A+.**
-- [x] ARCH-2 Testing seam/mocking infrastructure — **3 of 4 highest-value targets closed iteration 9**, see LOG. Added `mocktail`/`fake_async`, 19 real passing tests (router redirect logic — extracted into a new pure `computeRedirect()` function — AuthNotifier timeout/rollback, OwnerTruckNotifier optimistic-rollback). 4th target (OrdersRepository/BookingsRepository quote/deposit flows) deliberately deferred — needs a repository-interface seam (ARCH-1) to be practically mockable, not attempted with a fragile mock-heavy workaround.
+- [x] ARCH-1 Domain/data-model layer separation — **closed at its scoped-down definition**, this iteration: repository interfaces (`OrdersDataSource`, `BookingFinancialsDataSource`) for the 2 repositories that were blocking ARCH-2's 4th test target, not a full rewrite across every repository — proportionality call, matching iteration 9's own scoping note. See LOG.
+- [x] ARCH-2 Testing seam/mocking infrastructure — **now 4 of 4 highest-value targets closed**, see LOG. Added `mocktail`/`fake_async`, 26 real passing tests: router redirect logic (extracted into a new pure `computeRedirect()` function), AuthNotifier timeout/rollback, OwnerTruckNotifier optimistic-rollback (iteration 9, 19 tests), plus this iteration's 4th target — OrdersRepository.placeOrder()'s idempotent-insert logic and BookingsRepository's quote/deposit orchestration (7 tests), unblocked by ARCH-1's new data-source interfaces.
 - [x] ARCH-3 Codebase-wide pagination + timeout pattern (= #17) — closed iteration 9, see LOG. `.limit(200)` added to the 4 originally-unbounded queries; new shared `withNetworkTimeout` extension applied across all 13 repository files (~90 call sites). **Narrowed scope: the 4 confirmed eager `ListView(children:)` sites (dashboard/order_queue/my_orders/booking_requests screens) were not converted to `.builder()`** — each mixes static headers/empty-states with mapped content, a real per-screen restructuring job, and at today's data volumes the audit itself frames this as "latent-until-scale, not today's problem." Flagged as remaining backlog, not attempted.
 - [x] ARCH-4 Decompose six god screens — **fully closed, 6 of 6 done** (`dashboard_screen.dart` 1519→258, `calendar_screen.dart` 1448→720, `map_screen.dart` 1106→596, `account_screen.dart` 1452→455, `truck_profile_screen.dart` 1425→501, `booking_requests_screen.dart` 1372→205 — see LOG). This closes one of Engineering A+'s three Major Architecture criteria; ARCH-1 and ARCH-5 remain open.
 - [ ] ARCH-5 Rebuild image pipeline — not started. **Required for Engineering A+.**
@@ -167,10 +167,11 @@ Hard Stop #5's literal wording is "merging Phase 5 before Phases 1-2 close." As 
 
 ## Next action
 
-Punch list items 1-4 all resolved (iteration 8). Hard Stop #6 (resubmission) is explicitly deferred by the founder until every category except Product hits A (iteration 9) — see Goal note at the top of this file. Currently executing Phase 5 + remaining findings toward that bar. Order, roughly by leverage/risk:
+Punch list items 1-4 all resolved (iteration 8). Hard Stop #6 (resubmission) is explicitly deferred by the founder until every category is worked toward A+ this iteration — see Goal note at the top of this file. Currently executing Phase 5's remaining Major Architecture items. Order, roughly by leverage/risk:
 
-1. ~~3 concrete bugs from code-quality.md's recommendation list~~ (chat message-loss, 2 missing-mounted-checks) — **closed iteration 9**, see LOG.
-2. ~~ARCH-2 (testing infrastructure)~~ — **3 of 4 targets closed iteration 9**, see LOG and Phase 5 checklist.
-3. **Next up:** batch `manage_hours_screen.dart`'s 7-call write loop (small, contained, already identified in code-quality.md §2.8/§2.15), then the `truck-logos`/`truck-photos` storage-policy gap (mirrors the already-fixed `menu-item-photos` pattern from Phase 1, so low-risk/fast).
-4. Then the larger items: ARCH-3 (pagination/timeouts), the accessibility roadmap's 20 items, ai-agents.md §7's remaining recommendations, ARCH-1 (scoped down, see Phase 5 checklist note), ARCH-4 (decompose god screens).
-5. Hard Stop #6 stays the founder's own action once the above closes and a fresh audit confirms the grade.
+1. ~~ARCH-4 (decompose all 6 god screens)~~ — **fully closed this iteration**, see LOG.
+2. ~~ARCH-1 (scoped-down repository interfaces) + ARCH-2's 4th test target~~ — **both closed this iteration**, see LOG.
+3. **Next up:** ARCH-5 (rebuild image pipeline — resolution-capped uploads, consistent `CachedNetworkImage` usage, Storage image-transform URLs) — the only remaining open Major Architecture item, and Engineering's largest remaining gap.
+4. UI/UX: remaining full-app `Semantics` coverage (116 Dart files per `ux-review.md`'s own framing — a much larger effort than either pass attempted so far).
+5. Security: scope and potentially build the GDPR data-export mechanism (bigger, product-shaped — needs scoping before it's a Fix-Protocol item).
+6. Hard Stop #6 stays the founder's own action once the above closes and a fresh audit confirms the grade — the founder has already said they'll commission that audit once this pass is done.
