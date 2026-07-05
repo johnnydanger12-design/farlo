@@ -109,14 +109,19 @@ class _WriteReviewSheetState extends ConsumerState<WriteReviewSheet> {
           Row(
             children: List.generate(5, (i) {
               final star = i + 1;
-              return GestureDetector(
-                onTap: () => setState(() => _rating = star),
-                child: Padding(
-                  padding: const EdgeInsets.only(right: 6),
-                  child: Icon(
-                    _rating >= star ? Icons.star_rounded : Icons.star_outline_rounded,
-                    color: _rating >= star ? const Color(0xFFF59E0B) : AppColors.textHint,
-                    size: 36,
+              return Semantics(
+                label: 'Rate $star star${star == 1 ? '' : 's'}',
+                button: true,
+                selected: _rating >= star,
+                child: GestureDetector(
+                  onTap: () => setState(() => _rating = star),
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: Icon(
+                      _rating >= star ? Icons.star_rounded : Icons.star_outline_rounded,
+                      color: _rating >= star ? const Color(0xFFF59E0B) : AppColors.textHint,
+                      size: 36,
+                    ),
                   ),
                 ),
               );

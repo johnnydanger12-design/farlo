@@ -186,37 +186,47 @@ class _FavoriteTile extends ConsumerWidget {
                   children: [
                     // Announcement bell toggle
                     if (truck != null)
-                      GestureDetector(
-                        onTap: () async {
-                          await ref.read(announcementPrefProvider(entry.truckId).notifier).toggle();
-                          final enabled = ref.read(announcementPrefProvider(entry.truckId)).asData?.value ?? true;
-                          if (context.mounted) {
-                            context.showInfo(
+                      Semantics(
+                        label: (ref.watch(announcementPrefProvider(entry.truckId)).asData?.value ?? true)
+                            ? 'Mute announcements for ${truck.name}'
+                            : 'Unmute announcements for ${truck.name}',
+                        button: true,
+                        child: GestureDetector(
+                          onTap: () async {
+                            await ref.read(announcementPrefProvider(entry.truckId).notifier).toggle();
+                            final enabled = ref.read(announcementPrefProvider(entry.truckId)).asData?.value ?? true;
+                            if (context.mounted) {
+                              context.showInfo(
+                                enabled
+                                    ? 'Announcements on for ${truck.name}'
+                                    : 'Announcements muted for ${truck.name}',
+                                behavior: SnackBarBehavior.floating,
+                                duration: const Duration(seconds: 2),
+                              );
+                            }
+                          },
+                          child: Builder(builder: (ctx) {
+                            final enabled = ref
+                                .watch(announcementPrefProvider(entry.truckId))
+                                .asData?.value ?? true;
+                            return Icon(
                               enabled
-                                  ? 'Announcements on for ${truck.name}'
-                                  : 'Announcements muted for ${truck.name}',
-                              behavior: SnackBarBehavior.floating,
-                              duration: const Duration(seconds: 2),
+                                  ? Icons.notifications_rounded
+                                  : Icons.notifications_off_outlined,
+                              color: enabled ? AppColors.textSecondary : AppColors.textHint,
+                              size: 20,
                             );
-                          }
-                        },
-                        child: Builder(builder: (ctx) {
-                          final enabled = ref
-                              .watch(announcementPrefProvider(entry.truckId))
-                              .asData?.value ?? true;
-                          return Icon(
-                            enabled
-                                ? Icons.notifications_rounded
-                                : Icons.notifications_off_outlined,
-                            color: enabled ? AppColors.textSecondary : AppColors.textHint,
-                            size: 20,
-                          );
-                        }),
+                          }),
+                        ),
                       ),
                     const SizedBox(width: 8),
-                    GestureDetector(
-                      onTap: () => ref.read(favoritedTruckIdsProvider.notifier).remove(entry.truckId),
-                      child: const Icon(Icons.favorite_rounded, color: Colors.red, size: 22),
+                    Semantics(
+                      label: 'Remove ${truck?.name ?? 'truck'} from favorites',
+                      button: true,
+                      child: GestureDetector(
+                        onTap: () => ref.read(favoritedTruckIdsProvider.notifier).remove(entry.truckId),
+                        child: const Icon(Icons.favorite_rounded, color: Colors.red, size: 22),
+                      ),
                     ),
                   ],
                 ),

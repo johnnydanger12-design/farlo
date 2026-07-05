@@ -154,17 +154,21 @@ class _OrderQueueListState extends ConsumerState<_OrderQueueList> with WidgetsBi
                 const SizedBox(height: AppSpacing.lg),
               ],
               if (done.isNotEmpty) ...[
-                GestureDetector(
-                  onTap: () => setState(() => _doneExpanded = !_doneExpanded),
-                  child: Row(
-                    children: [
-                      _SectionHeader('Done (${done.length})'),
-                      const Spacer(),
-                      Icon(
-                        _doneExpanded ? Icons.expand_less : Icons.expand_more,
-                        color: AppColors.textHint,
-                      ),
-                    ],
+                Semantics(
+                  label: _doneExpanded ? 'Collapse Done section' : 'Expand Done section',
+                  button: true,
+                  child: GestureDetector(
+                    onTap: () => setState(() => _doneExpanded = !_doneExpanded),
+                    child: Row(
+                      children: [
+                        _SectionHeader('Done (${done.length})'),
+                        const Spacer(),
+                        Icon(
+                          _doneExpanded ? Icons.expand_less : Icons.expand_more,
+                          color: AppColors.textHint,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
                 if (_doneExpanded) ...[

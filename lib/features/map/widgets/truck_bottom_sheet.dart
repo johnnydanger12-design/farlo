@@ -445,15 +445,19 @@ class _TakeMeThereButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: _launch,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.primary,
-          borderRadius: BorderRadius.circular(20),
+    return Semantics(
+      label: 'Get directions to this business',
+      button: true,
+      child: GestureDetector(
+        onTap: _launch,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.primary,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: const Icon(Icons.navigation_rounded, color: Colors.white, size: 18),
         ),
-        child: const Icon(Icons.navigation_rounded, color: Colors.white, size: 18),
       ),
     );
   }

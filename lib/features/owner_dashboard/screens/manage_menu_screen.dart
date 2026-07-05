@@ -457,13 +457,17 @@ class _MenuItemSheetState extends State<_MenuItemSheet> {
                           ),
                           Positioned(
                             top: 6, right: 6,
-                            child: GestureDetector(
-                              onTap: () => setState(() => _removeImage = true),
-                              child: Container(
-                                padding: const EdgeInsets.all(4),
-                                decoration: const BoxDecoration(
-                                  color: Colors.black54, shape: BoxShape.circle),
-                                child: const Icon(Icons.close, size: 14, color: Colors.white),
+                            child: Semantics(
+                              label: 'Remove menu item photo',
+                              button: true,
+                              child: GestureDetector(
+                                onTap: () => setState(() => _removeImage = true),
+                                child: Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: const BoxDecoration(
+                                    color: Colors.black54, shape: BoxShape.circle),
+                                  child: const Icon(Icons.close, size: 14, color: Colors.white),
+                                ),
                               ),
                             ),
                           ),

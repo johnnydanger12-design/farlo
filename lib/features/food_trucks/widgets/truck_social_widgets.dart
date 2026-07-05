@@ -40,6 +40,15 @@ class SocialSection extends StatelessWidget {
     _           => handle,
   };
 
+  String _labelFor(String field) => switch (field) {
+    'instagram' => 'Instagram',
+    'tiktok'    => 'TikTok',
+    'facebook'  => 'Facebook',
+    'twitter'   => 'X (Twitter)',
+    'youtube'   => 'YouTube',
+    _           => 'social media',
+  };
+
   Future<void> _launch(String url) async {
     final uri = Uri.parse(url);
     if (await canLaunchUrl(uri)) await launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -59,6 +68,7 @@ class SocialSection extends StatelessWidget {
           return SocialButton(
             icon: p.icon,
             color: iconColor,
+            label: _labelFor(p.field),
             onTap: () => _launch(_urlFor(p.field, handle)),
           );
         })
@@ -69,6 +79,7 @@ class SocialSection extends StatelessWidget {
       platformButtons.add(SocialButton(
         icon: FontAwesomeIcons.globe,
         color: Theme.of(context).colorScheme.primary,
+        label: 'website',
         onTap: () => _launch(truck.websiteUrl!),
       ));
     }
@@ -89,25 +100,30 @@ class SocialSection extends StatelessWidget {
 }
 
 class SocialButton extends StatelessWidget {
-  const SocialButton({super.key, required this.icon, required this.color, required this.onTap});
+  const SocialButton({super.key, required this.icon, required this.color, required this.label, required this.onTap});
   final FaIconData icon;
   final Color color;
+  final String label;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 52,
-        height: 52,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: color.withValues(alpha: 0.1),
-          border: Border.all(color: color.withValues(alpha: 0.3)),
-        ),
-        child: Center(
-          child: FaIcon(icon, color: color, size: 22),
+    return Semantics(
+      label: 'Open $label',
+      button: true,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: 52,
+          height: 52,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: color.withValues(alpha: 0.1),
+            border: Border.all(color: color.withValues(alpha: 0.3)),
+          ),
+          child: Center(
+            child: FaIcon(icon, color: color, size: 22),
+          ),
         ),
       ),
     );

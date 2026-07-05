@@ -290,10 +290,14 @@ class RecentSearches extends StatelessWidget {
                       Expanded(
                         child: Text(q, style: const TextStyle(fontSize: 14)),
                       ),
-                      GestureDetector(
-                        onTap: () => onRemove(q),
-                        behavior: HitTestBehavior.opaque,
-                        child: const Icon(Icons.close, size: 16, color: AppColors.textHint),
+                      Semantics(
+                        label: 'Remove "$q" from recent searches',
+                        button: true,
+                        child: GestureDetector(
+                          onTap: () => onRemove(q),
+                          behavior: HitTestBehavior.opaque,
+                          child: const Icon(Icons.close, size: 16, color: AppColors.textHint),
+                        ),
                       ),
                     ],
                   ),

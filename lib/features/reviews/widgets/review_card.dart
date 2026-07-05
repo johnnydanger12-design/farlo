@@ -89,16 +89,24 @@ class ReviewCard extends StatelessWidget {
               if (isOwn) ...[
                 if (onEdit != null) ...[
                   const SizedBox(width: AppSpacing.sm),
-                  GestureDetector(
-                    onTap: onEdit,
-                    child: const Icon(Icons.edit_outlined, size: 18, color: AppColors.textHint),
+                  Semantics(
+                    label: 'Edit your review',
+                    button: true,
+                    child: GestureDetector(
+                      onTap: onEdit,
+                      child: const Icon(Icons.edit_outlined, size: 18, color: AppColors.textHint),
+                    ),
                   ),
                 ],
                 if (onDelete != null) ...[
                   const SizedBox(width: AppSpacing.sm),
-                  GestureDetector(
-                    onTap: onDelete,
-                    child: const Icon(Icons.delete_outline, size: 18, color: AppColors.textHint),
+                  Semantics(
+                    label: 'Delete your review',
+                    button: true,
+                    child: GestureDetector(
+                      onTap: onDelete,
+                      child: const Icon(Icons.delete_outline, size: 18, color: AppColors.textHint),
+                    ),
                   ),
                 ],
               ],
@@ -136,14 +144,22 @@ class ReviewCard extends StatelessWidget {
                       ),
                       if (isOwnerOfTruck) ...[
                         const Spacer(),
-                        GestureDetector(
-                          onTap: onEditReply,
-                          child: const Icon(Icons.edit_outlined, size: 15, color: AppColors.textHint),
+                        Semantics(
+                          label: 'Edit your reply',
+                          button: true,
+                          child: GestureDetector(
+                            onTap: onEditReply,
+                            child: const Icon(Icons.edit_outlined, size: 15, color: AppColors.textHint),
+                          ),
                         ),
                         const SizedBox(width: AppSpacing.sm),
-                        GestureDetector(
-                          onTap: onDeleteReply,
-                          child: const Icon(Icons.delete_outline, size: 15, color: AppColors.textHint),
+                        Semantics(
+                          label: 'Delete your reply',
+                          button: true,
+                          child: GestureDetector(
+                            onTap: onDeleteReply,
+                            child: const Icon(Icons.delete_outline, size: 15, color: AppColors.textHint),
+                          ),
                         ),
                       ],
                     ],

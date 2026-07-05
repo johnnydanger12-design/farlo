@@ -426,34 +426,38 @@ class _LogoPicker extends StatelessWidget {
       child = const Icon(Icons.storefront_outlined, size: 40, color: Colors.white54);
     }
 
-    return GestureDetector(
-      onTap: onTap,
-      child: Stack(
-        children: [
-          Container(
-            width: 88,
-            height: 88,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: primary.withValues(alpha: 0.15),
-              border: Border.all(color: primary.withValues(alpha: 0.4), width: 2),
-            ),
-            child: Center(child: child),
-          ),
-          Positioned(
-            bottom: 0,
-            right: 0,
-            child: Container(
-              padding: const EdgeInsets.all(4),
+    return Semantics(
+      label: 'Change business logo',
+      button: true,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Stack(
+          children: [
+            Container(
+              width: 88,
+              height: 88,
               decoration: BoxDecoration(
-                color: primary,
                 shape: BoxShape.circle,
-                border: Border.all(color: Colors.white, width: 2),
+                color: primary.withValues(alpha: 0.15),
+                border: Border.all(color: primary.withValues(alpha: 0.4), width: 2),
               ),
-              child: const Icon(Icons.camera_alt, size: 14, color: Colors.white),
+              child: Center(child: child),
             ),
-          ),
-        ],
+            Positioned(
+              bottom: 0,
+              right: 0,
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: primary,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 2),
+                ),
+                child: const Icon(Icons.camera_alt, size: 14, color: Colors.white),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -487,47 +491,55 @@ class _PhotoGrid extends StatelessWidget {
         final existingUrl = i < existingUrls.length ? existingUrls[i] : null;
         final hasContent = newFile != null || existingUrl != null;
 
-        return GestureDetector(
-          onTap: () => onPick(i),
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(10),
-              color: primary.withValues(alpha: 0.08),
-              border: Border.all(
-                color: hasContent ? primary.withValues(alpha: 0.4) : AppColors.divider,
+        return Semantics(
+          label: hasContent ? 'Photo ${i + 1}' : 'Add photo ${i + 1}',
+          button: true,
+          child: GestureDetector(
+            onTap: () => onPick(i),
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(10),
+                color: primary.withValues(alpha: 0.08),
+                border: Border.all(
+                  color: hasContent ? primary.withValues(alpha: 0.4) : AppColors.divider,
+                ),
               ),
-            ),
-            child: hasContent
-                ? Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(9),
-                        child: newFile != null
-                            ? Image.file(newFile, fit: BoxFit.cover)
-                            : CachedNetworkImage(imageUrl: transformedImageUrl(existingUrl!, width: 400), fit: BoxFit.cover,
-                                errorWidget: (_, _, _) => const SizedBox()),
-                      ),
-                      Positioned(
-                        top: 2,
-                        right: 2,
-                        child: GestureDetector(
-                          onTap: () => onRemove(i),
-                          child: Container(
-                            padding: const EdgeInsets.all(2),
-                            decoration: const BoxDecoration(
-                              color: Colors.black54,
-                              shape: BoxShape.circle,
+              child: hasContent
+                  ? Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(9),
+                          child: newFile != null
+                              ? Image.file(newFile, fit: BoxFit.cover)
+                              : CachedNetworkImage(imageUrl: transformedImageUrl(existingUrl!, width: 400), fit: BoxFit.cover,
+                                  errorWidget: (_, _, _) => const SizedBox()),
+                        ),
+                        Positioned(
+                          top: 2,
+                          right: 2,
+                          child: Semantics(
+                            label: 'Remove photo ${i + 1}',
+                            button: true,
+                            child: GestureDetector(
+                              onTap: () => onRemove(i),
+                              child: Container(
+                                padding: const EdgeInsets.all(2),
+                                decoration: const BoxDecoration(
+                                  color: Colors.black54,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.close, size: 12, color: Colors.white),
+                              ),
                             ),
-                            child: const Icon(Icons.close, size: 12, color: Colors.white),
                           ),
                         ),
-                      ),
-                    ],
-                  )
-                : Center(
-                    child: Icon(Icons.add_photo_alternate_outlined, color: primary, size: 22),
-                  ),
+                      ],
+                    )
+                  : Center(
+                      child: Icon(Icons.add_photo_alternate_outlined, color: primary, size: 22),
+                    ),
+            ),
           ),
         );
       }),
