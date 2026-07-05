@@ -710,3 +710,46 @@ Worked through the roadmap's own prioritized tiers in order:
 - **Honest gap:** did not fully root-cause *why* `delete_account_data`'s destructive statements didn't visibly execute in the one live exploit test (favorites row count unchanged after the anon call, despite `HTTP 204`) — plausibly RLS interacting with the SECURITY DEFINER context in a way not fully traced, since time was prioritized on confirming and closing the definite, proven `compile_user_data_export` leak and applying the same fix to both functions regardless. This does not weaken the fix itself (the EXECUTE grant is revoked either way), but the exact mechanics of the near-miss are not fully understood.
 - **Commit:** `cfe55b7`.
 - **Category impact:** Security — closes a Critical, live, unauthenticated data-exfiltration vulnerability found by this iteration's required re-verification pass, not by the original audit. This is the clearest evidence this session has produced for why the operating prompt requires a full non-sampled re-verification before any A+ claim — a category that looked "done" (GDPR export shipped, tested, smoke-tested) still had an unverified, severe gap sitting one `curl` command away from real exploitation.
+
+---
+
+## Iteration 10 (continued) — Backend/Supabase re-verification: performance advisors reviewed, no correctness/security findings
+
+**Citation:** completing Backend/Supabase's re-verification checklist item (advisors) after the migration-reproducibility and critical-vulnerability work above.
+
+- **Relocate:** ran `get_advisors(type: performance)` against production. 230 lints total: 201 `WARN`, 29 `INFO`, **zero `ERROR`**. Breakdown: 143 `multiple_permissive_policies`, 58 `auth_rls_initplan`, 27 `unindexed_foreign_keys`, 1 `unused_index`, 1 `auth_db_connections_absolute`.
+- **Assessment:** all standard Supabase RLS-at-scale performance advisories, not correctness or security defects — `auth_rls_initplan` flags policies where `auth.uid()` isn't wrapped in a `(select ...)` subquery (causing per-row re-evaluation rather than once per query), `multiple_permissive_policies` flags tables with more than one permissive policy for the same role/action (each is evaluated and OR'd together, which is correct but costs an extra policy evaluation per row), and `unindexed_foreign_keys` flags FK columns without a covering index (slower joins/cascades at larger row counts, not a correctness issue at this project's current scale). None of these represent a security gap (RLS still correctly enforces row ownership either way) or a functional bug.
+- **Honest gap / not fixed this iteration:** these are genuine optimization opportunities and were not remediated — doing so (rewriting ~58 policies' `auth.uid()` calls and consolidating 143 multiple-permissive-policy pairs) is a real, non-trivial undertaking with its own regression-testing burden, and is out of scope for what the operating prompt's Backend/Supabase A+ bar requires (correctness, security, and reproducibility of the schema — not query-plan micro-optimization at current traffic levels). Logged here rather than silently dropped so it's an explicit, tracked decision rather than an omission. Candidate for the Low-severity backlog.
+- **Category impact:** Backend/Supabase — advisors reviewed as required by the re-verification pass; no A+-blocking findings. Backend/Supabase re-verification is now complete (migration reproducibility, security advisors → critical fix above, performance advisors → reviewed/backlogged).
+
+---
+
+## Iteration 10 (continued) — Security re-verification: SQL abuse scenarios + Flutter/Deno security unit tests re-run
+
+**Citation:** completing Security's re-verification checklist item beyond the critical-vulnerability fix above.
+
+- **Relocate/Green:** re-ran `./scripts/run_security_abuse_tests.sh remediation` (all 12 scenarios, 3-12d, against the isolated branch inside a `BEGIN...ROLLBACK`) — every scenario passed, including the new scenario 12 added for the critical fix. Re-ran the security-specific Flutter suite: `test/security/no_embedded_google_places_key_test.dart` (5/5), `test/security/register_error_message_test.dart` (3/3), `test/features/auth/sign_out_invalidation_test.dart` (4/4) — all pass, no regressions.
+- **Category impact:** Security — re-verification complete. Combined with the critical `compile_user_data_export`/`delete_account_data` fix (logged above), Security's re-verification pass is done: no additional gaps found beyond the one already fixed and closed.
+
+---
+
+## Iteration 10 (continued) — UI/UX re-verification: fresh full-codebase Semantics/tooltip parse
+
+**Citation:** completing UI/UX's re-verification checklist item (icon-only Semantics/tooltip coverage) following the accessibility roadmap closed in an earlier iteration (commit `253a578`).
+
+- **Relocate:** wrote a fresh script-based scan (not relying on memory of the prior audit) covering every `lib/**/*.dart` file for two patterns: (1) every `IconButton(...)` block checked for a `tooltip:` property; (2) every `GestureDetector(...)`/`InkWell(...)` wrapping a bare `Icon(...)` as its direct child, flagged for missing `Semantics`/`tooltip` coverage nearby.
+- **Findings:** all 46 `IconButton` usages in the codebase have a `tooltip:` property (0 missing); 0 empty-string tooltips. The `GestureDetector`/`InkWell`-wrapping-bare-`Icon` scan flagged 8 candidates; manual inspection of each showed 3 were false positives (already wrapped in an outer `Semantics(label: ..., button: true)` — `truck_bottom_sheet.dart`, `order_cart_sheet.dart`, `write_review_sheet.dart` — my block-scan only checked inside the `GestureDetector`, not the enclosing `Semantics`) and the remaining 5 (`dashboard_getting_started_card.dart`, `dashboard_orders_widget.dart`, `truck_menu_widgets.dart`, `employee_dashboard_screen.dart`, `add_event_sheet.dart`) are full-row tappable list items where the icon is purely decorative next to a visible `Text` title/subtitle — an accessible pattern (screen readers get a real label from the text, not the icon), not an icon-only unlabeled button.
+- **Green:** `flutter analyze` clean (0 issues) project-wide.
+- **Category impact:** UI/UX — re-verification complete, no regressions or new gaps found in icon-only accessibility coverage since the roadmap was closed.
+
+---
+
+## Iteration 10 (continued) — App Store Readiness re-verification: fresh signed build after real client changes, checklist re-confirmed
+
+**Citation:** completing App Store Readiness's re-verification checklist item. The prior pre-upload-checklist re-verification (commit `3ea50dc`, earlier in this same iteration) predates several genuine client-side changes made since — the GDPR export UI (`313be12`), the icon-only Semantics fixes (`9fd9eb4`), the image pipeline rebuild (`ffb18e8`), the `OrdersDataSource`/`BookingFinancialsDataSource` interfaces (`31d2ba4`), and 5 of 6 god-screen decompositions — any of which could plausibly have broken the build or introduced a new dart-define dependency. Carrying forward the earlier "checklist passed" claim across those changes without re-running it would be exactly the kind of stale-verification gap this re-verification pass exists to catch.
+
+- **Built a fresh real signed IPA:** `flutter build ipa --dart-define-from-file=.env.json --export-method development` succeeded using the same "Apple Development: JOHNNY DEE WINBURN" identity — `build/ios/ipa/Farlo.ipa`, 28.8MB, version 1.0.0 build 5.
+- **Ran `scripts/pre_upload_checklist.sh` against this fresh IPA:** `[PASS]` — Supabase project ref (`weflrxyerxpsafcdetya`) found embedded in the compiled binary (the dart-define embedding check, whose own SIGPIPE bug was fixed earlier this iteration, works correctly on this new build too).
+- **Demo-account subscription check, verified directly** (same no-service-role-key-in-shell approach as before): `SELECT status FROM subscriptions WHERE owner_id = (SELECT id FROM auth.users WHERE email = 'apple.review@farlo.app')` → `trialing` — the passing condition, confirmed fresh against current production state, not carried forward from the earlier check.
+- **App Review Notes reminder:** unchanged from the earlier confirmation — still not independently re-verifiable this session (no App Store Connect access via any tool here); the founder's confirmation from iteration 8 stands, but should be reconfirmed before any actual resubmission since this session cannot observe App Store Connect state changing.
+- **Category impact:** App Store Readiness — re-verified against a fresh build reflecting every client-side change made this iteration, not just the build that existed when the checklist bug was originally fixed. No new gaps found.
