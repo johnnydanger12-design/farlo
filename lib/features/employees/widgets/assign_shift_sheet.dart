@@ -133,7 +133,7 @@ class _AssignShiftSheetState extends ConsumerState<AssignShiftSheet> {
               const Spacer(),
               IconButton(
                 icon: const Icon(Icons.close),
-                visualDensity: VisualDensity.compact,
+                tooltip: 'Close',
                 onPressed: () => Navigator.pop(context),
               ),
             ],

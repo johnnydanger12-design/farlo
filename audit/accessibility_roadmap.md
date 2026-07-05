@@ -41,6 +41,16 @@ Ordered by the same logic `ux-review.md` itself uses: destructive/paid actions f
 19. **`calendar_screen.dart` / `shift_week_card.dart`'s mini accept/decline glyphs** — raw unicode ✓/✗ inside a 24×24 `_MiniButton`, no label, on a primary shift-response action.
 20. **`dashboard_screen.dart:1002-1003`** — Stripe-connect CTA text button, ~24-28px effective height (payout-related, arguably belongs in Tier 1 given it's money-adjacent — flagged here since the audit graded it alongside the other Tier 3 items, but treat as higher priority if picked up piecemeal).
 
+### Decision: `Tooltip` accepted as equivalent to explicit `Semantics(label:)` for simple icon-only buttons (resolved iteration 10, A+ pass)
+
+Items 12-13's actual fix (commit `22f32b1`, iteration 9) used `IconButton`'s `tooltip:` parameter plus explicit 44×44 `constraints` instead of a literal `Semantics(label:)` wrapper as this roadmap originally specified — flagged by a later verification pass as a deviation worth resolving explicitly rather than leaving ambiguous.
+
+**Decision: accepted as a real equivalent, not a shortcut.** Flutter's `Tooltip` widget (which `IconButton.tooltip` wraps its child in) applies `Semantics(label: message)` to that child by default — VoiceOver/TalkBack announce the tooltip text exactly as they would an explicit `Semantics` wrapper's label, and `tooltip` additionally provides a visible long-press hint sighted users get for free, which a bare `Semantics()` wrapper does not. For a simple icon-only `IconButton` with no additional semantic state to convey (no `toggled`/`selected`/`button:` distinction beyond what `IconButton` already implies), `tooltip:` is the equivalent, idiomatically-preferred Flutter mechanism, not a lesser substitute.
+
+**When to still use explicit `Semantics()` instead:** controls that need to convey extra state (`toggled:`, `selected:`, a `Switch`'s current value, a custom `GestureDetector`-based control with no built-in tooltip support) — items 5 (map truck pins), 8 (favorite-heart toggle), and the `Switch` instances in Tier 1 all correctly use explicit `Semantics()` for exactly this reason, and that pattern stays as-is. This decision only settles the specific case of a plain icon-only `IconButton`/`TextButton` with nothing beyond a label to announce.
+
+No code change needed as a result of this decision — it ratifies iteration 9's already-shipped implementation choice rather than requiring items 12-13 to be redone.
+
 ### Also flagged, lower urgency (not icon-only controls, but same root cause)
 
 - **`booking_requests_screen.dart:66-82`** — `Dismissible` swipe-to-delete with no alternate tap-based delete path. Not a touch-target-size issue, but a pure-gesture-only interaction is itself an accessibility gap (VoiceOver users can't perform arbitrary swipe gestures the same way) — worth a tap-based alternative (e.g., a leading edit/delete icon) alongside the swipe.

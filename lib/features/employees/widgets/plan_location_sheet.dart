@@ -107,7 +107,7 @@ class _PlanLocationSheetState extends ConsumerState<PlanLocationSheet> {
                 const Spacer(),
                 IconButton(
                   icon: const Icon(Icons.close),
-                  visualDensity: VisualDensity.compact,
+                  tooltip: 'Close',
                   onPressed: () => Navigator.pop(context),
                 ),
               ],

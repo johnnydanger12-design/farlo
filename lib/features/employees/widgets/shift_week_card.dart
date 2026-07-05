@@ -238,6 +238,7 @@ class _ShiftWeekCardState extends ConsumerState<ShiftWeekCard> {
                   if (widget.isOwner)
                     IconButton(
                       icon: const Icon(Icons.add),
+                      tooltip: 'Add shift or event',
                       onPressed: () => _showAddEvent(_selectedDate),
                       style: IconButton.styleFrom(
                         backgroundColor:

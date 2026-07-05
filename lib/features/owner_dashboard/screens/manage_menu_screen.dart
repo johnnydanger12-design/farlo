@@ -29,11 +29,13 @@ class ManageMenuScreen extends ConsumerWidget {
         surfaceTintColor: Colors.transparent,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
+          tooltip: 'Back',
           onPressed: () => context.pop(),
         ),
         actions: [
           IconButton(
             icon: const Icon(Icons.add),
+            tooltip: 'Add menu item',
             color: Theme.of(context).colorScheme.primary,
             onPressed: () => asyncTruck.asData?.value != null
                 ? _showAddSheet(context, ref, asyncTruck.asData!.value!.id,

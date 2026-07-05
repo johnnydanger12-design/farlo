@@ -79,6 +79,7 @@ class _SetNewPasswordScreenState extends State<SetNewPasswordScreen> {
                   textInputAction: TextInputAction.next,
                   suffixIcon: IconButton(
                     icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
+                    tooltip: _obscurePassword ? 'Show password' : 'Hide password',
                     onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                   ),
                   validator: (v) {
@@ -98,6 +99,7 @@ class _SetNewPasswordScreenState extends State<SetNewPasswordScreen> {
                   onFieldSubmitted: (_) => _submit(),
                   suffixIcon: IconButton(
                     icon: Icon(_obscureConfirm ? Icons.visibility_off : Icons.visibility),
+                    tooltip: _obscureConfirm ? 'Show password' : 'Hide password',
                     onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm),
                   ),
                   validator: (v) {

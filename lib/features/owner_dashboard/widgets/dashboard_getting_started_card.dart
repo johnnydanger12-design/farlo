@@ -148,7 +148,7 @@ class _DashboardGettingStartedCardState extends ConsumerState<DashboardGettingSt
                 IconButton(
                   icon: const Icon(Icons.keyboard_arrow_up, size: 22),
                   color: AppColors.textHint,
-                  visualDensity: VisualDensity.compact,
+                  tooltip: 'Collapse',
                   onPressed: () => setState(() => _expanded = false),
                 ),
               ],

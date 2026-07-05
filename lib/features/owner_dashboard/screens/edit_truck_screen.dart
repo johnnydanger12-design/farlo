@@ -235,6 +235,7 @@ class _EditTruckScreenState extends ConsumerState<EditTruckScreen> {
         surfaceTintColor: Colors.transparent,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
+          tooltip: 'Back',
           onPressed: () => context.pop(),
         ),
       ),

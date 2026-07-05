@@ -124,6 +124,7 @@ class _RegisterOwnerScreenState extends ConsumerState<RegisterOwnerScreen> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
+          tooltip: 'Back to login',
           onPressed: () => context.go('/login'),
         ),
       ),
@@ -273,6 +274,7 @@ class _RegisterOwnerScreenState extends ConsumerState<RegisterOwnerScreen> {
                             autofillHints: const [AutofillHints.newPassword],
                             suffixIcon: IconButton(
                               icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
+                              tooltip: _obscurePassword ? 'Show password' : 'Hide password',
                               onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                             ),
                             validator: (v) {

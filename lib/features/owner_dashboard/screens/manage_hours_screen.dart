@@ -80,6 +80,7 @@ class _ManageHoursScreenState extends ConsumerState<ManageHoursScreen> {
             surfaceTintColor: Colors.transparent,
             leading: IconButton(
               icon: const Icon(Icons.arrow_back),
+              tooltip: 'Back',
               onPressed: () => context.canPop() ? context.pop() : context.go('/dashboard'),
             ),
             actions: [

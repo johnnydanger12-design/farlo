@@ -1026,6 +1026,7 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
                 border: const OutlineInputBorder(),
                 suffixIcon: IconButton(
                   icon: Icon(_obscureCurrent ? Icons.visibility_outlined : Icons.visibility_off_outlined),
+                  tooltip: _obscureCurrent ? 'Show password' : 'Hide password',
                   onPressed: () => setState(() => _obscureCurrent = !_obscureCurrent),
                 ),
               ),
@@ -1039,6 +1040,7 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
                 border: const OutlineInputBorder(),
                 suffixIcon: IconButton(
                   icon: Icon(_obscureNew ? Icons.visibility_outlined : Icons.visibility_off_outlined),
+                  tooltip: _obscureNew ? 'Show password' : 'Hide password',
                   onPressed: () => setState(() => _obscureNew = !_obscureNew),
                 ),
               ),
@@ -1052,6 +1054,7 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
                 border: const OutlineInputBorder(),
                 suffixIcon: IconButton(
                   icon: Icon(_obscureConfirm ? Icons.visibility_outlined : Icons.visibility_off_outlined),
+                  tooltip: _obscureConfirm ? 'Show password' : 'Hide password',
                   onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm),
                 ),
               ),

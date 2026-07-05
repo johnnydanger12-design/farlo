@@ -319,6 +319,7 @@ class _EmployeeTile extends StatelessWidget {
               const SizedBox(width: AppSpacing.sm),
               IconButton(
                 icon: const Icon(Icons.remove_circle_outline, color: AppColors.error, size: 20),
+                tooltip: 'Remove employee',
                 onPressed: onRemove,
               ),
             ],

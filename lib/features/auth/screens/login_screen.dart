@@ -139,6 +139,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         autofillHints: const [AutofillHints.password],
                         suffixIcon: IconButton(
                           icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
+                          tooltip: _obscurePassword ? 'Show password' : 'Hide password',
                           onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                         ),
                         validator: (v) {

@@ -245,6 +245,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
+          tooltip: 'Back to month view',
           onPressed: () => setState(() => _inDayView = false),
         ),
         title: Text(dayLabel),
@@ -252,6 +253,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
           if (widget.isOwner)
             IconButton(
               icon: const Icon(Icons.add),
+              tooltip: 'Add shift or event',
               onPressed: () => _showAddEvent(_selectedDate),
             ),
         ],
@@ -450,6 +452,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
           if (widget.isOwner)
             IconButton(
               icon: const Icon(Icons.add),
+              tooltip: 'Add shift or event',
               onPressed: () => _showAddEvent(_selectedDate),
             ),
         ],
@@ -469,13 +472,13 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                   const Spacer(),
                   IconButton(
                     icon: const Icon(Icons.chevron_left),
+                    tooltip: 'Previous month',
                     onPressed: _prevMonth,
-                    visualDensity: VisualDensity.compact,
                   ),
                   IconButton(
                     icon: const Icon(Icons.chevron_right),
+                    tooltip: 'Next month',
                     onPressed: _nextMonth,
-                    visualDensity: VisualDensity.compact,
                   ),
                 ],
               ),
@@ -934,7 +937,7 @@ class _TimelineView extends StatelessWidget {
             ? IconButton(
                 icon: const Icon(Icons.delete_outline, size: 16),
                 color: Colors.white70,
-                visualDensity: VisualDensity.compact,
+                tooltip: 'Delete scheduled shift',
                 onPressed: () => onDeleteScheduled!(s),
               )
             : (!isOwner && s.isPending && onRespondScheduled != null
@@ -981,7 +984,7 @@ class _TimelineView extends StatelessWidget {
             ? IconButton(
                 icon: const Icon(Icons.edit_outlined, size: 16),
                 color: Colors.white70,
-                visualDensity: VisualDensity.compact,
+                tooltip: 'Edit worked shift',
                 onPressed: () => onEditWorked!(w),
               )
             : null,
@@ -1384,7 +1387,7 @@ class _ScheduledTile extends StatelessWidget {
             IconButton(
               icon: const Icon(Icons.delete_outline, size: 20),
               color: AppColors.textHint,
-              visualDensity: VisualDensity.compact,
+              tooltip: 'Delete shift',
               onPressed: onDelete,
             ),
         ],
@@ -1435,7 +1438,7 @@ class _WorkedTile extends StatelessWidget {
             IconButton(
               icon: const Icon(Icons.edit_outlined, size: 20),
               color: AppColors.textHint,
-              visualDensity: VisualDensity.compact,
+              tooltip: 'Edit shift',
               onPressed: onEdit,
             ),
         ],

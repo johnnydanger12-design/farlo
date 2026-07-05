@@ -198,7 +198,7 @@ class NotificationsScreen extends ConsumerWidget {
                     Row(
                       children: [
                         Expanded(child: Text(n.title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700))),
-                        IconButton(icon: const Icon(Icons.close), visualDensity: VisualDensity.compact, onPressed: () => Navigator.pop(ctx)),
+                        IconButton(icon: const Icon(Icons.close), tooltip: 'Close', onPressed: () => Navigator.pop(ctx)),
                       ],
                     ),
                     const SizedBox(height: 12),
