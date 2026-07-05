@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../account/widgets/data_export_sheet.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../bookings/screens/booking_chat_screen.dart';
 import '../../employees/screens/employee_dashboard_screen.dart';
@@ -175,6 +176,14 @@ class NotificationsScreen extends ConsumerWidget {
         context.go('/dashboard');
       case 'open_check':
         context.go(isOwner ? '/dashboard' : '/map');
+      case 'data_export_ready':
+        showModalBottomSheet<void>(
+          context: context,
+          isScrollControlled: true,
+          useSafeArea: true,
+          backgroundColor: Colors.transparent,
+          builder: (_) => const DataExportSheet(),
+        );
       case 'announcement':
         showModalBottomSheet<void>(
           context: context,
