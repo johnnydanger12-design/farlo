@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -5,6 +6,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/widgets/star_rating_widget.dart';
+import '../../../services/storage_service.dart';
 import '../models/favorite_entry.dart';
 import '../../../core/widgets/snackbar_extensions.dart';
 import '../providers/favorites_provider.dart';
@@ -114,10 +116,10 @@ class _FavoriteTile extends ConsumerWidget {
               ),
               child: truck?.logoUrl != null
                   ? ClipOval(
-                      child: Image.network(
-                        truck!.logoUrl!,
+                      child: CachedNetworkImage(
+                        imageUrl: transformedImageUrl(truck!.logoUrl!, width: 112, height: 112),
                         fit: BoxFit.cover,
-                        errorBuilder: (_, _, _) => const _TruckIcon(),
+                        errorWidget: (_, _, _) => const _TruckIcon(),
                       ),
                     )
                   : const _TruckIcon(),

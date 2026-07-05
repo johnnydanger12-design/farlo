@@ -1,8 +1,10 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../services/storage_service.dart';
 import '../models/food_truck.dart';
 
 // ARCH-4 (code-quality.md): extracted out of the 1106-line map_screen.dart.
@@ -140,8 +142,8 @@ class SearchResults extends StatelessWidget {
                           ),
                           child: ClipOval(
                             child: truck.logoUrl != null
-                                ? Image.network(truck.logoUrl!, fit: BoxFit.cover,
-                                    errorBuilder: (_, _, _) => const Icon(Icons.storefront_outlined, size: 20, color: AppColors.textHint))
+                                ? CachedNetworkImage(imageUrl: transformedImageUrl(truck.logoUrl!, width: 80, height: 80), fit: BoxFit.cover,
+                                    errorWidget: (_, _, _) => const Icon(Icons.storefront_outlined, size: 20, color: AppColors.textHint))
                                 : const Icon(Icons.storefront_outlined, size: 20, color: AppColors.textHint),
                           ),
                         ),

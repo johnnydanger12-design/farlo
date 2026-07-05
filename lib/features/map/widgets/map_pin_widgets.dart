@@ -1,5 +1,7 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../services/storage_service.dart';
 import '../models/food_truck.dart';
 
 // ARCH-4 (code-quality.md): extracted out of the 1106-line map_screen.dart.
@@ -39,10 +41,10 @@ class OffScreenIndicator extends StatelessWidget {
         ),
         child: ClipOval(
           child: truck.logoUrl != null
-              ? Image.network(
-                  truck.logoUrl!,
+              ? CachedNetworkImage(
+                  imageUrl: transformedImageUrl(truck.logoUrl!, width: 80, height: 80),
                   fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) =>
+                  errorWidget: (_, _, _) =>
                       const Icon(Icons.storefront_outlined, color: Colors.white, size: 22),
                 )
               : const Icon(Icons.storefront_outlined, color: Colors.white, size: 22),
@@ -90,10 +92,10 @@ class TruckPin extends StatelessWidget {
       ),
       child: ClipOval(
         child: logoUrl != null
-            ? Image.network(
-                logoUrl!,
+            ? CachedNetworkImage(
+                imageUrl: transformedImageUrl(logoUrl!, width: 88, height: 88),
                 fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => _PinFallback(accentColor: accentColor),
+                errorWidget: (_, _, _) => _PinFallback(accentColor: accentColor),
               )
             : _PinFallback(accentColor: accentColor),
       ),

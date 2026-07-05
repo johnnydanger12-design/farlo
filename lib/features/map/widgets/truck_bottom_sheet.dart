@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,6 +9,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/widgets/star_rating_widget.dart';
+import '../../../services/storage_service.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../favorites/providers/favorites_provider.dart';
 import '../models/food_truck.dart';
@@ -40,8 +42,10 @@ class TruckBottomSheet extends ConsumerWidget {
                     itemCount: urls.length,
                     onPageChanged: (i) => setState(() => current = i),
                     itemBuilder: (_, i) => Center(
-                      child: Image.network(urls[i], fit: BoxFit.contain,
-                          errorBuilder: (_, _, _) => const SizedBox.shrink()),
+                      // Full-screen zoomed viewer — deliberately not transformed
+                      // down, unlike every other render site in this file.
+                      child: CachedNetworkImage(imageUrl: urls[i], fit: BoxFit.contain,
+                          errorWidget: (_, _, _) => const SizedBox.shrink()),
                     ),
                   ),
                   if (urls.length > 1)
@@ -321,10 +325,10 @@ class _TruckAvatar extends StatelessWidget {
           ),
           child: logoUrl != null
               ? ClipOval(
-                  child: Image.network(
-                    logoUrl!,
+                  child: CachedNetworkImage(
+                    imageUrl: transformedImageUrl(logoUrl!, width: (radius * 4).round(), height: (radius * 4).round()),
                     fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => _TruckIcon(radius: radius),
+                    errorWidget: (_, _, _) => _TruckIcon(radius: radius),
                   ),
                 )
               : _TruckIcon(radius: radius),
@@ -394,10 +398,10 @@ class _PhotoCarouselState extends State<_PhotoCarousel> {
               onTap: () => widget.onTap(i),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(10),
-                child: Image.network(
-                  widget.photoUrls[i],
+                child: CachedNetworkImage(
+                  imageUrl: transformedImageUrl(widget.photoUrls[i], height: 320),
                   fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                  errorWidget: (_, _, _) => const SizedBox.shrink(),
                 ),
               ),
             ),

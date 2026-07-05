@@ -1,5 +1,7 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
+import '../../services/storage_service.dart';
 
 /// Circle map marker showing a truck's logo (or a fallback icon).
 /// Used on the consumer map, owner dashboard mini-map, and employee dashboard mini-map.
@@ -37,10 +39,10 @@ class TruckMapPin extends StatelessWidget {
       ),
       child: ClipOval(
         child: logoUrl != null
-            ? Image.network(
-                logoUrl!,
+            ? CachedNetworkImage(
+                imageUrl: transformedImageUrl(logoUrl!, width: 88, height: 88),
                 fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => _Fallback(accentColor: accentColor),
+                errorWidget: (_, _, _) => _Fallback(accentColor: accentColor),
               )
             : _Fallback(accentColor: accentColor),
       ),

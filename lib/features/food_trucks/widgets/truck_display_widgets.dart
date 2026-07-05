@@ -1,8 +1,10 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../services/storage_service.dart';
 import '../../favorites/providers/favorites_provider.dart';
 import '../models/operating_hours.dart';
 
@@ -30,10 +32,10 @@ class PhotoCarousel extends StatelessWidget {
           controller: controller,
           itemCount: urls.length,
           onPageChanged: onPageChanged,
-          itemBuilder: (_, i) => Image.network(
-            urls[i],
+          itemBuilder: (_, i) => CachedNetworkImage(
+            imageUrl: transformedImageUrl(urls[i], width: 1200),
             fit: BoxFit.cover,
-            errorBuilder: (_, _, _) => const LogoHero(logoUrl: null),
+            errorWidget: (_, _, _) => const LogoHero(logoUrl: null),
           ),
         ),
         if (urls.length > 1)
@@ -75,12 +77,12 @@ class LogoHero extends StatelessWidget {
         child: logoUrl != null
             ? ClipRRect(
                 borderRadius: BorderRadius.circular(16),
-                child: Image.network(
-                  logoUrl!,
+                child: CachedNetworkImage(
+                  imageUrl: transformedImageUrl(logoUrl!, width: 300, height: 300),
                   width: 100,
                   height: 100,
                   fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) => const TruckIconPlaceholder(),
+                  errorWidget: (_, _, _) => const TruckIconPlaceholder(),
                 ),
               )
             : const TruckIconPlaceholder(),

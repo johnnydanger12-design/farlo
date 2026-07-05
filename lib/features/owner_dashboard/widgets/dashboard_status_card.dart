@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,6 +8,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/widgets/truck_map_pin.dart';
+import '../../../services/storage_service.dart';
 import '../../food_trucks/providers/food_truck_provider.dart';
 import '../../food_trucks/screens/truck_profile_screen.dart';
 import '../../map/models/food_truck.dart';
@@ -126,12 +128,12 @@ class DashboardStatusCard extends ConsumerWidget {
                     child: truck.logoUrl != null
                         ? ClipRRect(
                             borderRadius: BorderRadius.circular(10),
-                            child: Image.network(
-                              truck.logoUrl!,
+                            child: CachedNetworkImage(
+                              imageUrl: transformedImageUrl(truck.logoUrl!, width: 88, height: 88),
                               width: 44,
                               height: 44,
                               fit: BoxFit.cover,
-                              errorBuilder: (_, _, _) => Icon(
+                              errorWidget: (_, _, _) => Icon(
                                 Icons.storefront_outlined,
                                 color: Theme.of(context).colorScheme.primary,
                                 size: 24,

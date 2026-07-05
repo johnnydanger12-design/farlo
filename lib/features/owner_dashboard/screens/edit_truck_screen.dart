@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -123,12 +124,22 @@ class _EditTruckScreenState extends ConsumerState<EditTruckScreen> {
   }
 
   Future<void> _pickLogo() async {
-    final xfile = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 85);
+    final xfile = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      maxWidth: uploadImageMaxDimension,
+      maxHeight: uploadImageMaxDimension,
+      imageQuality: 85,
+    );
     if (xfile != null) setState(() => _newLogo = File(xfile.path));
   }
 
   Future<void> _pickPhoto(int index) async {
-    final xfile = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 80);
+    final xfile = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      maxWidth: uploadImageMaxDimension,
+      maxHeight: uploadImageMaxDimension,
+      imageQuality: 80,
+    );
     if (xfile != null) setState(() => _newPhotos[index] = File(xfile.path));
   }
 
@@ -409,8 +420,8 @@ class _LogoPicker extends StatelessWidget {
     if (newFile != null) {
       child = ClipOval(child: Image.file(newFile!, fit: BoxFit.cover, width: 88, height: 88));
     } else if (existingUrl != null) {
-      child = ClipOval(child: Image.network(existingUrl!, fit: BoxFit.cover, width: 88, height: 88,
-          errorBuilder: (_, _, _) => const Icon(Icons.storefront_outlined, size: 40, color: Colors.white54)));
+      child = ClipOval(child: CachedNetworkImage(imageUrl: transformedImageUrl(existingUrl!, width: 176, height: 176), fit: BoxFit.cover, width: 88, height: 88,
+          errorWidget: (_, _, _) => const Icon(Icons.storefront_outlined, size: 40, color: Colors.white54)));
     } else {
       child = const Icon(Icons.storefront_outlined, size: 40, color: Colors.white54);
     }
@@ -494,8 +505,8 @@ class _PhotoGrid extends StatelessWidget {
                         borderRadius: BorderRadius.circular(9),
                         child: newFile != null
                             ? Image.file(newFile, fit: BoxFit.cover)
-                            : Image.network(existingUrl!, fit: BoxFit.cover,
-                                errorBuilder: (_, _, _) => const SizedBox()),
+                            : CachedNetworkImage(imageUrl: transformedImageUrl(existingUrl!, width: 400), fit: BoxFit.cover,
+                                errorWidget: (_, _, _) => const SizedBox()),
                       ),
                       Positioned(
                         top: 2,

@@ -1,6 +1,15 @@
 import 'dart:io';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+// ARCH-5 (code-quality.md, image pipeline): caps the pixel dimensions an
+// ImagePicker call will hand back, applied consistently across every
+// non-avatar image upload (truck logo, truck photo, menu item photo — the
+// avatar upload already had its own 512x512 cap). Generous enough for a
+// full-bleed carousel display on a retina phone; final on-screen serving
+// size (thumbnail vs. full) is handled by [transformedImageUrl] at render
+// time instead of maintaining multiple upload-time resolutions.
+const uploadImageMaxDimension = 1600.0;
+
 class StorageService {
   StorageService(this._supabase);
 
@@ -28,3 +37,35 @@ class StorageService {
 }
 
 final storageServiceInstance = StorageService(Supabase.instance.client);
+
+/// Requests a resized rendition of an already-uploaded Supabase Storage
+/// public image [url] via Storage's on-the-fly image-transformation API
+/// (`/render/image/public/...` instead of `/object/public/...`), so
+/// thumbnail-sized UI (map pins, list rows, grid cards) doesn't download —
+/// and [CachedNetworkImage] doesn't cache to disk — the full-resolution
+/// original every time (ARCH-5, code-quality.md).
+///
+/// Falls back to the original [url] unchanged for any URL that isn't a
+/// recognizable Supabase Storage object URL (e.g. already-transformed URLs,
+/// or a non-Storage URL), so callers can apply this unconditionally.
+String transformedImageUrl(String url, {int? width, int? height, int quality = 75}) {
+  final uri = Uri.tryParse(url);
+  if (uri == null) return url;
+  final objectIndex = uri.pathSegments.indexOf('object');
+  if (objectIndex == -1) return url;
+
+  final renderedSegments = [
+    ...uri.pathSegments.sublist(0, objectIndex),
+    'render',
+    'image',
+    ...uri.pathSegments.sublist(objectIndex + 1),
+  ];
+  return uri.replace(
+    pathSegments: renderedSegments,
+    queryParameters: {
+      if (width != null) 'width': '$width',
+      if (height != null) 'height': '$height',
+      'quality': '$quality',
+    },
+  ).toString();
+}

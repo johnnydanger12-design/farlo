@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -235,12 +236,12 @@ class _MenuItemTile extends StatelessWidget {
           leading: item.imageUrl != null
               ? ClipRRect(
                   borderRadius: BorderRadius.circular(8),
-                  child: Image.network(
-                    item.imageUrl!,
+                  child: CachedNetworkImage(
+                    imageUrl: transformedImageUrl(item.imageUrl!, width: 96, height: 96),
                     width: 48,
                     height: 48,
                     fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => const SizedBox(width: 48, height: 48),
+                    errorWidget: (_, _, _) => const SizedBox(width: 48, height: 48),
                   ),
                 )
               : null,
@@ -347,7 +348,12 @@ class _MenuItemSheetState extends State<_MenuItemSheet> {
   }
 
   Future<void> _pickImage() async {
-    final xfile = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 80);
+    final xfile = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      maxWidth: uploadImageMaxDimension,
+      maxHeight: uploadImageMaxDimension,
+      imageQuality: 80,
+    );
     if (xfile != null) setState(() { _pickedImage = File(xfile.path); _removeImage = false; });
   }
 
@@ -447,7 +453,7 @@ class _MenuItemSheetState extends State<_MenuItemSheet> {
                         children: [
                           ClipRRect(
                             borderRadius: BorderRadius.circular(12),
-                            child: Image.network(_existingImageUrl!, fit: BoxFit.cover),
+                            child: CachedNetworkImage(imageUrl: transformedImageUrl(_existingImageUrl!, width: 800), fit: BoxFit.cover),
                           ),
                           Positioned(
                             top: 6, right: 6,

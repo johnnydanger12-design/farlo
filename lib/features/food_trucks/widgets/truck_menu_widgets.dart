@@ -1,9 +1,11 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/widgets/sign_in_prompt_sheet.dart';
+import '../../../services/storage_service.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../map/models/food_truck.dart';
 import '../../orders/models/order_item.dart';
@@ -175,11 +177,11 @@ class MenuItemCard extends ConsumerWidget {
               child: ClipRRect(
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
                 child: item.imageUrl != null
-                    ? Image.network(
-                        item.imageUrl!,
+                    ? CachedNetworkImage(
+                        imageUrl: transformedImageUrl(item.imageUrl!, width: 400),
                         fit: BoxFit.cover,
                         width: double.infinity,
-                        errorBuilder: (_, _, _) => const NoPhotoPlaceholder(),
+                        errorWidget: (_, _, _) => const NoPhotoPlaceholder(),
                       )
                     : const NoPhotoPlaceholder(),
               ),
@@ -291,12 +293,12 @@ class ItemDetailSheet extends StatelessWidget {
           if (item.imageUrl != null)
             ClipRRect(
               borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-              child: Image.network(
-                item.imageUrl!,
+              child: CachedNetworkImage(
+                imageUrl: transformedImageUrl(item.imageUrl!, height: 400),
                 height: 200,
                 width: double.infinity,
                 fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                errorWidget: (_, _, _) => const SizedBox.shrink(),
               ),
             ),
           Padding(
