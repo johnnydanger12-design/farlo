@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/extensions/future_timeout.dart';
 import '../models/order.dart';
 import '../models/order_item.dart';
+import 'orders_data_source.dart';
 
 // Caps how many past orders a single fetch pulls back — an owner/consumer
 // with a long history was pulling every row ever created with no limit,
@@ -22,8 +23,10 @@ class OrderAlreadyActedOnException implements Exception {
 }
 
 class OrdersRepository {
-  OrdersRepository(this._supabase);
+  OrdersRepository(this._supabase, {OrdersDataSource? dataSource})
+      : _dataSource = dataSource ?? SupabaseOrdersDataSource(_supabase);
   final SupabaseClient _supabase;
+  final OrdersDataSource _dataSource;
 
   static const _orderSelect =
       '*, order_items(*), food_trucks(name), profiles(display_name)';
@@ -74,54 +77,19 @@ class OrdersRepository {
     // order instead of inserting a duplicate — this is what actually makes a
     // retry after a stranded charge safe end-to-end, on top of the Stripe
     // idempotency key covering the charge itself.
-    final existing = await _supabase
-        .from('orders')
-        .select(_orderSelect)
-        .eq('stripe_payment_intent_id', paymentIntentId)
-        .maybeSingle()
-        .withNetworkTimeout;
-    if (existing != null) return Order.fromMap(existing);
+    final existing = await _dataSource.findOrderByPaymentIntent(paymentIntentId);
+    if (existing != null) return existing;
 
-    final totalPrice = items.fold(0.0, (sum, i) => sum + i.lineTotal);
+    final order = await _dataSource.insertOrder(
+      truckId: truckId,
+      consumerId: consumerId,
+      items: items,
+      paymentIntentId: paymentIntentId,
+      pickupNote: pickupNote,
+    );
 
-    final orderRow = await _supabase
-        .from('orders')
-        .insert({
-          'truck_id': truckId,
-          'consumer_id': consumerId,
-          'total_price': totalPrice,
-          'stripe_payment_intent_id': paymentIntentId,
-          if (pickupNote != null && pickupNote.isNotEmpty) 'pickup_note': pickupNote,
-        })
-        .select('id')
-        .single()
-        .withNetworkTimeout;
-
-    final orderId = orderRow['id'] as String;
-
-    await _supabase.from('order_items').insert(
-      items
-          .map((i) => {
-                'order_id': orderId,
-                'menu_item_id': i.menuItemId,
-                'menu_item_name': i.name,
-                'menu_item_price': i.price,
-                'quantity': i.quantity,
-                if (i.specialRequest != null && i.specialRequest!.isNotEmpty)
-                  'special_request': i.specialRequest,
-              })
-          .toList(),
-    ).withNetworkTimeout;
-
-    _invokeNotification('order_placed', orderId);
-
-    final row = await _supabase
-        .from('orders')
-        .select(_orderSelect)
-        .eq('id', orderId)
-        .single()
-        .withNetworkTimeout;
-    return Order.fromMap(row);
+    _invokeNotification('order_placed', order.id);
+    return order;
   }
 
   Future<List<Order>> fetchOrdersForConsumer(String userId) async {

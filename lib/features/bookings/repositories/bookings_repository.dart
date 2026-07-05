@@ -6,6 +6,7 @@ import '../../../core/extensions/future_timeout.dart';
 import '../models/booking_deposit.dart';
 import '../models/booking_quote.dart';
 import '../models/booking_request.dart';
+import 'booking_financials_data_source.dart';
 
 // Caps how many booking requests a single fetch pulls back — an owner/consumer
 // with a long history was pulling every row ever created with no limit
@@ -13,8 +14,10 @@ import '../models/booking_request.dart';
 const _bookingPageSize = 200;
 
 class BookingsRepository {
-  BookingsRepository(this._supabase);
+  BookingsRepository(this._supabase, {BookingFinancialsDataSource? financialsDataSource})
+      : _financials = financialsDataSource ?? SupabaseBookingFinancialsDataSource(_supabase);
   final SupabaseClient _supabase;
+  final BookingFinancialsDataSource _financials;
 
   Future<void> expirePendingBookings(String truckId) async {
     final today = DateTime.now().toIso8601String().substring(0, 10);
@@ -180,40 +183,21 @@ class BookingsRepository {
 
   // ── Quotes (estimates & invoices) ──────────────────────────────────────────
 
-  Future<List<BookingQuote>> fetchQuotes(String bookingId) async {
-    final rows = await _supabase
-        .from('booking_quotes')
-        .select()
-        .eq('booking_id', bookingId)
-        .order('created_at', ascending: true)
-        .withNetworkTimeout;
-    return (rows as List)
-        .map((r) => BookingQuote.fromMap(r as Map<String, dynamic>))
-        .toList();
-  }
+  Future<List<BookingQuote>> fetchQuotes(String bookingId) => _financials.fetchQuotes(bookingId);
 
   Future<BookingQuote> sendEstimate(String bookingId, double amount, String? notes) async {
-    final row = await _supabase
-        .from('booking_quotes')
-        .insert({
-          'booking_id': bookingId,
-          'type': 'estimate',
-          'amount': amount,
-          'notes': notes,
-        })
-        .select()
-        .single()
-        .withNetworkTimeout;
+    final quote = await _financials.insertQuote(
+      bookingId: bookingId,
+      type: 'estimate',
+      amount: amount,
+      notes: notes,
+    );
     _invokeNotification('estimate_sent', bookingId);
-    return BookingQuote.fromMap(row);
+    return quote;
   }
 
   Future<void> respondToEstimate(String quoteId, String bookingId, bool accepted) async {
-    await _supabase
-        .from('booking_quotes')
-        .update({'status': accepted ? 'accepted' : 'declined'})
-        .eq('id', quoteId)
-        .withNetworkTimeout;
+    await _financials.updateQuoteStatus(quoteId, accepted ? 'accepted' : 'declined');
     _invokeNotificationWithExtra(
       'estimate_responded',
       bookingId,
@@ -222,33 +206,19 @@ class BookingsRepository {
   }
 
   Future<BookingQuote> sendInvoice(String bookingId, double amount, String? notes) async {
-    final row = await _supabase
-        .from('booking_quotes')
-        .insert({
-          'booking_id': bookingId,
-          'type': 'invoice',
-          'amount': amount,
-          'notes': notes,
-        })
-        .select()
-        .single()
-        .withNetworkTimeout;
+    final quote = await _financials.insertQuote(
+      bookingId: bookingId,
+      type: 'invoice',
+      amount: amount,
+      notes: notes,
+    );
     _invokeNotification('invoice_sent', bookingId);
-    return BookingQuote.fromMap(row);
+    return quote;
   }
 
   // ── Deposits ────────────────────────────────────────────────────────────────
 
-  Future<BookingDeposit?> fetchDeposit(String bookingId) async {
-    final row = await _supabase
-        .from('booking_deposits')
-        .select()
-        .eq('booking_id', bookingId)
-        .maybeSingle()
-        .withNetworkTimeout;
-    if (row == null) return null;
-    return BookingDeposit.fromMap(row);
-  }
+  Future<BookingDeposit?> fetchDeposit(String bookingId) => _financials.fetchDeposit(bookingId);
 
   Future<BookingDeposit> requestDeposit(
     String bookingId,
@@ -256,19 +226,14 @@ class BookingsRepository {
     String? notes,
     DateTime? dueDate,
   ) async {
-    final row = await _supabase
-        .from('booking_deposits')
-        .insert({
-          'booking_id': bookingId,
-          'amount': amount,
-          'notes': notes,
-          'due_date': dueDate?.toIso8601String().substring(0, 10),
-        })
-        .select()
-        .single()
-        .withNetworkTimeout;
+    final deposit = await _financials.insertDeposit(
+      bookingId: bookingId,
+      amount: amount,
+      notes: notes,
+      dueDate: dueDate,
+    );
     _invokeNotification('deposit_requested', bookingId);
-    return BookingDeposit.fromMap(row);
+    return deposit;
   }
 
   // ── PDF generation ───────────────────────────────────────────────────────────
