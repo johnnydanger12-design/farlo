@@ -570,3 +570,16 @@ Worked through the roadmap's own prioritized tiers in order:
 - **Result:** `calendar_screen.dart` 1448 → 720 lines. The remaining 720 lines are `CalendarScreen` + `_CalendarScreenState` themselves — the actual interactive state/dialog logic, which wasn't targeted this pass (splitting stateful, tightly-coupled controller logic is a materially different, higher-risk kind of refactor than relocating already-separated leaf display widgets — same reasoning as `dashboard_screen.dart`'s remaining `DashboardScreen` class).
 - **Commit:** `4ee4863`.
 - **Category impact:** Engineering — ARCH-4 now 2 of 6 god screens closed. Remaining: `map_screen.dart`, `account_screen.dart`, `truck_profile_screen.dart`, `booking_requests_screen.dart`.
+
+---
+
+## Iteration 10 (continued) — ARCH-4: map_screen.dart decomposed (3 of 6 god screens)
+
+**Citation:** `code-quality.md` §2.2/§2.6, `FARLO_FINAL_AUDIT.md` Major Architecture Improvements. Files: `lib/features/map/screens/map_screen.dart`, new `lib/features/map/widgets/{map_pin_widgets,map_controls,map_search_widgets}.dart`.
+
+- **Relocate:** confirmed still oversized at 1106 lines. 7 private widget classes below `MapScreen`/`_MapScreenState` — `_OffScreenIndicator`, `_TruckPin` (+ private `_PinFallback` helper), `_RecenterButton`, `_MapChip`, `_SearchBar`, `_SearchResults` (+ private `_DistanceChip` helper), `_RecentSearches` — same "god file" pattern as the two prior screens.
+- **Fix:** same mechanical, zero-logic-change extraction pattern, grouped by cohesion into 3 files: `map_pin_widgets.dart` (`OffScreenIndicator`, `TruckPin` + file-private `_PinFallback`), `map_controls.dart` (`RecenterButton`, `MapChip`), `map_search_widgets.dart` (`SearchResults` + file-private `_DistanceChip`, `RecentSearches`, and the search input box). **One deliberate naming deviation from the established "just drop the underscore" pattern:** `_SearchBar` was renamed to `MapSearchBar`, not `SearchBar` — Flutter's own Material library already exports a built-in `SearchBar` widget, and reusing that name would have shadowed/collided with it. All ~9 usage sites in `_MapScreenState` renamed via literal `sed` replacement (not `\b`-based, per the BSD sed lesson from the calendar_screen.dart pass).
+- **Green:** `flutter analyze` clean on `lib/features/map/` and project-wide (0 issues, including cleanup of 2 now-unused imports — `app_colors.dart`/`app_text_styles.dart` — left behind in `map_screen.dart` once their only remaining uses moved into the extracted files). `flutter test` 28/28 pass. Real `flutter build ios --debug --simulator --no-codesign` succeeds end-to-end.
+- **Result:** `map_screen.dart` 1106 → 596 lines. New widget files: `map_pin_widgets.dart` (148 lines), `map_controls.dart` (76 lines), `map_search_widgets.dart` (307 lines).
+- **Commit:** pending (staged this iteration, hash to be backfilled).
+- **Category impact:** Engineering — ARCH-4 now 3 of 6 god screens closed. Remaining: `account_screen.dart`, `truck_profile_screen.dart`, `booking_requests_screen.dart`.

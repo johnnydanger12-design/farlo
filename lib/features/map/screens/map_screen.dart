@@ -7,13 +7,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../../core/constants/app_colors.dart';
-import '../../../core/constants/app_text_styles.dart';
 import '../../employees/providers/employees_provider.dart';
 import '../../employees/widgets/employee_go_live_card.dart';
 import '../../favorites/providers/favorites_provider.dart';
 import '../models/food_truck.dart';
 import '../providers/map_provider.dart';
+import '../widgets/map_controls.dart';
+import '../widgets/map_pin_widgets.dart';
+import '../widgets/map_search_widgets.dart';
 import '../widgets/truck_bottom_sheet.dart';
 
 class MapScreen extends ConsumerStatefulWidget {
@@ -382,7 +383,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
               top: pos.dy - 20,
               child: Transform.scale(
                 scale: scale,
-                child: _OffScreenIndicator(
+                child: OffScreenIndicator(
                   truck: truck,
                   onTap: () => _onTruckTapped(truck),
                 ),
@@ -501,7 +502,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                           button: true,
                           child: GestureDetector(
                             onTap: () => _onTruckTapped(truck),
-                            child: _TruckPin(
+                            child: TruckPin(
                               isOpen: truck.isOpen,
                               logoUrl: truck.logoUrl,
                               sessionStartedAt: truck.sessionStartedAt,
@@ -523,7 +524,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _SearchBar(
+                MapSearchBar(
                   controller: _searchController,
                   focusNode: _searchFocusNode,
                   onChanged: _onSearchChanged,
@@ -531,14 +532,14 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                 ),
                 if (_instantQuery.isNotEmpty) ...[
                   const SizedBox(height: 6),
-                  _SearchResults(
+                  SearchResults(
                     searchAsync: dropdownValue,
                     onTap: _onSearchResultTapped,
                     userPos: userPos,
                   ),
                 ] else if (_searchFocused && _recentSearches.isNotEmpty) ...[
                   const SizedBox(height: 6),
-                  _RecentSearches(
+                  RecentSearches(
                     recents: _recentSearches,
                     onTap: _applyRecent,
                     onRemove: _removeRecent,
@@ -553,21 +554,21 @@ class _MapScreenState extends ConsumerState<MapScreen> {
               bottom: 100,
               left: 0,
               right: 0,
-              child: Center(child: _RecenterButton(onTap: _recenter)),
+              child: Center(child: RecenterButton(onTap: _recenter)),
             ),
           if (trucksAsync.isLoading && _searchQuery.isEmpty)
             Positioned(
               top: topPad + 72,
               left: 0,
               right: 0,
-              child: const Center(child: _MapChip(label: 'Loading trucks…')),
+              child: const Center(child: MapChip(label: 'Loading trucks…')),
             ),
           if ((trucksAsync.asData?.value.isEmpty ?? false) && _searchQuery.isEmpty)
             Positioned(
               top: topPad + 72,
               left: 0,
               right: 0,
-              child: const Center(child: _MapChip(label: 'No active businesses in this area')),
+              child: const Center(child: MapChip(label: 'No active businesses in this area')),
             ),
           // Employee go-live cards — pinned at bottom for assigned trucks
           if (employeeTrucks.isNotEmpty)
@@ -589,517 +590,6 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         ],
       );
         },
-      ),
-    );
-  }
-}
-
-class _OffScreenIndicator extends StatelessWidget {
-  const _OffScreenIndicator({required this.truck, required this.onTap});
-  final FoodTruck truck;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final primary = Theme.of(context).colorScheme.primary;
-    return Semantics(
-      label: '${truck.name}, off screen',
-      button: true,
-      child: GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 40,
-        height: 40,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          border: Border.all(color: primary, width: 2.5),
-          color: primary,
-          boxShadow: [
-            BoxShadow(
-              color: primary.withValues(alpha: 0.45),
-              blurRadius: 10,
-              spreadRadius: 2,
-            ),
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.25),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: ClipOval(
-          child: truck.logoUrl != null
-              ? Image.network(
-                  truck.logoUrl!,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) =>
-                      const Icon(Icons.storefront_outlined, color: Colors.white, size: 22),
-                )
-              : const Icon(Icons.storefront_outlined, color: Colors.white, size: 22),
-        ),
-      ),
-      ),
-    );
-  }
-}
-
-class _TruckPin extends StatelessWidget {
-  const _TruckPin({required this.isOpen, this.logoUrl, this.sessionStartedAt});
-
-  final bool isOpen;
-  final String? logoUrl;
-  final DateTime? sessionStartedAt;
-
-  String? get _badge {
-    if (sessionStartedAt == null) return null;
-    final diff = DateTime.now().difference(sessionStartedAt!);
-    if (diff.inMinutes < 10) return null;
-    if (diff.inDays >= 1) return 'Opened ${diff.inDays}d';
-    if (diff.inHours >= 1) return 'Opened ${diff.inHours}h';
-    return 'Opened ${diff.inMinutes}m';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final accentColor = isOpen ? Theme.of(context).colorScheme.primary : AppColors.textHint;
-    final badge = _badge;
-    final circle = Container(
-      width: 44,
-      height: 44,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(color: accentColor, width: 2.5),
-        color: accentColor,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.25),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: ClipOval(
-        child: logoUrl != null
-            ? Image.network(
-                logoUrl!,
-                fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => _PinFallback(accentColor: accentColor),
-              )
-            : _PinFallback(accentColor: accentColor),
-      ),
-    );
-
-    if (badge == null) return circle;
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        circle,
-        const SizedBox(height: 3),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(8),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.18),
-                blurRadius: 4,
-                offset: const Offset(0, 1),
-              ),
-            ],
-          ),
-          child: Text(
-            badge,
-            style: const TextStyle(
-              fontSize: 9,
-              fontWeight: FontWeight.w700,
-              color: Colors.black87,
-              height: 1.1,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _PinFallback extends StatelessWidget {
-  const _PinFallback({required this.accentColor});
-  final Color accentColor;
-
-  @override
-  Widget build(BuildContext context) {
-    return ColoredBox(
-      color: accentColor,
-      child: const Center(child: Icon(Icons.storefront_outlined, color: Colors.white, size: 24)),
-    );
-  }
-}
-
-class _RecenterButton extends StatelessWidget {
-  const _RecenterButton({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      label: 'Recenter map on my location',
-      button: true,
-      child: GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.15),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.my_location, size: 18, color: Theme.of(context).colorScheme.primary),
-            const SizedBox(width: 8),
-            Text(
-              'Recenter',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-            ),
-          ],
-        ),
-      ),
-      ),
-    );
-  }
-}
-
-class _MapChip extends StatelessWidget {
-  const _MapChip({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 8,
-          ),
-        ],
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
-      ),
-    );
-  }
-}
-
-class _SearchBar extends StatelessWidget {
-  const _SearchBar({
-    required this.controller,
-    required this.focusNode,
-    required this.onChanged,
-    required this.onClear,
-  });
-
-  final TextEditingController controller;
-  final FocusNode focusNode;
-  final ValueChanged<String> onChanged;
-  final VoidCallback onClear;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 48,
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.15),
-            blurRadius: 12,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          const SizedBox(width: 14),
-          const Icon(Icons.search, color: AppColors.textHint, size: 20),
-          const SizedBox(width: 8),
-          Expanded(
-            child: TextField(
-              controller: controller,
-              focusNode: focusNode,
-              onChanged: onChanged,
-              style: const TextStyle(fontSize: 15),
-              decoration: const InputDecoration(
-                hintText: 'Search by name or cuisine…',
-                hintStyle: TextStyle(color: AppColors.textHint, fontSize: 15),
-                border: InputBorder.none,
-                isDense: true,
-                contentPadding: EdgeInsets.zero,
-              ),
-              textInputAction: TextInputAction.search,
-            ),
-          ),
-          if (controller.text.isNotEmpty) ...[
-            Semantics(
-              label: 'Clear search',
-              button: true,
-              child: GestureDetector(
-                onTap: onClear,
-                child: const Icon(Icons.close, color: AppColors.textHint, size: 18),
-              ),
-            ),
-            const SizedBox(width: 14),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _SearchResults extends StatelessWidget {
-  const _SearchResults({required this.searchAsync, required this.onTap, this.userPos});
-
-  final AsyncValue<List<FoodTruck>> searchAsync;
-  final ValueChanged<FoodTruck> onTap;
-  final Position? userPos;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      constraints: const BoxConstraints(maxHeight: 300),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.12),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: searchAsync.when(
-          loading: () => const Padding(
-            padding: EdgeInsets.all(20),
-            child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))),
-          ),
-          error: (_, _) => const Padding(
-            padding: EdgeInsets.all(16),
-            child: Text('Search failed', style: TextStyle(color: AppColors.textHint)),
-          ),
-          data: (trucks) {
-            if (trucks.isEmpty) {
-              return const Padding(
-                padding: EdgeInsets.all(16),
-                child: Text('No businesses found', style: TextStyle(color: AppColors.textHint, fontSize: 14)),
-              );
-            }
-            return ListView.separated(
-              shrinkWrap: true,
-              padding: EdgeInsets.zero,
-              itemCount: trucks.length,
-              separatorBuilder: (_, _) => const Divider(height: 1),
-              itemBuilder: (_, i) {
-                final truck = trucks[i];
-                return InkWell(
-                  onTap: () => onTap(truck),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: truck.isOpen
-                                ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.15)
-                                : AppColors.divider,
-                          ),
-                          child: ClipOval(
-                            child: truck.logoUrl != null
-                                ? Image.network(truck.logoUrl!, fit: BoxFit.cover,
-                                    errorBuilder: (_, _, _) => const Icon(Icons.storefront_outlined, size: 20, color: AppColors.textHint))
-                                : const Icon(Icons.storefront_outlined, size: 20, color: AppColors.textHint),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(truck.name, style: AppTextStyles.label),
-                              Row(
-                                children: [
-                                  Text(truck.cuisineType, style: AppTextStyles.caption),
-                                  if (userPos != null) ...[
-                                    const SizedBox(width: 6),
-                                    _DistanceChip(
-                                      meters: Geolocator.distanceBetween(
-                                        userPos!.latitude, userPos!.longitude,
-                                        truck.latitude!, truck.longitude!,
-                                      ),
-                                    ),
-                                  ],
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: (truck.isOpen ? AppColors.openGreen : AppColors.textHint).withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Text(
-                            truck.isOpen ? 'Open' : 'Closed',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: truck.isOpen ? AppColors.openGreen : AppColors.textHint,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            );
-          },
-        ),
-      ),
-    );
-  }
-}
-
-class _DistanceChip extends StatelessWidget {
-  const _DistanceChip({required this.meters});
-
-  final double meters;
-
-  @override
-  Widget build(BuildContext context) {
-    final miles = meters / 1609.344;
-    final label = miles < 0.1 ? 'Nearby' : '${miles.toStringAsFixed(1)} mi';
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3), width: 0.5),
-        boxShadow: const [
-          BoxShadow(color: Color(0x22000000), offset: Offset(0, 1), blurRadius: 1, spreadRadius: -1),
-        ],
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.near_me, size: 10, color: Theme.of(context).colorScheme.onSurfaceVariant),
-          const SizedBox(width: 3),
-          Text(label, style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w500)),
-        ],
-      ),
-    );
-  }
-}
-
-class _RecentSearches extends StatelessWidget {
-  const _RecentSearches({
-    required this.recents,
-    required this.onTap,
-    required this.onRemove,
-  });
-
-  final List<String> recents;
-  final ValueChanged<String> onTap;
-  final ValueChanged<String> onRemove;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.12),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-              child: Row(
-                children: [
-                  const Icon(Icons.history, size: 14, color: AppColors.textHint),
-                  const SizedBox(width: 6),
-                  const Text(
-                    'Recent searches',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textHint,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Divider(height: 1, color: AppColors.divider),
-            ...recents.map(
-              (q) => InkWell(
-                onTap: () => onTap(q),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.search, size: 16, color: AppColors.textHint),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(q, style: const TextStyle(fontSize: 14)),
-                      ),
-                      GestureDetector(
-                        onTap: () => onRemove(q),
-                        behavior: HitTestBehavior.opaque,
-                        child: const Icon(Icons.close, size: 16, color: AppColors.textHint),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 4),
-          ],
-        ),
       ),
     );
   }
