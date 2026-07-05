@@ -10,18 +10,20 @@ Working branch: `remediation/farlo-a-grade`. Supabase test branch: `remediation`
 
 ---
 
-## Scorecard (last updated: iteration 10, after ARCH-4 partial + clean analyze + broader accessibility labeling)
+## Scorecard (last updated: iteration 10 end-of-session, weighted average over the 6 in-scope categories = 90%)
 
-| Area | Verified start-of-iteration-10 | Now (est.) | A+ target | Weight |
-|---|---|---|---|---|
-| **Overall** | ~85 (pre-iteration-10 verified) | **~89** | ≥97, Product excluded, per-category criteria | — |
-| Security | 86 | **~92** | ≥97 + zero Medium+ findings + permanent tests | 25% |
-| Backend/Supabase | 83 | **~90** | ≥97 + verified-reproducible migrations | 15% |
-| Engineering | 88 | **~90** | ≥97 + domain layer + god-screens + image pipeline + fully clean analyze | 20% |
-| UI/UX | 86 | **~88** | ≥97 + full-app Semantics + Tooltip-vs-Semantics decision | 12% |
-| AI Agent System | 80 | **~88** | ≥97 + architecture decision actually implemented | 10% |
-| App Store Readiness | 85 (not independently re-verified before this iteration) | **~90** | ≥97 + checklist actually re-run this session | 8% |
-| Product | out of scope | out of scope | out of scope, standing agreement | 10% |
+| Area | Verified start-of-iteration-10 | Now (est.) | A+ target (≥97) | Weight | Gap to A+ |
+|---|---|---|---|---|---|
+| **Overall** (weighted, Product excluded) | ~85 | **~90** | ≥97 | — | ~7 pts |
+| Security | 86 | **~92** | zero Medium+ findings + permanent tests | 25% | GDPR export gap; Low findings not required but noted |
+| Backend/Supabase | 83 | **~90** | verified-reproducible migrations | 15% | met the specific criterion; general polish (56 duplicate/re-evaluated RLS policies, 27 unindexed FKs) not required by A+ definition but would help score |
+| Engineering | 88 | **~90** | domain layer + god-screens + image pipeline + fully clean analyze | 20% | ARCH-1 not started, ARCH-4 1/6 done, ARCH-5 not started — **largest remaining gap** |
+| UI/UX | 86 | **~88** | full-app Semantics + Tooltip-vs-Semantics decision | 12% | ~35-40 controls labeled total, not "full-app" (116 files) |
+| AI Agent System | 80 | **~88** | architecture decision actually implemented | 10% | Option A fully implemented; #5/#8 from ai-agents.md §7 remain (external-action-dependent) |
+| App Store Readiness | 85 | **~90** | checklist actually re-run this session | 8% | met; App Review Notes not independently re-verifiable (no App Store Connect access) |
+| Product | out of scope | out of scope | out of scope, standing agreement | 10% | — |
+
+**No category has reached the ≥97 A+ threshold yet.** Per the operating prompt, A+ cannot be claimed for any category without a full (non-sampled) re-verification pass at ≥97 — none qualify for that check yet, so none are claimed. The single largest remaining gap is Engineering's Major Architecture items (domain layer, 5 of 6 god screens, the image pipeline rebuild) — each is a substantial, multi-hour undertaking in its own right and none were attempted beyond `dashboard_screen.dart` this iteration, in favor of covering every other category at least once rather than exhausting the session on one item.
 
 **Milestone: Engineering's "flutter analyze fully clean" A+ criterion is now met** (0 issues, was 2 pre-existing info-level lints). `dashboard_screen.dart` decomposed (1519 → 258 lines, 1 of 6 god screens — see ARCH-4 checklist below for the 5 still open). UI/UX's Tooltip-vs-`Semantics()` deviation formally resolved (ratified as an accepted equivalent, documented in `accessibility_roadmap.md`), plus ~20 more icon-only controls given accessible labels beyond the original 20-item roadmap — still not "full-app" coverage (116 Dart files per `ux-review.md`'s own framing), but meaningfully broader.
 
