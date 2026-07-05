@@ -1052,7 +1052,7 @@ class _TimelineBlock extends StatelessWidget {
               ],
             ),
           ),
-          if (trailing case final t?) t,
+          ?trailing,
         ],
       ),
       ),

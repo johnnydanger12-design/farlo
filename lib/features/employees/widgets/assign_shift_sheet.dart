@@ -154,7 +154,7 @@ class _AssignShiftSheetState extends ConsumerState<AssignShiftSheet> {
                 style: AppTextStyles.bodySmall.copyWith(color: AppColors.textSecondary))
           else
             DropdownButtonFormField<TruckEmployee>(
-              value: _selectedEmployee,
+              initialValue: _selectedEmployee,
               decoration: InputDecoration(
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
