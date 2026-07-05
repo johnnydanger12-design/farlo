@@ -52,12 +52,24 @@ if [ -n "$IPA_PATH" ]; then
       fi
       if [ -z "$PROJECT_REF" ]; then
         echo "[WARN] Could not extract the Supabase project ref from .env.json — skipping this sub-check. Confirm .env.json has a real SUPABASE_URL."
-      elif strings "$APP_BINARY" | grep -q "$PROJECT_REF"; then
-        echo "[PASS] Supabase project ref ($PROJECT_REF) found embedded in the compiled binary."
       else
-        echo "[FAIL] Supabase project ref ($PROJECT_REF) NOT found in the compiled binary — the dart-defines were dropped."
-        echo "       DO NOT UPLOAD. Rebuild with: flutter build ipa --dart-define-from-file=.env.json"
-        FAIL=1
+        # `strings ... | grep -q ...` is a real bug under `set -o pipefail`: grep -q exits
+        # the instant it finds a match, closing its end of the pipe, which SIGPIPEs the
+        # still-writing `strings` process. Under pipefail that non-zero-from-SIGPIPE exit
+        # makes the whole pipeline register as failed even though grep genuinely matched —
+        # caught live: a real signed IPA whose binary manually `strings`-matched the
+        # project ref still reported [FAIL] through the old piped check. Write to a temp
+        # file first so grep reads from a file, not a live pipe, avoiding the SIGPIPE race.
+        STRINGS_FILE="$(mktemp)"
+        strings "$APP_BINARY" > "$STRINGS_FILE"
+        if grep -q "$PROJECT_REF" "$STRINGS_FILE"; then
+          echo "[PASS] Supabase project ref ($PROJECT_REF) found embedded in the compiled binary."
+        else
+          echo "[FAIL] Supabase project ref ($PROJECT_REF) NOT found in the compiled binary — the dart-defines were dropped."
+          echo "       DO NOT UPLOAD. Rebuild with: flutter build ipa --dart-define-from-file=.env.json"
+          FAIL=1
+        fi
+        rm -f "$STRINGS_FILE"
       fi
     fi
     rm -rf "$TMPDIR_IPA"
