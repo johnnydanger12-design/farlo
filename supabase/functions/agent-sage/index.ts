@@ -8,9 +8,9 @@
 // (closing resolved tickets) is pure mechanical checking and doesn't need a model call.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { requireAgentSecret, isDryRun } from '../_shared/auth.ts';
-import { startRun, finishRun } from '../_shared/run-log.ts';
+import { startRun, finishRun, logToolCalls } from '../_shared/run-log.ts';
 import { getGmailAccessToken, searchThreads, getThread, extractPlainTextBody, extractEmailAddress, looksAutomated, sendMessage } from '../_shared/gmail.ts';
-import { runAgentLoop, MODEL_SONNET, type ToolDefinition } from '../_shared/claude-agent.ts';
+import { runAgentLoop, MODEL_SONNET, type ToolCallEntry, type ToolDefinition } from '../_shared/claude-agent.ts';
 import type { UsageTotals } from '../_shared/pricing.ts';
 import { wrapUntrusted } from '../_shared/prompt-boundaries.ts';
 
@@ -170,7 +170,7 @@ Deno.serve(async (req: Request) => {
       void references; // kept for future threading refinement, not currently sent to Gmail
     }
 
-    let toolCallLog: unknown[] = [];
+    let toolCallLog: ToolCallEntry[] = [];
     let finalText = 'No open tickets this run.';
     let usage: UsageTotals | undefined;
 
@@ -291,6 +291,7 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    await logToolCalls(supabase, runId, toolCallLog);
     await finishRun(
       supabase,
       runId,

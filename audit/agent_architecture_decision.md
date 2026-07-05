@@ -38,7 +38,13 @@ This isn't a question with a universally correct answer — it depends on near-t
 
 **Revisit Option B specifically if/when a consumer-engagement or review-response agent (`ai-agents.md` §5 items #3/#4) actually gets built** — that's the concrete trigger condition, not a vague "someday." Until then, building a dispatcher would be solving a routing problem Farlo doesn't have yet, at the cost of engineering time the cold-start plan (see the companion GTM memo) more urgently needs.
 
-Option A's four sub-items are not yet scheduled as their own Fix-Protocol items — noted here as real backlog, picked up when there's capacity.
+**Update (iteration 10, A+ pass): all four sub-items are now actually implemented, not just documented as backlog.**
+1. Shared prompt/persona layer — `_shared/aiden-persona.ts` (iteration 9).
+2. Trust-boundary convention for untrusted text — `_shared/prompt-boundaries.ts`'s `wrapUntrusted()` (iteration 9).
+3. **Observability beyond `agent_run_log`** — new `agent_tool_call_log` table (migration `20260705045851_create_agent_tool_call_log.sql`) gives every individual tool call its own row (tool name, input, result, sequence), linked to its parent run. `runAgentLoop()`'s in-memory `toolCallLog` was previously only returned in the HTTP response body, invisible for any cron-triggered run nobody is watching live. Wired into all 7 agent functions that use the shared tool-use loop (`agent-sage`, `agent-miles`, `agent-piper`, `agent-aiden-inbox`, `agent-aiden-supervisor`, `agent-email-labeler`, `agent-stripe-weekly`) via a new `logToolCalls()` helper in `_shared/run-log.ts`. Verified live: deployed all 7, confirmed `verify_jwt` stayed `false` on every one, ran a live dry-run smoke test against `agent-sage`.
+4. **Unified tool registry** — new `_shared/tool-registry.ts` catalogs every tool across every agent (name, owning agent(s), real-world effect, write scope) in one place, closing the "would make future audits tractable" gap directly — a future audit or security review can read this one file instead of every agent's handler code to get a least-privilege overview. Deliberately a catalog, not a forced shared-import of tool definitions themselves (no two agents currently implement the same tool except `update_directive`, which already lives in `aiden-persona.ts` — forcing artificial sharing elsewhere would add coupling with no real benefit).
+
+All four are covered by permanent Deno tests (2 for the tool-call-log row mapping, 2 for the registry's structural integrity) — see `REMEDIATION_LOG.md` iteration 10.
 
 ## 5. What doesn't wait on this decision
 

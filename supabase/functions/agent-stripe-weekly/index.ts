@@ -4,7 +4,7 @@
 // this only ever reflects order/booking-deposit payments (see prompt).
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { requireAgentSecret, isDryRun } from '../_shared/auth.ts';
-import { startRun, finishRun } from '../_shared/run-log.ts';
+import { startRun, finishRun, logToolCalls } from '../_shared/run-log.ts';
 import { sendEmail } from '../_shared/notify.ts';
 import { runAgentLoop, MODEL_SONNET } from '../_shared/claude-agent.ts';
 
@@ -85,6 +85,7 @@ Deno.serve(async (req: Request) => {
       });
     }
 
+    await logToolCalls(supabase, runId, result.toolCallLog);
     await finishRun(
       supabase,
       runId,

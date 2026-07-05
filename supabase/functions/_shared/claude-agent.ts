@@ -13,9 +13,15 @@ export interface ToolDefinition {
 // deno-lint-ignore no-explicit-any
 export type ToolHandler = (input: Record<string, any>) => Promise<unknown>;
 
+export interface ToolCallEntry {
+  name: string;
+  input: unknown;
+  result: unknown;
+}
+
 export interface AgentRunResult {
   finalText: string;
-  toolCallLog: { name: string; input: unknown; result: unknown }[];
+  toolCallLog: ToolCallEntry[];
   iterations: number;
   stoppedReason: 'done' | 'time_budget' | 'max_iterations';
   usage: UsageTotals;

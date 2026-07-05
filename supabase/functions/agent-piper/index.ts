@@ -5,7 +5,7 @@
 // needed; nothing here is blocked on that working.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { requireAgentSecret, isDryRun } from '../_shared/auth.ts';
-import { startRun, finishRun } from '../_shared/run-log.ts';
+import { startRun, finishRun, logToolCalls } from '../_shared/run-log.ts';
 import { runAgentLoop, MODEL_SONNET, type ToolDefinition } from '../_shared/claude-agent.ts';
 import { wrapUntrusted } from '../_shared/prompt-boundaries.ts';
 
@@ -124,6 +124,7 @@ Deno.serve(async (req: Request) => {
       model: MODEL_SONNET,
     });
 
+    await logToolCalls(supabase, runId, result.toolCallLog);
     const status = result.stoppedReason === 'done' ? 'success' : 'partial';
     await finishRun(
       supabase,
