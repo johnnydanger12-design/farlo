@@ -261,7 +261,7 @@ class _EditTruckScreenState extends ConsumerState<EditTruckScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Logo picker
-                Text('Truck Logo', style: AppTextStyles.heading3),
+                Text('Business Logo', style: AppTextStyles.heading3),
                 const SizedBox(height: 2),
                 const Text('Shown as your marker on the map', style: AppTextStyles.caption),
                 const SizedBox(height: AppSpacing.sm),
@@ -275,7 +275,7 @@ class _EditTruckScreenState extends ConsumerState<EditTruckScreen> {
                 // Truck name
                 AppTextField(
                   controller: _nameCtrl,
-                  label: 'Truck Name',
+                  label: 'Business Name',
                   validator: (v) =>
                       (v == null || v.trim().isEmpty) ? 'Name is required' : null,
                 ),

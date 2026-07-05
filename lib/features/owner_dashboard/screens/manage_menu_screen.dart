@@ -49,7 +49,7 @@ class ManageMenuScreen extends ConsumerWidget {
         loading: () => Center(child: CircularProgressIndicator(color: Theme.of(context).colorScheme.primary)),
         error: (e, _) => Center(child: Text('Error: $e')),
         data: (truck) {
-          if (truck == null) return const Center(child: Text('No truck found.'));
+          if (truck == null) return const Center(child: Text('No business found.'));
           if (truck.menuItems.isEmpty) {
             return Center(
               child: Column(

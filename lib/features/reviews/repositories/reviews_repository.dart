@@ -42,7 +42,7 @@ class ReviewsRepository {
   }) async {
     final userId = _supabase.auth.currentUser?.id;
     if (userId == null) throw Exception('Not authenticated');
-    if (userId == truckOwnerId) throw Exception('Owners cannot review their own truck');
+    if (userId == truckOwnerId) throw Exception('Owners cannot review their own business');
 
     await _supabase.from(SupabaseConstants.reviewsTable).upsert({
       'truck_id': truckId,

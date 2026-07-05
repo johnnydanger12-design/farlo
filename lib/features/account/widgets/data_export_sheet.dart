@@ -67,7 +67,7 @@ class DataExportSheet extends ConsumerWidget {
             ),
             const SizedBox(height: AppSpacing.sm),
             Text(
-              'Get a copy of your Farlo account data — profile, orders, reviews, bookings, and (if you own a business) your truck, menu, and booking history.',
+              'Get a copy of your Farlo account data — profile, orders, reviews, bookings, and (if you own a business) its menu and booking history.',
               style: AppTextStyles.bodySmall.copyWith(color: AppColors.textSecondary),
             ),
             const SizedBox(height: AppSpacing.lg),

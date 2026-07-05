@@ -150,7 +150,7 @@ class _AssignShiftSheetState extends ConsumerState<AssignShiftSheet> {
           if (asyncEmployees.isLoading)
             const Center(child: CircularProgressIndicator())
           else if (employees.isEmpty)
-            Text('No active employees on this truck.',
+            Text('No active employees at this business.',
                 style: AppTextStyles.bodySmall.copyWith(color: AppColors.textSecondary))
           else
             DropdownButtonFormField<TruckEmployee>(

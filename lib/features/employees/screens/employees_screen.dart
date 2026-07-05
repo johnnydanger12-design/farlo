@@ -30,7 +30,7 @@ class EmployeesScreen extends ConsumerWidget {
         error: (e, _) => Center(child: Text('Error: $e', style: AppTextStyles.bodySmall)),
         data: (truck) {
           if (truck == null) {
-            return const Center(child: Text('No truck found.'));
+            return const Center(child: Text('No business found.'));
           }
           final ownerName = ref.read(authProvider).asData?.value?.displayName ?? '';
           return _EmployeesList(truckId: truck.id, truckName: truck.name, ownerName: ownerName);

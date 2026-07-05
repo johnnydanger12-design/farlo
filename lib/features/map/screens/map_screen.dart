@@ -561,7 +561,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
               top: topPad + 72,
               left: 0,
               right: 0,
-              child: const Center(child: MapChip(label: 'Loading trucks…')),
+              child: const Center(child: MapChip(label: 'Loading businesses…')),
             ),
           if ((trucksAsync.asData?.value.isEmpty ?? false) && _searchQuery.isEmpty)
             Positioned(

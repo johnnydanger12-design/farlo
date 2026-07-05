@@ -144,7 +144,7 @@ class _EmployeeDashboardScreenState extends ConsumerState<EmployeeDashboardScree
           await notifier.setOpenStatus(true);
           if (mounted) {
             context.showSuccess(
-              'Truck is open — customers can find you now!',
+              'You\'re open — customers can find you now!',
               backgroundColor: AppColors.openGreen,
               duration: const Duration(seconds: 3),
             );
@@ -193,7 +193,7 @@ class _EmployeeDashboardScreenState extends ConsumerState<EmployeeDashboardScree
           if (mounted) {
             ScaffoldMessenger.of(context).hideCurrentSnackBar();
             context.showSuccess(
-              'Truck is open — customers can find you now!',
+              'You\'re open — customers can find you now!',
               backgroundColor: AppColors.openGreen,
               duration: const Duration(seconds: 3),
             );
@@ -235,7 +235,7 @@ class _EmployeeDashboardScreenState extends ConsumerState<EmployeeDashboardScree
       builder: (dialogContext) => AlertDialog(
         title: const Text('Clock Out?'),
         content: Text(isOwnerLive
-            ? 'End your shift? The truck will stay open on the owner\'s device.'
+            ? 'End your shift? The business will stay open on the owner\'s device.'
             : 'End your shift and close the business?'),
         actionsAlignment: MainAxisAlignment.center,
         actions: [
@@ -487,7 +487,7 @@ class _StatusCard extends StatelessWidget {
                             isClockedIn
                                 ? (isOwnerLive
                                     ? 'Location broadcasting from owner\'s device'
-                                    : 'Truck is open — customers can see you')
+                                    : 'You\'re open — customers can see you')
                                 : 'Clock in to start your shift',
                             style: AppTextStyles.caption,
                           ),

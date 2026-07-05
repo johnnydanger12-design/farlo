@@ -843,7 +843,7 @@ class _OtherTrucksField extends StatelessWidget {
             controller: countCtrl,
             keyboardType: TextInputType.number,
             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-            decoration: const InputDecoration(labelText: 'Approx. how many other trucks?'),
+            decoration: const InputDecoration(labelText: 'Approx. how many other businesses?'),
           ),
         ],
       ],

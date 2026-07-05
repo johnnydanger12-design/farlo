@@ -457,7 +457,7 @@ class _MyUpcomingCard extends ConsumerWidget {
           backgroundColor: bgColor,
           title: const Text('Can\'t Cancel Online'),
           content: Text(
-            '${request.truckName ?? 'This truck'} requires cancellations at least ${_policyLabel(hours)} before the event. Contact them directly to discuss cancellation.',
+            '${request.truckName ?? 'This business'} requires cancellations at least ${_policyLabel(hours)} before the event. Contact them directly to discuss cancellation.',
           ),
           actions: [
             TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('OK')),

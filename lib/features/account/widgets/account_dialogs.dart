@@ -381,7 +381,7 @@ class _DeleteAccountDialogState extends State<DeleteAccountDialog> {
             Container(
               padding: const EdgeInsets.all(AppSpacing.sm),
               decoration: BoxDecoration(color: AppColors.error.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(8)),
-              child: Text('This is permanent. Your account, truck data, reviews, bookings, and favorites will be deleted and cannot be recovered.', style: AppTextStyles.caption.copyWith(color: AppColors.error)),
+              child: Text('This is permanent. Your account, business data, reviews, bookings, and favorites will be deleted and cannot be recovered.', style: AppTextStyles.caption.copyWith(color: AppColors.error)),
             ),
             const SizedBox(height: AppSpacing.md),
             Text('Type DELETE to confirm', style: AppTextStyles.label),

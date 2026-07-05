@@ -160,7 +160,7 @@ class _RequestDetailSheetState extends ConsumerState<RequestDetailSheet> {
                       ('Location', widget.request.eventLocation),
                       if (widget.request.guestCount != null) ('Guests', '${widget.request.guestCount}'),
                       if (widget.request.otherTrucksPresent == true)
-                        ('Other trucks', widget.request.otherTrucksCount != null
+                        ('Other businesses', widget.request.otherTrucksCount != null
                             ? 'Yes (${widget.request.otherTrucksCount})'
                             : 'Yes'),
                     ],

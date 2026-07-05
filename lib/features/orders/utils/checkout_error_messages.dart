@@ -7,13 +7,13 @@
 String friendlyCheckoutStartError(Object e) {
   final message = e.toString();
   if (message.contains('owner_stripe_not_connected')) {
-    return "This truck hasn't finished setting up payments yet. Please check back later.";
+    return "This business hasn't finished setting up payments yet. Please check back later.";
   }
   if (message.contains('truck_subscription_inactive')) {
-    return 'This truck is not currently accepting orders.';
+    return 'This business is not currently accepting orders.';
   }
   if (message.contains('truck_not_found')) {
-    return 'This truck could not be found. Please try again.';
+    return 'This business could not be found. Please try again.';
   }
   if (message.contains('does not belong to truck') ||
       message.contains('one or more menu items were not found')) {

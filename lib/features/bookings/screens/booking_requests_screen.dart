@@ -60,7 +60,7 @@ class BookingRequestsScreen extends ConsumerWidget {
         loading: () => Center(child: CircularProgressIndicator(color: Theme.of(context).colorScheme.primary)),
         error: (e, _) => Center(child: Text('Error: $e', style: AppTextStyles.bodySmall)),
         data: (truck) {
-          if (truck == null) return const Center(child: Text('No truck found.'));
+          if (truck == null) return const Center(child: Text('No business found.'));
           return _BookingRequestsList(truckId: truck.id);
         },
       ),

@@ -55,7 +55,7 @@ class DashboardScreen extends ConsumerWidget {
             Center(child: Text('Error: $e', style: AppTextStyles.bodySmall)),
         data: (truck) {
           if (truck == null) {
-            return const Center(child: Text('No truck found.'));
+            return const Center(child: Text('No business found.'));
           }
           return ListView(
             padding: const EdgeInsets.all(AppSpacing.lg),

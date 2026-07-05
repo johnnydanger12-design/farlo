@@ -121,7 +121,7 @@ class OrdersRepository {
         .withNetworkTimeout;
     if ((updated as List).isEmpty) {
       throw OrderAlreadyActedOnException(
-        'This order has already been accepted by the truck and can no longer be cancelled.',
+        'This order has already been accepted by the business and can no longer be cancelled.',
       );
     }
     _invokeNotification('order_cancelled', orderId);

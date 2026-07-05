@@ -55,7 +55,7 @@ class FavoritesScreen extends ConsumerWidget {
                   Text('No favorites yet', style: AppTextStyles.heading3),
                   const SizedBox(height: AppSpacing.sm),
                   Text(
-                    'Tap the heart on any truck to save it here.',
+                    'Tap the heart on any business to save it here.',
                     style: AppTextStyles.bodySmall,
                     textAlign: TextAlign.center,
                   ),
@@ -132,7 +132,7 @@ class _FavoriteTile extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    truck?.name ?? 'Unknown truck',
+                    truck?.name ?? 'Unknown business',
                     style: AppTextStyles.label,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -221,7 +221,7 @@ class _FavoriteTile extends ConsumerWidget {
                       ),
                     const SizedBox(width: 8),
                     Semantics(
-                      label: 'Remove ${truck?.name ?? 'truck'} from favorites',
+                      label: 'Remove ${truck?.name ?? 'this business'} from favorites',
                       button: true,
                       child: GestureDetector(
                         onTap: () => ref.read(favoritedTruckIdsProvider.notifier).remove(entry.truckId),

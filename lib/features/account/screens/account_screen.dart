@@ -62,7 +62,7 @@ class AccountScreen extends ConsumerWidget {
               ],
               const SizedBox(height: AppSpacing.lg),
               if (user.isOwner) ...[
-                const SectionHeader('My Truck'),
+                const SectionHeader('My Business'),
                 SettingsTile(
                   icon: Icons.edit_outlined,
                   label: 'Edit Business Profile',
@@ -237,7 +237,7 @@ class AccountScreen extends ConsumerWidget {
         backgroundColor: Theme.of(context).brightness == Brightness.light ? Colors.white : null,
         title: const Text('Accept Transfer?', textAlign: TextAlign.center),
         content: const Text(
-          'You will become the owner of this truck and inherit its active subscription. Your account role will change to Owner.',
+          'You will become the owner of this business and inherit its active subscription. Your account role will change to Owner.',
           textAlign: TextAlign.center,
         ),
         actionsAlignment: MainAxisAlignment.center,
