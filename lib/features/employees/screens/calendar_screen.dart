@@ -17,13 +17,12 @@ import '../../bookings/widgets/book_truck_sheet.dart';
 import '../widgets/announce_week_sheet.dart';
 import '../widgets/assign_shift_sheet.dart';
 import '../widgets/plan_location_sheet.dart';
+import '../widgets/calendar/calendar_shared.dart';
+import '../widgets/calendar/day_view_tiles.dart';
+import '../widgets/calendar/month_view_widgets.dart';
+import '../widgets/calendar/timeline_view.dart';
 
 enum _CalendarView { list, chips, timeline }
-
-const _colBooking   = AppColors.primary;
-const _colScheduled = Color(0xFF6366F1);
-const _colWorked    = Color(0xFF6B7280);
-const _colLocation  = Color(0xFF0D9488); // teal
 
 const _weekdayHeaders = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
 const _monthNames     = [
@@ -33,13 +32,6 @@ const _monthNames     = [
 
 bool _sameDay(DateTime a, DateTime b) =>
     a.year == b.year && a.month == b.month && a.day == b.day;
-
-String _fmtTime(DateTime dt) {
-  final h    = dt.hour == 0 ? 12 : (dt.hour > 12 ? dt.hour - 12 : dt.hour);
-  final m    = dt.minute.toString().padLeft(2, '0');
-  final ampm = dt.hour < 12 ? 'am' : 'pm';
-  return '$h:$m $ampm';
-}
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
@@ -322,7 +314,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
           const Divider(height: 1),
           // ── Timeline ──────────────────────────────────────────────────────
           Expanded(
-            child: _TimelineView(
+            child: TimelineView(
               bookings: dayBookings,
               scheduled: dayScheduled,
               worked: dayWorked,
@@ -537,19 +529,19 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                 if (_view == _CalendarView.chips) {
                   if (lc) {
                     final l = locations.firstWhere((x) => _sameDay(x.eventDate, date));
-                    chipEvents.add((l.title, _colLocation));
+                    chipEvents.add((l.title, colLocation));
                   }
                   if (bk) {
                     final b = bookings.firstWhere((x) => _sameDay(x.eventDate, date));
-                    chipEvents.add((b.contactName, _colBooking));
+                    chipEvents.add((b.contactName, colBooking));
                   }
                   if (sc) {
                     final s = scheduled.firstWhere((x) => _sameDay(x.scheduledStart, date));
-                    chipEvents.add((s.employeeName?.split(' ').first ?? 'Shift', _colScheduled));
+                    chipEvents.add((s.employeeName?.split(' ').first ?? 'Shift', colScheduled));
                   }
                   if (wk) {
                     final w = worked.firstWhere((x) => _sameDay(x.clockedInAt, date));
-                    chipEvents.add((w.employeeName?.split(' ').first ?? 'Worked', _colWorked));
+                    chipEvents.add((w.employeeName?.split(' ').first ?? 'Worked', colWorked));
                   }
                 }
 
@@ -565,7 +557,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                     if (_view == _CalendarView.chips) _inDayView = true;
                   }),
                   child: _view == _CalendarView.chips
-                      ? _ChipDayCell(
+                      ? ChipDayCell(
                           day: day,
                           isToday: isToday,
                           isSelected: isSelected,
@@ -612,10 +604,10 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  if (lc) _Dot(_colLocation),
-                                  if (bk) _Dot(_colBooking),
-                                  if (sc) _Dot(_colScheduled),
-                                  if (wk) _Dot(_colWorked),
+                                  if (lc) Dot(colLocation),
+                                  if (bk) Dot(colBooking),
+                                  if (sc) Dot(colScheduled),
+                                  if (wk) Dot(colWorked),
                                 ],
                               ),
                             ],
@@ -635,13 +627,13 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
               child: _view == _CalendarView.timeline
                   ? Column(
                       children: [
-                        _DayHeader(
+                        DayHeader(
                           date: _selectedDate,
                           isOwner: widget.isOwner,
                           onAssign: () => _showAddEvent(_selectedDate),
                         ),
                         Expanded(
-                          child: _TimelineView(
+                          child: TimelineView(
                             bookings: dayBookings,
                             scheduled: dayScheduled,
                             worked: dayWorked,
@@ -657,7 +649,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                   : (dayBookings.isEmpty && dayScheduled.isEmpty && dayWorked.isEmpty && dayLocations.isEmpty
                       ? Column(
                           children: [
-                            _DayHeader(
+                            DayHeader(
                               date: _selectedDate,
                               isOwner: widget.isOwner,
                               onAssign: () => _showAddEvent(_selectedDate),
@@ -675,32 +667,32 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                       : ListView(
                           padding: const EdgeInsets.only(bottom: 24),
                           children: [
-                            _DayHeader(
+                            DayHeader(
                               date: _selectedDate,
                               isOwner: widget.isOwner,
                               onAssign: () => _showAddEvent(_selectedDate),
                             ),
                             if (dayLocations.isNotEmpty) ...[
-                              _SectionLabel('Planned Locations', _colLocation),
-                              ...dayLocations.map((l) => _EventTile(
-                                    color: _colLocation,
+                              SectionLabel('Planned Locations', colLocation),
+                              ...dayLocations.map((l) => EventTile(
+                                    color: colLocation,
                                     time: l.address ?? 'No address',
                                     title: l.title,
                                     subtitle: l.notes,
                                   )),
                             ],
                             if (dayBookings.isNotEmpty) ...[
-                              _SectionLabel('Bookings', _colBooking),
-                              ...dayBookings.map((b) => _EventTile(
-                                    color: _colBooking,
+                              SectionLabel('Bookings', colBooking),
+                              ...dayBookings.map((b) => EventTile(
+                                    color: colBooking,
                                     time: b.eventTime,
                                     title: b.contactName,
                                     subtitle: b.eventType,
                                   )),
                             ],
                             if (dayScheduled.isNotEmpty) ...[
-                              _SectionLabel('Scheduled Shifts', _colScheduled),
-                              ...dayScheduled.map((s) => _ScheduledTile(
+                              SectionLabel('Scheduled Shifts', colScheduled),
+                              ...dayScheduled.map((s) => ScheduledTile(
                                     shift: s,
                                     isOwner: widget.isOwner,
                                     onDelete: widget.isOwner ? () => _confirmDeleteScheduled(s) : null,
@@ -708,8 +700,8 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                                   )),
                             ],
                             if (dayWorked.isNotEmpty) ...[
-                              _SectionLabel('Worked Shifts', _colWorked),
-                              ...dayWorked.map((s) => _WorkedTile(
+                              SectionLabel('Worked Shifts', colWorked),
+                              ...dayWorked.map((s) => WorkedTile(
                                     shift: s,
                                     isOwner: widget.isOwner,
                                     onEdit: widget.isOwner ? () => _showEditWorkedDialog(s) : null,
@@ -726,723 +718,3 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
 
 }
 
-// ─── Small reusable widgets ───────────────────────────────────────────────────
-
-// ─── Timeline view ────────────────────────────────────────────────────────────
-
-const _hourHeight  = 60.0;
-const _startHour   = 0;   // 12 AM
-const _endHour     = 24;  // 12 AM (next day)
-const _timeColW    = 52.0;
-
-TimeOfDay? _parseTimeString(String s) {
-  final re = RegExp(r'^(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?$');
-  final m  = re.firstMatch(s.trim());
-  if (m == null) return null;
-  int h   = int.parse(m.group(1)!);
-  int min = int.parse(m.group(2)!);
-  final ampm = m.group(3)?.toLowerCase();
-  if (ampm == 'pm' && h != 12) h += 12;
-  if (ampm == 'am' && h == 12) h = 0;
-  return TimeOfDay(hour: h, minute: min);
-}
-
-double _topFor(int hour, int minute) =>
-    ((hour + minute / 60.0) - _startHour) * _hourHeight;
-
-class _TimelineView extends StatelessWidget {
-  const _TimelineView({
-    required this.bookings,
-    required this.scheduled,
-    required this.worked,
-    required this.locations,
-    required this.isOwner,
-    this.onDeleteScheduled,
-    this.onEditWorked,
-    this.onRespondScheduled,
-  });
-
-  final List<BookingRequest>  bookings;
-  final List<ScheduledShift>  scheduled;
-  final List<EmployeeShift>   worked;
-  final List<PlannedLocation> locations;
-  final bool isOwner;
-  final void Function(ScheduledShift)? onDeleteScheduled;
-  final void Function(EmployeeShift)?  onEditWorked;
-  final void Function(ScheduledShift, String)? onRespondScheduled;
-
-  @override
-  Widget build(BuildContext context) {
-    final totalH = (_endHour - _startHour) * _hourHeight;
-    final dividerColor = Theme.of(context).dividerColor.withValues(alpha: 0.5);
-    final labelStyle   = AppTextStyles.caption.copyWith(color: AppColors.textHint);
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.only(bottom: 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // ── All-day: planned locations ──────────────────────────────────────
-          if (locations.isNotEmpty) ...[
-            Padding(
-              padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: locations.map((l) => Container(
-                  margin: const EdgeInsets.only(bottom: 4),
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: _colLocation.withValues(alpha: 0.85),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border(left: BorderSide(color: _colLocation, width: 3)),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.location_on_outlined, color: Colors.white, size: 14),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(l.title,
-                                style: const TextStyle(
-                                  color: Colors.white, fontSize: 13,
-                                  fontWeight: FontWeight.w600, height: 1.2)),
-                            if (l.address != null)
-                              Text(l.address!,
-                                  style: const TextStyle(
-                                    color: Colors.white70, fontSize: 11, height: 1.2),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                )).toList(),
-              ),
-            ),
-            const Divider(height: 12),
-          ],
-          SizedBox(
-            height: totalH,
-            child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ── Hour labels ──────────────────────────────────────────────────
-            SizedBox(
-              width: _timeColW,
-              height: totalH,
-              child: Stack(
-                children: [
-                  for (int h = _startHour; h <= _endHour; h++)
-                    Positioned(
-                      top: (h - _startHour) * _hourHeight - 7,
-                      left: 0,
-                      right: 0,
-                      child: Text(
-                        _fmtHour(h),
-                        style: labelStyle,
-                        textAlign: TextAlign.right,
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            // ── Grid + events ────────────────────────────────────────────────
-            Expanded(
-              child: Stack(
-                children: [
-                  // Hour gridlines
-                  for (int h = _startHour; h <= _endHour; h++)
-                    Positioned(
-                      top: (h - _startHour) * _hourHeight,
-                      left: 0, right: 0,
-                      child: Divider(height: 1, color: dividerColor),
-                    ),
-
-                  // Booking blocks
-                  for (final b in bookings) ..._bookingBlock(context, b),
-
-                  // Scheduled shift blocks
-                  for (final s in scheduled)
-                    _shiftBlock(context, s),
-
-                  // Worked shift blocks
-                  for (final w in worked)
-                    _workedBlock(context, w),
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
-          ],
-        ),
-      ),
-        ],
-      ),
-    );
-  }
-
-  String _fmtHour(int h) {
-    if (h == 0 || h == 24) return '12 AM';
-    if (h == 12) return '12 PM';
-    return h < 12 ? '$h AM' : '${h - 12} PM';
-  }
-
-  /// Parse duration strings like "1 hour", "1.5 hours", "2 hours" → hours as double.
-  double _parseDurationHours(String? s) {
-    if (s == null || s.isEmpty) return 1.0;
-    final match = RegExp(r'([\d.]+)').firstMatch(s);
-    if (match == null) return 1.0;
-    return double.tryParse(match.group(1)!) ?? 1.0;
-  }
-
-  List<Widget> _bookingBlock(BuildContext context, BookingRequest b) {
-    final time = _parseTimeString(b.eventTime);
-    if (time == null) return [];
-    final top    = _topFor(time.hour, time.minute);
-    if (top < 0 || top >= (_endHour - _startHour) * _hourHeight) return [];
-    final durationH = _parseDurationHours(b.duration);
-    final blockH = (durationH * _hourHeight).clamp(48.0, double.infinity);
-    return [
-      Positioned(
-        top: top,
-        left: 4, right: 4,
-        child: _TimelineBlock(
-          height: blockH,
-          color: _colBooking,
-          title: b.contactName,
-          subtitle: b.eventType,
-        ),
-      ),
-    ];
-  }
-
-  Widget _shiftBlock(BuildContext context, ScheduledShift s) {
-    final top  = _topFor(s.scheduledStart.hour, s.scheduledStart.minute);
-    final dur  = s.scheduledEnd.difference(s.scheduledStart).inMinutes / 60.0;
-    final h    = (dur * _hourHeight).clamp(32.0, double.infinity);
-    if (top < 0 || top >= (_endHour - _startHour) * _hourHeight) return const SizedBox.shrink();
-    return Positioned(
-      top: top,
-      left: 4, right: 4,
-      child: _TimelineBlock(
-        height: h,
-        color: _colScheduled,
-        title: s.employeeName?.split(' ').first ?? 'Shift',
-        subtitle: '${_fmtTime(s.scheduledStart)} – ${_fmtTime(s.scheduledEnd)}',
-        status: s.status,
-        trailing: isOwner && onDeleteScheduled != null
-            ? IconButton(
-                icon: const Icon(Icons.delete_outline, size: 16),
-                color: Colors.white70,
-                tooltip: 'Delete scheduled shift',
-                onPressed: () => onDeleteScheduled!(s),
-              )
-            : (!isOwner && s.isPending && onRespondScheduled != null
-                ? Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _MiniButton(
-                        label: '✓',
-                        semanticLabel: 'Accept shift',
-                        color: AppColors.openGreen,
-                        onTap: () => onRespondScheduled!(s, 'accepted'),
-                      ),
-                      const SizedBox(width: 4),
-                      _MiniButton(
-                        label: '✗',
-                        semanticLabel: 'Decline shift',
-                        color: AppColors.closedRed,
-                        onTap: () => onRespondScheduled!(s, 'declined'),
-                      ),
-                    ],
-                  )
-                : null),
-      ),
-    );
-  }
-
-  Widget _workedBlock(BuildContext context, EmployeeShift w) {
-    final top = _topFor(w.clockedInAt.hour, w.clockedInAt.minute);
-    final end = w.clockedOutAt ?? DateTime.now();
-    final dur = end.difference(w.clockedInAt).inMinutes / 60.0;
-    final h   = (dur * _hourHeight).clamp(32.0, double.infinity);
-    if (top < 0 || top >= (_endHour - _startHour) * _hourHeight) return const SizedBox.shrink();
-    return Positioned(
-      top: top,
-      left: 4, right: 4,
-      child: _TimelineBlock(
-        height: h,
-        color: _colWorked,
-        title: w.employeeName?.split(' ').first ?? 'Worked',
-        subtitle: w.isActive
-            ? '${_fmtTime(w.clockedInAt)} – active'
-            : '${_fmtTime(w.clockedInAt)} – ${_fmtTime(w.clockedOutAt!)}',
-        trailing: isOwner && !w.isActive && onEditWorked != null
-            ? IconButton(
-                icon: const Icon(Icons.edit_outlined, size: 16),
-                color: Colors.white70,
-                tooltip: 'Edit worked shift',
-                onPressed: () => onEditWorked!(w),
-              )
-            : null,
-      ),
-    );
-  }
-}
-
-class _TimelineBlock extends StatelessWidget {
-  const _TimelineBlock({
-    required this.height,
-    required this.color,
-    required this.title,
-    this.subtitle,
-    this.status,
-    this.trailing,
-  });
-
-  final double height;
-  final Color color;
-  final String title;
-  final String? subtitle;
-  final String? status;
-  final Widget? trailing;
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-      height: height,
-      padding: const EdgeInsets.fromLTRB(10, 6, 4, 6),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.85),
-        borderRadius: BorderRadius.circular(8),
-        border: Border(left: BorderSide(color: color, width: 3)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    height: 1.2,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                if (subtitle != null && height > 44)
-                  Text(
-                    subtitle!,
-                    style: const TextStyle(
-                      color: Colors.white70,
-                      fontSize: 11,
-                      height: 1.2,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-              ],
-            ),
-          ),
-          ?trailing,
-        ],
-      ),
-      ),
-    );
-  }
-}
-
-class _MiniButton extends StatelessWidget {
-  const _MiniButton({required this.label, required this.semanticLabel, required this.color, required this.onTap});
-  final String label;
-  final String semanticLabel;
-  final Color color;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => Semantics(
-        label: semanticLabel,
-        button: true,
-        child: GestureDetector(
-          onTap: onTap,
-          child: Container(
-            width: 24, height: 24,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-            alignment: Alignment.center,
-            child: Text(label,
-                style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)),
-          ),
-        ),
-      );
-}
-
-// ─── Selected day header ──────────────────────────────────────────────────────
-
-class _DayHeader extends StatelessWidget {
-  const _DayHeader({required this.date, required this.isOwner, required this.onAssign});
-  final DateTime date;
-  final bool isOwner;
-  final VoidCallback onAssign;
-
-  @override
-  Widget build(BuildContext context) {
-    const weekdays = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-    const months   = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    final label    = '${weekdays[date.weekday - 1]}, ${months[date.month - 1]} ${date.day}';
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 10, 20, 6),
-      child: Row(
-        children: [
-          Text(label, style: AppTextStyles.label),
-          const Spacer(),
-          if (isOwner)
-            TextButton.icon(
-              onPressed: onAssign,
-              icon: const Icon(Icons.add, size: 16),
-              label: const Text('Add Event'),
-              style: TextButton.styleFrom(
-                visualDensity: VisualDensity.compact,
-                padding: EdgeInsets.zero,
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─── Chips day cell (month view) ─────────────────────────────────────────────
-
-class _ChipDayCell extends StatelessWidget {
-  const _ChipDayCell({
-    required this.day,
-    required this.isToday,
-    required this.isSelected,
-    required this.isWeekend,
-    required this.chips,
-    required this.overflowCount,
-  });
-
-  final int day;
-  final bool isToday;
-  final bool isSelected;
-  final bool isWeekend;
-  final List<(String, Color)> chips;
-  final int overflowCount;
-
-  @override
-  Widget build(BuildContext context) {
-    final primary = Theme.of(context).colorScheme.primary;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        // Day number
-        Padding(
-          padding: const EdgeInsets.only(top: 4, bottom: 2),
-          child: Center(
-            child: Container(
-              width: 26,
-              height: 26,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: isSelected
-                    ? primary
-                    : isToday
-                        ? primary.withValues(alpha: 0.12)
-                        : Colors.transparent,
-              ),
-              alignment: Alignment.center,
-              child: Text(
-                '$day',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: isToday || isSelected
-                      ? FontWeight.w700
-                      : FontWeight.w400,
-                  color: isSelected
-                      ? Colors.white
-                      : isToday
-                          ? primary
-                          : isWeekend
-                              ? AppColors.textHint
-                              : null,
-                ),
-              ),
-            ),
-          ),
-        ),
-        // Event chips
-        ...chips.take(2).map((e) {
-          final (label, color) = e;
-          return Container(
-            margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 1),
-            padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(3),
-            ),
-            child: Text(
-              label,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 9,
-                fontWeight: FontWeight.w600,
-                height: 1.2,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          );
-        }),
-        if (overflowCount > 0)
-          Padding(
-            padding: const EdgeInsets.only(left: 4),
-            child: Text(
-              '+$overflowCount',
-              style: AppTextStyles.caption.copyWith(
-                fontSize: 9,
-                color: AppColors.textSecondary,
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-// ─── Small shared widgets ─────────────────────────────────────────────────────
-
-class _Dot extends StatelessWidget {
-  const _Dot(this.color);
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) => Container(
-        width: 5, height: 5,
-        margin: const EdgeInsets.symmetric(horizontal: 1),
-        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-      );
-}
-
-class _SectionLabel extends StatelessWidget {
-  const _SectionLabel(this.label, this.color);
-  final String label;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
-        child: Row(
-          children: [
-            Container(
-              width: 8, height: 8,
-              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-            ),
-            const SizedBox(width: 6),
-            Text(
-              label.toUpperCase(),
-              style: AppTextStyles.caption.copyWith(
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.6,
-                color: AppColors.textSecondary,
-              ),
-            ),
-          ],
-        ),
-      );
-}
-
-class _EventTile extends StatelessWidget {
-  const _EventTile({required this.color, required this.time, required this.title, this.subtitle});
-  final Color color;
-  final String time;
-  final String title;
-  final String? subtitle;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 3, height: 44,
-              decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2)),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(time, style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary)),
-                  Text(title, style: AppTextStyles.bodySmall),
-                  if (subtitle != null)
-                    Text(subtitle!, style: AppTextStyles.caption.copyWith(color: AppColors.textHint)),
-                ],
-              ),
-            ),
-          ],
-        ),
-      );
-}
-
-class _ScheduledTile extends StatelessWidget {
-  const _ScheduledTile({required this.shift, required this.isOwner, this.onDelete, this.onRespond});
-  final ScheduledShift shift;
-  final bool isOwner;
-  final VoidCallback? onDelete;
-  final void Function(String)? onRespond;
-
-  @override
-  Widget build(BuildContext context) {
-    final statusColor = switch (shift.status) {
-      'accepted' => AppColors.openGreen,
-      'declined' => AppColors.closedRed,
-      _          => _colScheduled,
-    };
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 3, height: 44,
-            decoration: BoxDecoration(color: _colScheduled, borderRadius: BorderRadius.circular(2)),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '${_fmtTime(shift.scheduledStart)} – ${_fmtTime(shift.scheduledEnd)}',
-                  style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
-                ),
-                if (isOwner && shift.employeeName != null)
-                  Text(shift.employeeName!.split(' ').first, style: AppTextStyles.bodySmall),
-                if (shift.notes?.isNotEmpty ?? false)
-                  Text(shift.notes!, style: AppTextStyles.caption.copyWith(color: AppColors.textHint)),
-                const SizedBox(height: 4),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: statusColor.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    shift.status[0].toUpperCase() + shift.status.substring(1),
-                    style: AppTextStyles.caption
-                        .copyWith(color: statusColor, fontWeight: FontWeight.w600),
-                  ),
-                ),
-                if (!isOwner && shift.isPending && onRespond != null) ...[
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      OutlinedButton(
-                        onPressed: () => onRespond!('declined'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: AppColors.closedRed,
-                          side: const BorderSide(color: AppColors.closedRed),
-                          visualDensity: VisualDensity.compact,
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                          minimumSize: Size.zero,
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        ),
-                        child: const Text('Decline'),
-                      ),
-                      const SizedBox(width: 10),
-                      FilledButton(
-                        onPressed: () => onRespond!('accepted'),
-                        style: FilledButton.styleFrom(
-                          backgroundColor: AppColors.openGreen,
-                          visualDensity: VisualDensity.compact,
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                          minimumSize: Size.zero,
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        ),
-                        child: const Text('Accept'),
-                      ),
-                    ],
-                  ),
-                ],
-              ],
-            ),
-          ),
-          if (isOwner && onDelete != null)
-            IconButton(
-              icon: const Icon(Icons.delete_outline, size: 20),
-              color: AppColors.textHint,
-              tooltip: 'Delete shift',
-              onPressed: onDelete,
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _WorkedTile extends StatelessWidget {
-  const _WorkedTile({required this.shift, required this.isOwner, this.onEdit});
-  final EmployeeShift shift;
-  final bool isOwner;
-  final VoidCallback? onEdit;
-
-  @override
-  Widget build(BuildContext context) {
-    final d           = shift.elapsed;
-    final durationStr = d.inHours > 0 ? '${d.inHours}h ${d.inMinutes % 60}m' : '${d.inMinutes % 60}m';
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 3, height: 44,
-            decoration: BoxDecoration(color: _colWorked, borderRadius: BorderRadius.circular(2)),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  shift.isActive
-                      ? '${_fmtTime(shift.clockedInAt)} – active'
-                      : '${_fmtTime(shift.clockedInAt)} – ${_fmtTime(shift.clockedOutAt!)}',
-                  style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
-                ),
-                if (isOwner && shift.employeeName != null)
-                  Text(shift.employeeName!.split(' ').first, style: AppTextStyles.bodySmall),
-                if (!shift.isActive)
-                  Text(durationStr, style: AppTextStyles.caption.copyWith(color: AppColors.textHint)),
-              ],
-            ),
-          ),
-          if (isOwner && !shift.isActive && onEdit != null)
-            IconButton(
-              icon: const Icon(Icons.edit_outlined, size: 20),
-              color: AppColors.textHint,
-              tooltip: 'Edit shift',
-              onPressed: onEdit,
-            ),
-        ],
-      ),
-    );
-  }
-}
