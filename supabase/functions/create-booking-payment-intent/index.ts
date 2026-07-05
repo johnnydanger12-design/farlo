@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { AlreadyPaidError, computeDepositAmountCents, computeInvoiceAmountCents, RecordNotFoundError } from './pricing.ts';
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
@@ -94,44 +95,36 @@ Deno.serve(async (req: Request) => {
   // high-value quote/deposit "paid" for an arbitrary amount (Phase 2 audit,
   // Critical Finding #1).
   let amountCents: number;
-  if (type === 'deposit') {
-    const { data: deposit, error: depositErr } = await supabase
-      .from('booking_deposits')
-      .select('amount, booking_id, status')
-      .eq('id', record_id)
-      .single();
-    if (depositErr || !deposit || deposit.booking_id !== booking_id) {
+  try {
+    if (type === 'deposit') {
+      const { data: deposit } = await supabase
+        .from('booking_deposits')
+        .select('amount, booking_id, status')
+        .eq('id', record_id)
+        .single();
+      amountCents = computeDepositAmountCents(deposit, booking_id);
+    } else {
+      const { data: quote } = await supabase
+        .from('booking_quotes')
+        .select('amount, booking_id, status, type')
+        .eq('id', record_id)
+        .single();
+      amountCents = computeInvoiceAmountCents(quote, booking_id);
+    }
+  } catch (e) {
+    if (e instanceof RecordNotFoundError) {
       return new Response(
-        JSON.stringify({ error: 'deposit_not_found' }),
+        JSON.stringify({ error: e.message }),
         { status: 404, headers: { 'Content-Type': 'application/json' } },
       );
     }
-    if (deposit.status === 'paid') {
+    if (e instanceof AlreadyPaidError) {
       return new Response(
-        JSON.stringify({ error: 'deposit_already_paid' }),
+        JSON.stringify({ error: e.message }),
         { status: 409, headers: { 'Content-Type': 'application/json' } },
       );
     }
-    amountCents = Math.round(Number(deposit.amount) * 100);
-  } else {
-    const { data: quote, error: quoteErr } = await supabase
-      .from('booking_quotes')
-      .select('amount, booking_id, status, type')
-      .eq('id', record_id)
-      .single();
-    if (quoteErr || !quote || quote.booking_id !== booking_id || quote.type !== 'invoice') {
-      return new Response(
-        JSON.stringify({ error: 'invoice_not_found' }),
-        { status: 404, headers: { 'Content-Type': 'application/json' } },
-      );
-    }
-    if (quote.status === 'paid') {
-      return new Response(
-        JSON.stringify({ error: 'invoice_already_paid' }),
-        { status: 409, headers: { 'Content-Type': 'application/json' } },
-      );
-    }
-    amountCents = Math.round(Number(quote.amount) * 100);
+    throw e;
   }
 
   if (amountCents < 50) {

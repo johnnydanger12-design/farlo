@@ -1,25 +1,27 @@
 # Farlo Remediation — Current State
 
-Working branch: `remediation/farlo-a-grade`. Supabase test branch: `remediation` (project ref `iwufrgjtlikkongopheu`, parent `weflrxyerxpsafcdetya`) — schema-only, no seed data except what a given test inserts (owners 1-3, trucks 1-3, a pending order, an event booking with a message, a canceled and an active subscription — all reusable for future tests). Get credentials via `supabase branches get remediation` when needed; never commit them. Note: this branch's own migration replay is broken (`MIGRATIONS_FAILED`) — it's usable only because the baseline schema dump was loaded directly via `psql`. If recreated, repeat that load step.
+Working branch: `remediation/farlo-a-grade`. Supabase test branch: `remediation` (project ref `iwufrgjtlikkongopheu`, parent `weflrxyerxpsafcdetya`) — schema-only, replayed clean from committed migrations as of iteration 10 (see LOG), no seed data (previous test rows were wiped by the `reset_branch` used to verify migration reproducibility — reusable for future red/green tests, just re-insert what a given test needs). Get credentials via `supabase branches get remediation` when needed; never commit them. Migration replay now works cleanly via `supabase db push --db-url <pooler-url, port 5432> --yes` (the CLI's own `--linked` path needs Docker, unavailable in this environment; the pooler's transaction-mode port 6543 hits a `prepared statement already exists` Supavisor incompatibility — use session-mode port 5432 instead).
 
-**Iteration:** 9 (iteration 1 = last session's pre-protocol pass, reconciled below; iterations 2-9 = this protocol, same session).
+**Iteration:** 10 (iterations 1-9 = prior A-grade pass, reconciled in LOG; iteration 10 = this session, operating under a revised A+ mission with a materially higher bar — see Goal below).
 
-**Goal, set explicitly by the founder (iteration 9):** an A (≥90) in every scorecard category before resubmitting to Apple, with one agreed exception — **Product** is excluded from this bar, since it's graded on real-world market readiness/trust/retention that only moves with actual Hartsville traction, not engineering work (recommended and accepted, see iteration 8's discussion). The founder will run a fresh independent audit once this pass believes it's done, rather than trusting this file's running self-estimate — correct call, this scorecard has said "rough re-estimates, not a formal re-audit" the whole time.
+**Goal, revised (iteration 10):** bring every in-scope category to **A+**, a materially higher bar than the ≥90 "A" iterations 1-9 targeted. Per-category A+ definitions are in the operating prompt that started this iteration (not duplicated here in full — see: zero Medium+ security findings with permanent committed tests; migrations verified-reproducible (not just present); domain layer + god-screen decomposition + image pipeline rebuild for Engineering; full-app `Semantics` for UI/UX; the agent architecture decision actually implemented, not just documented; App Store checklist actually re-run this session). **Product stays out of scope** by standing agreement (unchanged from iteration 9's discussion — graded on real-world Hartsville traction, not engineering work). Before any category is reported as A+, a full re-verification pass (not sampling) is required, plus an explicit question to the founder about an independent outside audit — no exceptions, per the operating prompt.
+
+**An independent verification pass (immediately prior to this iteration) re-checked iterations 1-9's claims against live code/remote state.** Its corrected scorecard is this iteration's starting point (below), not the prior self-estimate — it found one concrete gap (migrations materialization was a stale snapshot, not current) and confirmed everything else it sampled. That gap is now closed as of this iteration — see LOG.
 
 ---
 
-## Scorecard (last updated: iteration 9, fourth update)
+## Scorecard (last updated: iteration 10, after migrations-gap closure)
 
-| Area | Baseline | Now (est.) | Target | Weight |
+| Area | Verified start-of-iteration-10 | Now (est.) | A+ target | Weight |
 |---|---|---|---|---|
-| **Overall** | 64 (D+) | **~89** | ≥90 (A), Product excluded | — |
-| Security | 46 (F) | ~87 | ≥90 | 25% |
-| Engineering | 74 (C) | ~88 | ≥90 | 20% |
-| Backend/Supabase | 66 (D+) | ~91 | ≥90 | 15% |
-| UI/UX | 68 (C-) | ~87 | ≥90 | 12% |
-| Product | 73 (C+) | 73 | excluded, see Goal above | 10% |
-| AI Agent System | 58 (D-) | ~80 | ≥90 | 10% |
-| App Store Readiness | 70 (C-) | ~85 | ≥90 | 8% |
+| **Overall** | ~85 (pre-iteration-10 verified) | **~86** | ≥97, Product excluded, per-category criteria | — |
+| Security | 86 | 86 | ≥97 + zero Medium+ findings + permanent tests | 25% |
+| Backend/Supabase | 83 | **~90** | ≥97 + verified-reproducible migrations | 15% |
+| Engineering | 88 | 88 | ≥97 + domain layer + god-screens + image pipeline + fully clean analyze | 20% |
+| UI/UX | 86 | 86 | ≥97 + full-app Semantics + Tooltip-vs-Semantics decision | 12% |
+| AI Agent System | 80 | 80 | ≥97 + architecture decision actually implemented | 10% |
+| App Store Readiness | 85 (not independently re-verified before this iteration) | 85 | ≥97 + checklist actually re-run this session | 8% |
+| Product | out of scope | out of scope | out of scope, standing agreement | 10% |
 
 **Milestone: ARCH-2 (3/4 targets) + ARCH-3 (limits + timeouts across all 13 repositories) + the truck-logos/truck-photos storage gap all closed this iteration**, driving Security ~81→~85, Engineering ~86→~88, Backend ~89→~91 (first category to cross the ≥90 bar, pending the founder's independent re-audit).
 
@@ -97,13 +99,21 @@ Canonical IDs follow `FARLO_FINAL_AUDIT.md`'s Top 20 numbering where an item app
 - [x] MED-13 Materialize migrations into git — closed iteration 1
 
 ### Phase 5 — Major Architecture Improvements (unblocked as of iteration 8 — Phase 2 fully closed)
-- [ ] ARCH-1 Domain/data-model layer separation — not started. Will likely be scoped down to "repository interfaces for the 2 repositories that block ARCH-2's 4th test target" rather than a full rewrite across every repository — proportionality call, will flag if that scoping turns out wrong.
+- [ ] ARCH-1 Domain/data-model layer separation — not started. Will likely be scoped down to "repository interfaces for the 2 repositories that block ARCH-2's 4th test target" rather than a full rewrite across every repository — proportionality call, will flag if that scoping turns out wrong. **Required for Engineering A+.**
 - [x] ARCH-2 Testing seam/mocking infrastructure — **3 of 4 highest-value targets closed iteration 9**, see LOG. Added `mocktail`/`fake_async`, 19 real passing tests (router redirect logic — extracted into a new pure `computeRedirect()` function — AuthNotifier timeout/rollback, OwnerTruckNotifier optimistic-rollback). 4th target (OrdersRepository/BookingsRepository quote/deposit flows) deliberately deferred — needs a repository-interface seam (ARCH-1) to be practically mockable, not attempted with a fragile mock-heavy workaround.
 - [x] ARCH-3 Codebase-wide pagination + timeout pattern (= #17) — closed iteration 9, see LOG. `.limit(200)` added to the 4 originally-unbounded queries; new shared `withNetworkTimeout` extension applied across all 13 repository files (~90 call sites). **Narrowed scope: the 4 confirmed eager `ListView(children:)` sites (dashboard/order_queue/my_orders/booking_requests screens) were not converted to `.builder()`** — each mixes static headers/empty-states with mapped content, a real per-screen restructuring job, and at today's data volumes the audit itself frames this as "latent-until-scale, not today's problem." Flagged as remaining backlog, not attempted.
-- [ ] ARCH-4 Decompose six god screens — not started
-- [ ] ARCH-5 Rebuild image pipeline — not started
+- [ ] ARCH-4 Decompose six god screens — not started. **Required for Engineering A+.**
+- [ ] ARCH-5 Rebuild image pipeline — not started. **Required for Engineering A+.**
 - [x] ARCH-6 AI agent trust-boundary shared library — **2 of 6 sub-items closed iteration 9**, see LOG (`_shared/prompt-boundaries.ts` untrusted-input wrapping across 5 functions, `_shared/aiden-persona.ts` shared directive/persona layer). Remaining, explicitly deferred: per-function bearer secrets (partially external-action-free, not attempted yet), a real observability/tracing layer, a unified tool registry, and watch-the-watchdog (needs an external monitoring service, similar in kind to Hard Stop #1).
 - [x] ARCH-7 Agent dispatcher-vs-cron decision doc (= P6-3) — closed iteration 7, see LOG
+- [x] MED-13 (Backend Critical: migrations materialized) — **re-closed for real, iteration 10.** A prior verification pass found the original iteration-1 closure was a stale mid-pass snapshot excluding the `storage` schema entirely and missing 6 later migrations. Iteration 10 committed all 8 previously remote-only migrations verbatim plus a new storage-schema baseline, then verified reproducibility by resetting the `remediation` branch, replaying all local migrations from empty, and diffing the result against live production across tables/columns/RLS policies/functions/triggers — zero drift confirmed. See LOG.
+
+### A+-specific gaps (iteration 10, not tracked under any prior Phase — new mission bar)
+- [ ] **Security A+:** convert every live-only red/green check from iterations 1-9 into a permanent committed automated test. Cover every abuse scenario in `security.md` §3 with a standing test.
+- [ ] **UI/UX A+:** extend `Semantics` coverage beyond `accessibility_roadmap.md`'s 15-20 items to the full app (`ux-review.md`: zero `Semantics` across 116 Dart files as of the original audit). Resolve the `account_screen.dart` Tooltip-vs-`Semantics()` deviation one way or the other, log the decision.
+- [ ] **AI Agent System A+:** implement `agent_architecture_decision.md`'s Option A formalization for real — build the shared prompt/persona layer's remaining pieces (already partially done via `_shared/aiden-persona.ts`), observability beyond `agent_run_log`, unified tool registry.
+- [ ] **App Store Readiness A+:** actually re-run `scripts/pre_upload_checklist.sh` against a current build artifact this session, not carry forward the prior "no red flags found."
+- [ ] **Engineering A+:** `flutter analyze` fully clean (currently 2 pre-existing info-level lints); extend automated test coverage to any other business logic touched this pass.
 
 ### Phase 6 — Non-code deliverables — ✅ ALL CLOSED
 - [x] P6-1 Cold-start GTM memo — closed iteration 7, see `audit/cold_start_gtm_memo.md`

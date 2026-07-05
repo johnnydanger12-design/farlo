@@ -1,0 +1,255 @@
+-- Farlo — permanent regression tests for audit/security.md §3's concrete abuse
+-- scenarios (the ones that are RLS/Postgres-function-level, not Edge-Function
+-- business logic — see supabase/functions/*/tests for those).
+--
+-- HOW TO RUN: only ever against an isolated dev/staging branch, never
+-- production. See scripts/run_security_abuse_tests.sh, which resolves the
+-- branch's connection string via `supabase branches get` and invokes this
+-- file with psql. The whole file runs inside one transaction that is always
+-- ROLLBACK'd at the end (win or lose), so it never leaves fixture data behind
+-- and is safe to re-run repeatedly.
+--
+-- Each scenario: sets up minimal fixtures, simulates a specific authenticated
+-- attacker via `SET LOCAL ROLE authenticated; SET LOCAL request.jwt.claims`
+-- (the same mechanism PostgREST itself uses to populate auth.uid()), attempts
+-- the abuse, and asserts it now fails. A failed assertion raises an exception,
+-- which aborts the whole script with a non-zero exit code — treat any output
+-- besides the final "ALL SECURITY ABUSE SCENARIO TESTS PASSED" as a failure.
+
+\set ON_ERROR_STOP on
+
+BEGIN;
+
+-- Run fixture setup and assertions as the table owner so we can freely
+-- insert across auth/public/storage regardless of RLS, then switch to
+-- `authenticated` + a specific JWT claim to simulate each principal.
+RESET ROLE;
+
+-- ── Fixtures ─────────────────────────────────────────────────────────────
+DO $fixtures$
+DECLARE
+  owner_a uuid := '11111111-1111-1111-1111-111111111111';
+  owner_b uuid := '22222222-2222-2222-2222-222222222222';
+  employee_c uuid := '33333333-3333-3333-3333-333333333333';
+  truck1 uuid := 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+BEGIN
+  INSERT INTO auth.users (id, email) VALUES
+    (owner_a, 'owner-a@test.farlo.internal'),
+    (owner_b, 'owner-b@test.farlo.internal'),
+    (employee_c, 'employee-c@test.farlo.internal');
+
+  INSERT INTO public.profiles (id, email, display_name, role) VALUES
+    (owner_a, 'owner-a@test.farlo.internal', 'Owner A', 'owner'),
+    (owner_b, 'owner-b@test.farlo.internal', 'Owner B', 'owner'),
+    (employee_c, 'employee-c@test.farlo.internal', 'Employee C', 'consumer');
+
+  INSERT INTO public.food_trucks (id, owner_id, name, cuisine_type, is_active)
+  VALUES (truck1, owner_a, 'Truck One', 'Tacos', true);
+
+  -- owner_b placed a real, still-unpaid order at Truck One (scenario 9) —
+  -- deliberately NOT employee_c, whose auth.users row scenario 5 deletes for
+  -- real later in this same script; orders.consumer_id cascades on delete,
+  -- which would silently remove this fixture before scenario 9 runs.
+  INSERT INTO public.orders (id, truck_id, consumer_id, status, payment_status, total_price) VALUES
+    ('66666666-6666-6666-6666-666666666666', truck1, owner_b, 'pending', 'unpaid', 12.50);
+
+  -- Employee C is a legitimate, already-active employee of Truck One
+  -- (scenario 4 needs a real employee whose own row this is, not an
+  -- attacker escalating privilege — that's scenario 3).
+  INSERT INTO public.truck_employees (truck_id, invited_email, user_id, status, linked_at)
+  VALUES (truck1, 'employee-c@test.farlo.internal', employee_c, 'active', now());
+END;
+$fixtures$;
+
+-- ── Scenario 3: employee-invite ownership escalation ────────────────────
+-- security.md §3 Abuse Scenario #3 — an attacker calls
+-- invite_employee_by_email against a truck they don't own, instantly
+-- becoming an active employee with zero approval.
+DO $scenario3$
+BEGIN
+  SET LOCAL ROLE authenticated;
+  SET LOCAL request.jwt.claims = '{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}';
+
+  BEGIN
+    PERFORM public.invite_employee_by_email('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'attacker@test.farlo.internal');
+    RAISE EXCEPTION 'SCENARIO 3 FAILED: owner_b was able to invite themselves as an employee of truck1, which they do not own';
+  EXCEPTION
+    WHEN insufficient_privilege THEN
+      RAISE NOTICE 'Scenario 3 PASSED: non-owner invite correctly rejected (%)', SQLERRM;
+  END;
+END;
+$scenario3$;
+
+-- ── Scenario 4: timesheet fraud via fabricated clock times ──────────────
+-- security.md §3 Abuse Scenario #4 — a legitimate employee PATCHes their own
+-- employee_shifts row directly via the REST API with a backdated
+-- clocked_in_at, or rewrites clocked_out_at on an already-closed shift.
+DO $scenario4$
+DECLARE
+  shift_id uuid;
+BEGIN
+  SET LOCAL ROLE authenticated;
+  SET LOCAL request.jwt.claims = '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
+
+  -- A real, honest clock-in must still succeed (this is not a check for
+  -- "nothing can ever be inserted" — only that fabricated timestamps are
+  -- rejected).
+  INSERT INTO public.employee_shifts (id, truck_id, employee_id, clocked_in_at)
+  VALUES (gen_random_uuid(), 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '33333333-3333-3333-3333-333333333333', now())
+  RETURNING id INTO shift_id;
+
+  -- Fabricated backdated clock-in (fraud: claiming hours never worked) must
+  -- now be rejected by employee_shifts_insert_own's WITH CHECK.
+  BEGIN
+    INSERT INTO public.employee_shifts (id, truck_id, employee_id, clocked_in_at)
+    VALUES (gen_random_uuid(), 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '33333333-3333-3333-3333-333333333333', now() - interval '2 days');
+    RAISE EXCEPTION 'SCENARIO 4a FAILED: employee inserted a shift with a fabricated 2-day-old clock-in time';
+  EXCEPTION
+    WHEN OTHERS THEN
+      IF SQLSTATE IN ('42501', '23514') THEN
+        RAISE NOTICE 'Scenario 4a PASSED: backdated clock-in correctly rejected (%)', SQLERRM;
+      ELSE
+        RAISE;
+      END IF;
+  END;
+
+  -- Fabricated far-future clock-out on the real shift (fraud: inflating
+  -- hours worked) must also be rejected.
+  BEGIN
+    UPDATE public.employee_shifts
+    SET clocked_out_at = now() + interval '3 days'
+    WHERE id = shift_id;
+    RAISE EXCEPTION 'SCENARIO 4b FAILED: employee set a fabricated far-future clock-out time on their own shift';
+  EXCEPTION
+    WHEN OTHERS THEN
+      IF SQLSTATE = '42501' THEN
+        RAISE NOTICE 'Scenario 4b PASSED: fabricated clock-out correctly rejected (%)', SQLERRM;
+      ELSE
+        RAISE;
+      END IF;
+  END;
+END;
+$scenario4$;
+
+-- ── Scenario 5: half-deleted "zombie" account ────────────────────────────
+-- security.md §3 Abuse Scenario #5 — a consumer who once sent a message in
+-- someone else's booking chat could not be deleted at all: the final
+-- auth.users delete threw a foreign-key violation on booking_messages, and
+-- was left half-deleted. delete_account_data() must clear every blocker.
+DO $scenario5$
+DECLARE
+  booking_id uuid;
+BEGIN
+  RESET ROLE;
+  INSERT INTO public.event_booking_requests
+    (id, truck_id, requester_id, contact_name, contact_email, event_date, event_time, event_location)
+  VALUES
+    (gen_random_uuid(), 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '11111111-1111-1111-1111-111111111111',
+     'Owner A', 'owner-a@test.farlo.internal', current_date + 7, '18:00', 'Main St')
+  RETURNING id INTO booking_id;
+
+  -- Employee C sent a message into a booking thread that belongs to a truck
+  -- other than their own (the realistic case per the original red/green
+  -- session's own correction) — this is exactly the row shape that used to
+  -- block account deletion.
+  INSERT INTO public.booking_messages (id, booking_id, sender_id, body)
+  VALUES (gen_random_uuid(), booking_id, '33333333-3333-3333-3333-333333333333', 'Looking forward to it!');
+
+  -- Old behavior (pre-fix): calling auth.users delete directly at this point
+  -- would throw booking_messages_sender_id_fkey. Confirm that's still true of
+  -- the raw FK (i.e. this fixture genuinely reproduces the trap) before
+  -- trusting the fix's own cleanup step. A nested BEGIN/EXCEPTION block in
+  -- PL/pgSQL runs against an implicit savepoint that's automatically rolled
+  -- back when the exception is caught — no explicit SAVEPOINT needed (and
+  -- explicit SAVEPOINT/ROLLBACK TO isn't valid inside a PL/pgSQL body anyway).
+  BEGIN
+    DELETE FROM auth.users WHERE id = '33333333-3333-3333-3333-333333333333';
+    RAISE EXCEPTION 'SCENARIO 5 SETUP INVALID: raw auth.users delete succeeded without delete_account_data() — fixture no longer reproduces the original FK-violation trap, re-derive it';
+  EXCEPTION
+    WHEN foreign_key_violation THEN
+      RAISE NOTICE 'Scenario 5 setup confirmed: raw delete still hits booking_messages_sender_id_fkey as expected';
+  END;
+
+  -- Now run the actual fix and confirm the subsequent auth.users delete
+  -- succeeds cleanly.
+  PERFORM public.delete_account_data('33333333-3333-3333-3333-333333333333');
+  DELETE FROM auth.users WHERE id = '33333333-3333-3333-3333-333333333333';
+  RAISE NOTICE 'Scenario 5 PASSED: delete_account_data() cleared the blocker, auth.users delete succeeded cleanly';
+END;
+$scenario5$;
+
+-- ── Scenario 6: cross-tenant menu-photo defacement ──────────────────────
+-- security.md §3 Abuse Scenario #6 — any authenticated user could
+-- overwrite/delete another truck's menu photos by calling the Storage API
+-- directly, bypassing the app's own "safe" path construction.
+DO $scenario6$
+BEGIN
+  RESET ROLE;
+  INSERT INTO storage.objects (id, bucket_id, name, owner)
+  VALUES (gen_random_uuid(), 'menu-item-photos', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/original-menu.jpg', '11111111-1111-1111-1111-111111111111');
+
+  SET LOCAL ROLE authenticated;
+  SET LOCAL request.jwt.claims = '{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}';
+
+  -- owner_b (unrelated to truck1) uploading into truck1's photo folder.
+  BEGIN
+    INSERT INTO storage.objects (id, bucket_id, name, owner)
+    VALUES (gen_random_uuid(), 'menu-item-photos', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/attack.jpg', '22222222-2222-2222-2222-222222222222');
+    RAISE EXCEPTION 'SCENARIO 6a FAILED: owner_b uploaded into truck1''s menu-photo folder despite not owning truck1';
+  EXCEPTION
+    WHEN insufficient_privilege THEN
+      RAISE NOTICE 'Scenario 6a PASSED: cross-tenant upload correctly rejected (%)', SQLERRM;
+  END;
+
+  -- owner_b deleting truck1's real, legitimate menu photo.
+  BEGIN
+    DELETE FROM storage.objects
+    WHERE bucket_id = 'menu-item-photos' AND name = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/original-menu.jpg';
+    IF FOUND THEN
+      RAISE EXCEPTION 'SCENARIO 6b FAILED: owner_b deleted truck1''s legitimate menu photo despite not owning truck1';
+    END IF;
+    RAISE NOTICE 'Scenario 6b PASSED: cross-tenant delete affected zero rows (RLS filtered it out)';
+  EXCEPTION
+    WHEN insufficient_privilege THEN
+      RAISE NOTICE 'Scenario 6b PASSED: cross-tenant delete correctly rejected (%)', SQLERRM;
+  END;
+END;
+$scenario6$;
+
+-- ── Scenario 9: fraudulent payment_status flip (Medium finding, security.md
+-- Consolidated Risk Register) — an owner/employee marking their own order
+-- "paid" via a raw UPDATE with no real Stripe charge behind it.
+DO $scenario9$
+BEGIN
+  SET LOCAL ROLE authenticated;
+  SET LOCAL request.jwt.claims = '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}';
+
+  BEGIN
+    UPDATE public.orders SET payment_status = 'paid' WHERE id = '66666666-6666-6666-6666-666666666666';
+    RAISE EXCEPTION 'SCENARIO 9a FAILED: owner_a flipped payment_status to paid with no real charge';
+  EXCEPTION
+    WHEN insufficient_privilege THEN
+      RAISE NOTICE 'Scenario 9a PASSED: direct payment_status change correctly rejected (%)', SQLERRM;
+  END;
+
+  -- Legitimate, non-payment status transitions must still work for the owner.
+  UPDATE public.orders SET status = 'accepted' WHERE id = '66666666-6666-6666-6666-666666666666';
+  RAISE NOTICE 'Scenario 9b PASSED: owner can still update order status normally';
+
+  RESET ROLE;
+  -- The real payment path (service_role, e.g. the Stripe webhook) must still work.
+  SET LOCAL ROLE service_role;
+  SET LOCAL request.jwt.claims = '{"role":"service_role"}';
+  UPDATE public.orders SET payment_status = 'paid' WHERE id = '66666666-6666-6666-6666-666666666666';
+  IF (SELECT payment_status FROM public.orders WHERE id = '66666666-6666-6666-6666-666666666666') = 'paid' THEN
+    RAISE NOTICE 'Scenario 9c PASSED: service_role (Stripe webhook) payment path still works';
+  ELSE
+    RAISE EXCEPTION 'SCENARIO 9c FAILED: service_role could not mark a real payment as paid';
+  END IF;
+END;
+$scenario9$;
+
+RESET ROLE;
+DO $$ BEGIN RAISE NOTICE 'ALL SECURITY ABUSE SCENARIO TESTS PASSED'; END $$;
+
+ROLLBACK;

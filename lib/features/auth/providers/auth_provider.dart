@@ -5,6 +5,13 @@ import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/rc_config.dart';
+import '../../account/providers/notification_prefs_provider.dart';
+import '../../bookings/providers/bookings_provider.dart';
+import '../../employees/providers/employees_provider.dart';
+import '../../employees/providers/shifts_provider.dart';
+import '../../favorites/providers/favorites_provider.dart';
+import '../../food_trucks/providers/food_truck_provider.dart';
+import '../../notifications/providers/notifications_provider.dart';
 import '../models/app_user.dart';
 import '../repositories/auth_repository.dart';
 
@@ -242,6 +249,35 @@ class AuthNotifier extends AsyncNotifier<AppUser?> {
     await ref.read(authRepositoryProvider).signOut();
     if (rcConfigured) try { await Purchases.logOut(); } catch (_) {}
     state = const AsyncData(null);
+    _invalidateUserScopedProviders();
+  }
+
+  // Shared-device stale-data leak (security.md Abuse Scenario #7): without this,
+  // a second user signing in on the same device before every relevant provider
+  // happens to naturally rebuild could briefly see the previous user's cached
+  // counts/badges/lists, since `.autoDispose` only tears a provider down once
+  // its last listener unmounts, not on sign-out. Explicitly invalidate every
+  // provider that caches per-user or per-truck data so the next read is always
+  // a fresh fetch under the new (or absent) auth identity.
+  void _invalidateUserScopedProviders() {
+    ref.invalidate(myEmployeeTrucksProvider);
+    ref.invalidate(employeeGoLiveProvider);
+    ref.invalidate(activeShiftProvider);
+    ref.invalidate(myShiftsProvider);
+    ref.invalidate(myScheduledShiftsProvider);
+    ref.invalidate(truckShiftsProvider);
+    ref.invalidate(truckScheduledShiftsProvider);
+    ref.invalidate(truckEmployeesProvider);
+    ref.invalidate(ownerTruckProvider);
+    ref.invalidate(foodTruckProvider);
+    ref.invalidate(pendingBookingCountProvider);
+    ref.invalidate(ownerBookingRequestsProvider);
+    ref.invalidate(myBookingRequestsProvider);
+    ref.invalidate(favoritesListProvider);
+    ref.invalidate(favoritedTruckIdsProvider);
+    ref.invalidate(notificationsProvider);
+    ref.invalidate(unreadNotificationsCountProvider);
+    ref.invalidate(notificationPrefsProvider);
   }
 
   Future<void> refreshUser() async {

@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { computeOrderAmountCents, MenuItemMismatchError } from './pricing.ts';
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
@@ -98,17 +99,17 @@ Deno.serve(async (req: Request) => {
     );
   }
 
-  const menuItemById = new Map(menuItems.map((m) => [m.id as string, m]));
-  let amountCents = 0;
-  for (const it of items) {
-    const menuItem = menuItemById.get(it.menu_item_id);
-    if (!menuItem || menuItem.truck_id !== truckId) {
+  let amountCents: number;
+  try {
+    amountCents = computeOrderAmountCents(items, menuItems, truckId);
+  } catch (e) {
+    if (e instanceof MenuItemMismatchError) {
       return new Response(
-        JSON.stringify({ error: `menu item ${it.menu_item_id} does not belong to truck ${truckId}` }),
+        JSON.stringify({ error: e.message }),
         { status: 400, headers: { 'Content-Type': 'application/json' } },
       );
     }
-    amountCents += Math.round(Number(menuItem.price) * 100) * it.quantity;
+    throw e;
   }
 
   if (amountCents < 50) {
