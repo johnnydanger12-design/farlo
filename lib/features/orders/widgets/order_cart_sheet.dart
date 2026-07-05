@@ -11,6 +11,7 @@ import '../models/order_item.dart';
 import '../providers/orders_provider.dart';
 import '../../../core/widgets/snackbar_extensions.dart';
 import '../repositories/orders_repository.dart';
+import '../utils/checkout_error_messages.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// A random per-attempt key, not a cryptographic identifier — only needs to
@@ -61,23 +62,40 @@ class _OrderCartSheetState extends ConsumerState<OrderCartSheet> {
     }
 
     _idempotencyKey ??= _generateIdempotencyKey();
+    final repo = OrdersRepository(Supabase.instance.client);
 
     setState(() => _paying = true);
-    try {
-      final repo = OrdersRepository(Supabase.instance.client);
 
-      // 1. Create PaymentIntent server-side (amount is recomputed from real
-      // menu prices there, not trusted from the client cart total)
-      final (:clientSecret, :paymentIntentId) = await repo.createPaymentIntent(
+    // 1. Create PaymentIntent server-side (amount is recomputed from real menu
+    // prices there, not trusted from the client cart total). Deliberately
+    // isolated in its own try/catch: every failure this step can produce
+    // (owner never connected Stripe, subscription lapsed, stale menu item,
+    // etc.) happens before any Stripe charge is even attempted, so it must
+    // never show the "may have gone through" message below — a real bug this
+    // session found live: an owner mid-onboarding with no Stripe account
+    // connected made every consumer see that scary message despite zero
+    // payment ever being attempted.
+    final ({String clientSecret, String paymentIntentId}) checkout;
+    try {
+      checkout = await repo.createPaymentIntent(
         truckId: widget.truck.id,
         items: items,
         idempotencyKey: _idempotencyKey!,
       );
+    } catch (e) {
+      if (mounted) {
+        context.showError(friendlyCheckoutStartError(e));
+        setState(() => _paying = false);
+      }
+      return;
+    }
+    if (!mounted) return;
 
+    try {
       // 2. Init + present Stripe PaymentSheet
       await Stripe.instance.initPaymentSheet(
         paymentSheetParameters: SetupPaymentSheetParameters(
-          paymentIntentClientSecret: clientSecret,
+          paymentIntentClientSecret: checkout.clientSecret,
           merchantDisplayName: 'Farlo',
           style: Theme.of(context).brightness == Brightness.dark
               ? ThemeMode.dark
@@ -96,7 +114,7 @@ class _OrderCartSheetState extends ConsumerState<OrderCartSheet> {
         consumerId: consumerId,
         items: items,
         pickupNote: _pickupNoteCtrl.text.trim().isEmpty ? null : _pickupNoteCtrl.text.trim(),
-        paymentIntentId: paymentIntentId,
+        paymentIntentId: checkout.paymentIntentId,
       );
 
       cartNotifier.clear();
