@@ -10,18 +10,20 @@ Working branch: `remediation/farlo-a-grade`. Supabase test branch: `remediation`
 
 ---
 
-## Scorecard (last updated: iteration 10, after closing 5 of 6 tracked Medium+ security findings)
+## Scorecard (last updated: iteration 10, after ARCH-4 partial + clean analyze + broader accessibility labeling)
 
 | Area | Verified start-of-iteration-10 | Now (est.) | A+ target | Weight |
 |---|---|---|---|---|
-| **Overall** | ~85 (pre-iteration-10 verified) | **~88** | ≥97, Product excluded, per-category criteria | — |
+| **Overall** | ~85 (pre-iteration-10 verified) | **~89** | ≥97, Product excluded, per-category criteria | — |
 | Security | 86 | **~92** | ≥97 + zero Medium+ findings + permanent tests | 25% |
 | Backend/Supabase | 83 | **~90** | ≥97 + verified-reproducible migrations | 15% |
-| Engineering | 88 | 88 | ≥97 + domain layer + god-screens + image pipeline + fully clean analyze | 20% |
-| UI/UX | 86 | 86 | ≥97 + full-app Semantics + Tooltip-vs-Semantics decision | 12% |
+| Engineering | 88 | **~90** | ≥97 + domain layer + god-screens + image pipeline + fully clean analyze | 20% |
+| UI/UX | 86 | **~88** | ≥97 + full-app Semantics + Tooltip-vs-Semantics decision | 12% |
 | AI Agent System | 80 | 80 | ≥97 + architecture decision actually implemented | 10% |
 | App Store Readiness | 85 (not independently re-verified before this iteration) | 85 | ≥97 + checklist actually re-run this session | 8% |
 | Product | out of scope | out of scope | out of scope, standing agreement | 10% |
+
+**Milestone: Engineering's "flutter analyze fully clean" A+ criterion is now met** (0 issues, was 2 pre-existing info-level lints). `dashboard_screen.dart` decomposed (1519 → 258 lines, 1 of 6 god screens — see ARCH-4 checklist below for the 5 still open). UI/UX's Tooltip-vs-`Semantics()` deviation formally resolved (ratified as an accepted equivalent, documented in `accessibility_roadmap.md`), plus ~20 more icon-only controls given accessible labels beyond the original 20-item roadmap — still not "full-app" coverage (116 Dart files per `ux-review.md`'s own framing), but meaningfully broader.
 
 **Milestone: 5 of 6 Medium+ findings surfaced by this iteration's full pass through `security.md` §4 are now closed** — `revenuecat-webhook`'s fail-open behavior on a missing secret, 4 storage buckets' missing file-size/MIME limits, signup's account-enumeration oracle, and `send-employee-invite`'s complete lack of authorization (its source wasn't even in git — recovered via `supabase functions download`, since it's deployed and live). Each has a permanent test and live deployment/smoke-test evidence in LOG. The one remaining item (Low-Medium GDPR data-export gap) is a bigger, product-shaped feature, not a quick fix — tracked below, not attempted this iteration.
 
@@ -106,7 +108,7 @@ Canonical IDs follow `FARLO_FINAL_AUDIT.md`'s Top 20 numbering where an item app
 - [ ] ARCH-1 Domain/data-model layer separation — not started. Will likely be scoped down to "repository interfaces for the 2 repositories that block ARCH-2's 4th test target" rather than a full rewrite across every repository — proportionality call, will flag if that scoping turns out wrong. **Required for Engineering A+.**
 - [x] ARCH-2 Testing seam/mocking infrastructure — **3 of 4 highest-value targets closed iteration 9**, see LOG. Added `mocktail`/`fake_async`, 19 real passing tests (router redirect logic — extracted into a new pure `computeRedirect()` function — AuthNotifier timeout/rollback, OwnerTruckNotifier optimistic-rollback). 4th target (OrdersRepository/BookingsRepository quote/deposit flows) deliberately deferred — needs a repository-interface seam (ARCH-1) to be practically mockable, not attempted with a fragile mock-heavy workaround.
 - [x] ARCH-3 Codebase-wide pagination + timeout pattern (= #17) — closed iteration 9, see LOG. `.limit(200)` added to the 4 originally-unbounded queries; new shared `withNetworkTimeout` extension applied across all 13 repository files (~90 call sites). **Narrowed scope: the 4 confirmed eager `ListView(children:)` sites (dashboard/order_queue/my_orders/booking_requests screens) were not converted to `.builder()`** — each mixes static headers/empty-states with mapped content, a real per-screen restructuring job, and at today's data volumes the audit itself frames this as "latent-until-scale, not today's problem." Flagged as remaining backlog, not attempted.
-- [ ] ARCH-4 Decompose six god screens — not started. **Required for Engineering A+.**
+- [ ] ARCH-4 Decompose six god screens — **1 of 6 done** (`dashboard_screen.dart`, 1519→258 lines, see LOG). Remaining, confirmed still oversized as of this iteration: `calendar_screen.dart` (1445 lines), `map_screen.dart` (1106), `account_screen.dart` (1449), `truck_profile_screen.dart` (1425), `booking_requests_screen.dart` (1372). Same file-splitting pattern applies directly to each — read the file's class boundaries, move each private widget class to its own file under a `widgets/` subdirectory, share any module-level providers via a small shared providers file, verify with `flutter analyze`/`flutter test`/a real build. **Required for Engineering A+ — not yet met.**
 - [ ] ARCH-5 Rebuild image pipeline — not started. **Required for Engineering A+.**
 - [x] ARCH-6 AI agent trust-boundary shared library — **2 of 6 sub-items closed iteration 9**, see LOG (`_shared/prompt-boundaries.ts` untrusted-input wrapping across 5 functions, `_shared/aiden-persona.ts` shared directive/persona layer). Remaining, explicitly deferred: per-function bearer secrets (partially external-action-free, not attempted yet), a real observability/tracing layer, a unified tool registry, and watch-the-watchdog (needs an external monitoring service, similar in kind to Hard Stop #1).
 - [x] ARCH-7 Agent dispatcher-vs-cron decision doc (= P6-3) — closed iteration 7, see LOG
@@ -121,10 +123,12 @@ Canonical IDs follow `FARLO_FINAL_AUDIT.md`'s Top 20 numbering where an item app
   - [x] `send-employee-invite`'s source recovered (`supabase functions download`) and its zero-authorization gap closed — now verifies the caller owns the truck (`callerOwnsTruck()`, 3 tests) and derives email content server-side instead of trusting client strings. Deployed live, client call site updated.
   - [ ] **Still open:** Low-Medium data-export/GDPR-style download mechanism — bigger product-shaped item needing scoping (what data, what format, self-serve vs. support-ticket), not a quick fix. Not attempted this iteration; flagging as the one remaining item before Security's "zero Medium+ findings" bar is fully met.
   - Confirmed already resolved as side effects of prior fixes (no new work needed, just noting): `prospect-businesses` reachable via the embedded client Places key (moot — client no longer holds any Places key), `agent-miles`' `business_name` prompt-injection surface and the `agent_directives`-vs-untrusted-text delimiting gap (both closed by iteration 9's `wrapUntrusted()` rollout), `RESEND_API_KEY` in client `.env.json` (removed iteration 1).
-- [ ] **UI/UX A+:** extend `Semantics` coverage beyond `accessibility_roadmap.md`'s 15-20 items to the full app (`ux-review.md`: zero `Semantics` across 116 Dart files as of the original audit). Resolve the `account_screen.dart` Tooltip-vs-`Semantics()` deviation one way or the other, log the decision.
+- [x] **UI/UX A+, Tooltip-vs-Semantics decision:** resolved — `Tooltip` ratified as an accepted equivalent to explicit `Semantics(label:)` for simple icon-only buttons, documented in `accessibility_roadmap.md`.
+- [ ] **UI/UX A+, full-app Semantics coverage:** ~20 more icon-only controls labeled this iteration (password-visibility toggles, back buttons, add/close/edit/delete icons across auth, calendar, employees, notifications, bookings, dashboard screens — see LOG). Still not "full-app" (`ux-review.md`: 116 Dart files at audit time) — untouched controls likely remain outside the files scanned this pass. **Not yet met.**
 - [ ] **AI Agent System A+:** implement `agent_architecture_decision.md`'s Option A formalization for real — build the shared prompt/persona layer's remaining pieces (already partially done via `_shared/aiden-persona.ts`), observability beyond `agent_run_log`, unified tool registry.
 - [ ] **App Store Readiness A+:** actually re-run `scripts/pre_upload_checklist.sh` against a current build artifact this session, not carry forward the prior "no red flags found."
-- [ ] **Engineering A+:** `flutter analyze` fully clean (currently 2 pre-existing info-level lints); extend automated test coverage to any other business logic touched this pass.
+- [x] **Engineering A+, flutter analyze:** now 0 issues project-wide (was 2 pre-existing info-level lints) — met.
+- [x] **Engineering A+, test coverage for business logic touched this pass:** `signOut()` invalidation (4 tests), all new Edge Function pure functions (20 Deno tests across 4 functions), account-enumeration message (3 tests) — all covered as each fix landed, not deferred.
 
 ### Phase 6 — Non-code deliverables — ✅ ALL CLOSED
 - [x] P6-1 Cold-start GTM memo — closed iteration 7, see `audit/cold_start_gtm_memo.md`
