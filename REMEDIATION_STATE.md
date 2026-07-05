@@ -10,18 +10,20 @@ Working branch: `remediation/farlo-a-grade`. Supabase test branch: `remediation`
 
 ---
 
-## Scorecard (last updated: iteration 10, after security abuse-scenario tests + orders.payment_status fix)
+## Scorecard (last updated: iteration 10, after closing 5 of 6 tracked Medium+ security findings)
 
 | Area | Verified start-of-iteration-10 | Now (est.) | A+ target | Weight |
 |---|---|---|---|---|
-| **Overall** | ~85 (pre-iteration-10 verified) | **~87** | ≥97, Product excluded, per-category criteria | — |
-| Security | 86 | **~89** | ≥97 + zero Medium+ findings + permanent tests | 25% |
+| **Overall** | ~85 (pre-iteration-10 verified) | **~88** | ≥97, Product excluded, per-category criteria | — |
+| Security | 86 | **~92** | ≥97 + zero Medium+ findings + permanent tests | 25% |
 | Backend/Supabase | 83 | **~90** | ≥97 + verified-reproducible migrations | 15% |
 | Engineering | 88 | 88 | ≥97 + domain layer + god-screens + image pipeline + fully clean analyze | 20% |
 | UI/UX | 86 | 86 | ≥97 + full-app Semantics + Tooltip-vs-Semantics decision | 12% |
 | AI Agent System | 80 | 80 | ≥97 + architecture decision actually implemented | 10% |
 | App Store Readiness | 85 (not independently re-verified before this iteration) | 85 | ≥97 + checklist actually re-run this session | 8% |
 | Product | out of scope | out of scope | out of scope, standing agreement | 10% |
+
+**Milestone: 5 of 6 Medium+ findings surfaced by this iteration's full pass through `security.md` §4 are now closed** — `revenuecat-webhook`'s fail-open behavior on a missing secret, 4 storage buckets' missing file-size/MIME limits, signup's account-enumeration oracle, and `send-employee-invite`'s complete lack of authorization (its source wasn't even in git — recovered via `supabase functions download`, since it's deployed and live). Each has a permanent test and live deployment/smoke-test evidence in LOG. The one remaining item (Low-Medium GDPR data-export gap) is a bigger, product-shaped feature, not a quick fix — tracked below, not attempted this iteration.
 
 **Milestone: 7 of 8 `security.md` §3 abuse scenarios now have permanent, committed, re-runnable regression tests** (up from 0 — every prior iteration's evidence for these was live-deployment verification only, per the "Observed, not yet triaged" note below). New `supabase/tests/security_abuse_scenarios.sql` (scenarios #3/#4/#5/#6, plus a 9th non-named Medium finding, run via `scripts/run_security_abuse_tests.sh`), new Deno unit tests for scenario #1 (both payment Edge Functions' amount logic extracted into testable pure functions), a new Flutter test for scenario #2 (no embedded Google Places key), and a new Flutter test for scenario #7 (`signOut()` now explicitly invalidates every non-auth-reactive per-user/per-truck provider — a real, previously-unfixed gap this iteration found and closed, not just tested). Scenario #8 is formally out of scope (a capability descope, not a vulnerable/fixed code state — documented in LOG rather than silently skipped). Every one of these tests was verified to actually fail against the pre-fix/vulnerable code before being trusted (see LOG for each). Also closed one new Medium finding from `security.md` §4 not previously tracked under any QW-/MED- item: `orders.payment_status` could be flipped to `'paid'` by the owner/employee with no real Stripe charge — closed via a `BEFORE UPDATE` trigger, service_role (Stripe webhook) path confirmed unaffected.
 
@@ -111,12 +113,13 @@ Canonical IDs follow `FARLO_FINAL_AUDIT.md`'s Top 20 numbering where an item app
 - [x] MED-13 (Backend Critical: migrations materialized) — **re-closed for real, iteration 10.** A prior verification pass found the original iteration-1 closure was a stale mid-pass snapshot excluding the `storage` schema entirely and missing 6 later migrations. Iteration 10 committed all 8 previously remote-only migrations verbatim plus a new storage-schema baseline, then verified reproducibility by resetting the `remediation` branch, replaying all local migrations from empty, and diffing the result against live production across tables/columns/RLS policies/functions/triggers — zero drift confirmed. See LOG.
 
 ### A+-specific gaps (iteration 10, not tracked under any prior Phase — new mission bar)
-- [x] **Security A+, abuse-scenario half:** 7 of 8 `security.md` §3 abuse scenarios now have permanent committed tests (see Milestone above); #8 formally out of scope. **Still open:** the "zero findings at Medium severity or above" half is not yet done — a full pass through `security.md` §4's Consolidated Risk Register turned up these still-open Medium+ items, not yet closed this iteration:
-  - [ ] `revenuecat-webhook` fails open (skips signature verification) if `REVENUECAT_WEBHOOK_SECRET` is unset — should fail closed instead.
-  - [ ] 4 of 5 public storage buckets (`truck-logos`, `truck-photos`, `truck-menus`, `avatars`) have no file-size/MIME-type limit, unlike `menu-item-photos` (5MB/jpeg-png-webp) — same pattern, straightforward to extend.
-  - [ ] Account enumeration: signup explicitly reveals "email already exists" (`register_screen.dart:52-63`), inconsistent with login/reset's silent posture.
-  - [ ] `send-employee-invite` is deployed live but has **no local source in git at all** — can't audit or fix its authorization without first recovering its source (via `supabase functions download` or reconstruction); not attempted yet, may need to be logged as `blocked-technical` if recovery isn't clean.
-  - [ ] Low-Medium: no data-export/GDPR-style download mechanism in-app — bigger product-shaped item, needs scoping before a fix, not attempted yet.
+- [x] **Security A+, abuse-scenario half:** 7 of 8 `security.md` §3 abuse scenarios now have permanent committed tests (see Milestone above); #8 formally out of scope.
+- [x] **Security A+, Medium+ findings — 5 of 6 closed:**
+  - [x] `revenuecat-webhook` now fails closed if `REVENUECAT_WEBHOOK_SECRET` is unset — `isAuthorizedWebhookRequest()`, 4 tests, deployed live.
+  - [x] All 5 public storage buckets now have file-size/MIME-type limits (`truck-logos`/`truck-photos`/`avatars` at 5MB image, `truck-menus` at 10MB PDF, matching `menu-item-photos`'s existing pattern) — applied to production, materialized as a migration, branch/prod parity confirmed.
+  - [x] Account enumeration on signup closed — `registerFriendlyError()` now shows the same generic message for "already registered" as any other failure; 3 tests. **Honest limit:** Supabase Auth's own signup API still distinguishes this case for direct API callers — a full close needs a custom signup proxy, disproportionate to a Medium finding.
+  - [x] `send-employee-invite`'s source recovered (`supabase functions download`) and its zero-authorization gap closed — now verifies the caller owns the truck (`callerOwnsTruck()`, 3 tests) and derives email content server-side instead of trusting client strings. Deployed live, client call site updated.
+  - [ ] **Still open:** Low-Medium data-export/GDPR-style download mechanism — bigger product-shaped item needing scoping (what data, what format, self-serve vs. support-ticket), not a quick fix. Not attempted this iteration; flagging as the one remaining item before Security's "zero Medium+ findings" bar is fully met.
   - Confirmed already resolved as side effects of prior fixes (no new work needed, just noting): `prospect-businesses` reachable via the embedded client Places key (moot — client no longer holds any Places key), `agent-miles`' `business_name` prompt-injection surface and the `agent_directives`-vs-untrusted-text delimiting gap (both closed by iteration 9's `wrapUntrusted()` rollout), `RESEND_API_KEY` in client `.env.json` (removed iteration 1).
 - [ ] **UI/UX A+:** extend `Semantics` coverage beyond `accessibility_roadmap.md`'s 15-20 items to the full app (`ux-review.md`: zero `Semantics` across 116 Dart files as of the original audit). Resolve the `account_screen.dart` Tooltip-vs-`Semantics()` deviation one way or the other, log the decision.
 - [ ] **AI Agent System A+:** implement `agent_architecture_decision.md`'s Option A formalization for real — build the shared prompt/persona layer's remaining pieces (already partially done via `_shared/aiden-persona.ts`), observability beyond `agent_run_log`, unified tool registry.

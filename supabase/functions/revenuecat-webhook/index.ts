@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { isAuthorizedWebhookRequest } from './auth.ts';
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
@@ -15,11 +16,15 @@ serve(async (req: Request) => {
     return new Response('Method not allowed', { status: 405 });
   }
 
-  if (WEBHOOK_SECRET) {
-    const auth = req.headers.get('Authorization');
-    if (auth !== WEBHOOK_SECRET) {
-      return new Response('Unauthorized', { status: 401 });
+  // Fail closed, not open: if the secret isn't configured, reject every
+  // request rather than silently accepting unauthenticated ones (security.md
+  // §4 Consolidated Risk Register, Medium — see auth.ts / auth.test.ts).
+  if (!isAuthorizedWebhookRequest(WEBHOOK_SECRET, req.headers.get('Authorization'))) {
+    if (!WEBHOOK_SECRET) {
+      console.error('REVENUECAT_WEBHOOK_SECRET is not configured — rejecting all requests');
+      return new Response('Webhook not configured', { status: 500 });
     }
+    return new Response('Unauthorized', { status: 401 });
   }
 
   let body: Record<string, unknown>;

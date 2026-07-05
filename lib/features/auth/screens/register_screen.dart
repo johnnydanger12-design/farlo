@@ -11,6 +11,28 @@ import '../../../core/widgets/snackbar_extensions.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/social_auth_buttons.dart';
 
+// Extracted top-level so it's unit-testable without mounting the widget —
+// see register_error_message_test.dart.
+String registerFriendlyError(Object error) {
+  final msg = error.toString().toLowerCase();
+  if (msg.contains('network') || msg.contains('socket')) {
+    return 'No internet connection. Please try again.';
+  }
+  if (msg.contains('timeout')) {
+    return 'Request timed out. Check your connection and try again.';
+  }
+  // Deliberately the same generic message as any other signup failure —
+  // security.md §4 Consolidated Risk Register, Medium: explicitly
+  // confirming "an account with this email already exists" is an account-
+  // enumeration oracle, inconsistent with login/reset's silent posture
+  // (resetPasswordForEmail always says "a link has been sent," regardless
+  // of whether the account exists). This app-level message can't fully
+  // close the gap — Supabase Auth's own signup endpoint still distinguishes
+  // this case for anyone calling the API directly, not through this UI —
+  // but it stops the client from being a trivial enumeration tool itself.
+  return 'Account creation failed. Please try again.';
+}
+
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
 
@@ -46,22 +68,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     TextInput.finishAutofillContext(shouldSave: error == null);
     if (mounted) {
       setState(() => _isLoading = false);
-      if (error != null) _showError(_friendlyError(error));
+      if (error != null) _showError(registerFriendlyError(error));
     }
-  }
-
-  String _friendlyError(Object error) {
-    final msg = error.toString().toLowerCase();
-    if (msg.contains('network') || msg.contains('socket')) {
-      return 'No internet connection. Please try again.';
-    }
-    if (msg.contains('timeout')) {
-      return 'Request timed out. Check your connection and try again.';
-    }
-    if (msg.contains('user already registered') || msg.contains('already registered')) {
-      return 'An account with this email already exists.';
-    }
-    return 'Account creation failed. Please try again.';
   }
 
   void _showError(String message) {

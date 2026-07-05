@@ -205,8 +205,7 @@ class _EmployeesListState extends ConsumerState<_EmployeesList> {
                           final alreadyUser = await ref.read(truckEmployeesProvider(widget.truckId).notifier).invite(email);
                           Supabase.instance.client.functions.invoke('send-employee-invite', body: {
                             'email': email,
-                            'truckName': widget.truckName,
-                            'ownerName': widget.ownerName,
+                            'truck_id': widget.truckId,
                             'isExistingUser': alreadyUser,
                           }).ignore();
                           if (context.mounted) {
