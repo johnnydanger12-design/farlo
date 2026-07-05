@@ -14,6 +14,7 @@ import '../widgets/account_dialogs.dart';
 import '../widgets/account_shared.dart';
 import '../widgets/account_transfer_widgets.dart';
 import '../widgets/account_widgets.dart';
+import '../widgets/data_export_sheet.dart';
 import '../widgets/transfer_truck_sheet.dart';
 
 const _tosUrl = 'https://farlo.app/terms';
@@ -403,6 +404,19 @@ class AccountSettingsScreen extends ConsumerWidget {
             ),
             const SizedBox(height: AppSpacing.lg),
           ],
+          const SectionHeader('Privacy'),
+          SettingsTile(
+            icon: Icons.download_outlined,
+            label: 'Download My Data',
+            onTap: () => showModalBottomSheet<void>(
+              context: context,
+              isScrollControlled: true,
+              useSafeArea: true,
+              backgroundColor: Colors.transparent,
+              builder: (_) => const DataExportSheet(),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.lg),
           const SectionHeader('Danger Zone'),
           SettingsTile(
             icon: Icons.delete_forever_outlined,

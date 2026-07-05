@@ -249,6 +249,87 @@ BEGIN
 END;
 $scenario9$;
 
+-- ── Scenario 10: GDPR data-export cross-tenant leakage (ARCH item, not
+-- numbered in the original audit — added when compile_user_data_export()
+-- was built) — a business owner's data export must include only their own
+-- account and their own truck's operational data (which they already see
+-- via the app's normal Order Queue/Booking Requests screens), and must
+-- never include another user's profile/account data.
+DO $scenario10$
+DECLARE
+  export_a jsonb;
+  export_b jsonb;
+BEGIN
+  RESET ROLE;
+  export_a := public.compile_user_data_export('11111111-1111-1111-1111-111111111111');
+  export_b := public.compile_user_data_export('22222222-2222-2222-2222-222222222222');
+
+  IF export_a->'owned_truck'->'truck'->>'name' != 'Truck One' THEN
+    RAISE EXCEPTION 'SCENARIO 10a FAILED: owner_a export missing their own truck';
+  END IF;
+  IF NOT (export_a->'owned_truck'->'orders_received' @> jsonb_build_array(jsonb_build_object('id', '66666666-6666-6666-6666-666666666666'))) THEN
+    RAISE EXCEPTION 'SCENARIO 10b FAILED: owner_a export missing an order legitimately placed at their own truck';
+  END IF;
+  IF export_a->'profile'->>'email' != 'owner-a@test.farlo.internal' THEN
+    RAISE EXCEPTION 'SCENARIO 10c FAILED: owner_a export profile is not their own';
+  END IF;
+
+  -- jsonb_build_object always includes the 'owned_truck' key, so a "no
+  -- truck" result is the JSON literal null (jsonb_typeof = 'null'), not the
+  -- key being absent (which is what a plain `IS NOT NULL` check on the ->
+  -- result would need — jsonb 'null'::jsonb IS NOT NULL is true in Postgres,
+  -- since it's a defined value, just one representing JSON null).
+  IF jsonb_typeof(export_b->'owned_truck') IS DISTINCT FROM 'null' THEN
+    RAISE EXCEPTION 'SCENARIO 10d FAILED: owner_b (who owns no truck) export attributes a truck to them — cross-tenant leak of owner_a''s business';
+  END IF;
+  IF export_b->'profile'->>'email' != 'owner-b@test.farlo.internal' THEN
+    RAISE EXCEPTION 'SCENARIO 10e FAILED: owner_b export profile is not their own';
+  END IF;
+
+  RAISE NOTICE 'Scenario 10a-e PASSED: compile_user_data_export() is correctly scoped per-caller, no cross-tenant leakage';
+END;
+$scenario10$;
+
+-- ── Scenario 11: data_export_requests RLS ───────────────────────────────
+-- A user must never see or be able to forge another user's export request
+-- row (which, once completed, carries a live signed download URL to that
+-- user's full data export).
+DO $scenario11$
+DECLARE
+  visible_count int;
+BEGIN
+  RESET ROLE;
+  INSERT INTO public.data_export_requests (id, user_id, status)
+  VALUES ('77777777-7777-7777-7777-777777777777', '11111111-1111-1111-1111-111111111111', 'completed');
+
+  SET LOCAL ROLE authenticated;
+  SET LOCAL request.jwt.claims = '{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}';
+
+  SELECT count(*) INTO visible_count FROM public.data_export_requests WHERE id = '77777777-7777-7777-7777-777777777777';
+  IF visible_count != 0 THEN
+    RAISE EXCEPTION 'SCENARIO 11a FAILED: owner_b could see owner_a''s data export request (and its signed download URL)';
+  END IF;
+  RAISE NOTICE 'Scenario 11a PASSED: export request row correctly invisible to a different user';
+
+  BEGIN
+    INSERT INTO public.data_export_requests (user_id, status) VALUES ('11111111-1111-1111-1111-111111111111', 'pending');
+    RAISE EXCEPTION 'SCENARIO 11b FAILED: an authenticated client was able to directly insert an export request row (should only ever happen via the service-role Edge Function)';
+  EXCEPTION
+    WHEN insufficient_privilege THEN
+      RAISE NOTICE 'Scenario 11b PASSED: direct client insert correctly rejected (%)', SQLERRM;
+  END;
+
+  RESET ROLE;
+  SET LOCAL ROLE authenticated;
+  SET LOCAL request.jwt.claims = '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}';
+  SELECT count(*) INTO visible_count FROM public.data_export_requests WHERE id = '77777777-7777-7777-7777-777777777777';
+  IF visible_count != 1 THEN
+    RAISE EXCEPTION 'SCENARIO 11c FAILED: owner_a could not see their own completed export request';
+  END IF;
+  RAISE NOTICE 'Scenario 11c PASSED: export request row correctly visible to its own owner';
+END;
+$scenario11$;
+
 RESET ROLE;
 DO $$ BEGIN RAISE NOTICE 'ALL SECURITY ABUSE SCENARIO TESTS PASSED'; END $$;
 
