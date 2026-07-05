@@ -330,6 +330,57 @@ BEGIN
 END;
 $scenario11$;
 
+-- ── Scenario 12: internal-only SECURITY DEFINER functions must not be
+-- directly callable by anon/authenticated — found by this iteration's
+-- required full non-sampled re-verification pass (get_advisors flagged both
+-- as executable by anon/authenticated; live-confirmed exploitable via a real
+-- unauthenticated HTTP request before the fix — see REMEDIATION_LOG.md).
+-- Neither function checks the caller's identity against p_user_id
+-- internally; they're only meant to be invoked by their Edge Functions using
+-- the service role key.
+DO $scenario12$
+BEGIN
+  RESET ROLE;
+
+  SET LOCAL ROLE anon;
+  BEGIN
+    PERFORM public.compile_user_data_export('11111111-1111-1111-1111-111111111111');
+    RAISE EXCEPTION 'SCENARIO 12a FAILED: anon (fully unauthenticated) was able to call compile_user_data_export directly and exfiltrate another user''s full data export';
+  EXCEPTION
+    WHEN insufficient_privilege THEN
+      RAISE NOTICE 'Scenario 12a PASSED: anon correctly denied EXECUTE on compile_user_data_export (%)', SQLERRM;
+  END;
+
+  RESET ROLE;
+  SET LOCAL ROLE authenticated;
+  SET LOCAL request.jwt.claims = '{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}';
+  BEGIN
+    PERFORM public.compile_user_data_export('11111111-1111-1111-1111-111111111111');
+    RAISE EXCEPTION 'SCENARIO 12b FAILED: owner_b was able to call compile_user_data_export directly for owner_a''s account';
+  EXCEPTION
+    WHEN insufficient_privilege THEN
+      RAISE NOTICE 'Scenario 12b PASSED: authenticated correctly denied EXECUTE on compile_user_data_export (%)', SQLERRM;
+  END;
+
+  RESET ROLE;
+  SET LOCAL ROLE anon;
+  BEGIN
+    PERFORM public.delete_account_data('11111111-1111-1111-1111-111111111111');
+    RAISE EXCEPTION 'SCENARIO 12c FAILED: anon (fully unauthenticated) was able to call delete_account_data directly against another user''s account';
+  EXCEPTION
+    WHEN insufficient_privilege THEN
+      RAISE NOTICE 'Scenario 12c PASSED: anon correctly denied EXECUTE on delete_account_data (%)', SQLERRM;
+  END;
+
+  RESET ROLE;
+  -- The real path (service_role, from delete-account/process-data-exports'
+  -- Edge Functions) must still work.
+  SET LOCAL ROLE service_role;
+  PERFORM public.compile_user_data_export('11111111-1111-1111-1111-111111111111');
+  RAISE NOTICE 'Scenario 12d PASSED: service_role can still call compile_user_data_export (the real Edge Function path)';
+END;
+$scenario12$;
+
 RESET ROLE;
 DO $$ BEGIN RAISE NOTICE 'ALL SECURITY ABUSE SCENARIO TESTS PASSED'; END $$;
 
