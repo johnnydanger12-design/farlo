@@ -8,27 +8,26 @@ import '../constants/app_spacing.dart';
 import '../constants/app_text_styles.dart';
 import 'snackbar_extensions.dart';
 
-/// Shows a prominent background-location disclosure on Android (required by
-/// Google Play policy) and then requests the necessary permissions.
+/// Shows a prominent background-location disclosure (required by Google Play
+/// policy on Android; matches Apple's own App Review expectation of an
+/// in-app explanation before requesting "Always" on iOS) and then requests
+/// the necessary permissions on both platforms.
 ///
 /// Returns true if the caller should proceed with going live, false if the
 /// user declined or permission was denied.
-///
-/// On iOS, skips the disclosure and falls through to Geolocator directly
-/// (CoreLocation handles the permission UI natively).
 Future<bool> requestLocationForGoLive(BuildContext context) async {
-  if (Platform.isAndroid) {
-    final bgStatus = await Permission.locationAlways.status;
+  final bgStatusBefore = await Permission.locationAlways.status;
 
-    // If background permission is already granted, nothing to explain.
-    if (!bgStatus.isGranted) {
-      if (!context.mounted) return false;
-      final accepted = await _showDisclosureSheet(context);
-      if (!accepted) return false;
-    }
+  // If background permission is already granted, nothing to explain.
+  if (!bgStatusBefore.isGranted) {
+    if (!context.mounted) return false;
+    final accepted = await _showDisclosureSheet(context);
+    if (!accepted) return false;
   }
 
-  // Step 1 — foreground location (both platforms).
+  // Step 1 — foreground location (both platforms). Required before iOS will
+  // even consider an "Always" request — permission_handler_apple's own
+  // native code errors with MISSING_WHENINUSE_PERMISSION otherwise.
   LocationPermission permission = await Geolocator.checkPermission();
   if (permission == LocationPermission.denied) {
     permission = await Geolocator.requestPermission();
@@ -41,22 +40,23 @@ Future<bool> requestLocationForGoLive(BuildContext context) async {
     return false;
   }
 
-  // Step 2 — background location (Android only).
+  // Step 2 — background location (both platforms).
   // On Android 11+ this opens Settings; the system dialog explains
-  // "Allow all the time". We show our disclosure first so users understand why.
-  if (Platform.isAndroid) {
-    final bgStatus = await Permission.locationAlways.status;
-    if (!bgStatus.isGranted) {
-      final result = await Permission.locationAlways.request();
-      if (!result.isGranted) {
-        if (context.mounted) {
-          context.showError(
-            'Background location is required to stay visible on the map when the app is minimised.',
-            action: SnackBarAction(label: 'Settings', onPressed: openAppSettings),
-          );
-        }
-        return false;
+  // "Allow all the time". On iOS, since "When In Use" is already granted,
+  // this triggers CoreLocation's native "Always" upgrade prompt directly
+  // (no Settings round-trip needed the first time). We show our disclosure
+  // first so users understand why, on both platforms.
+  final bgStatus = await Permission.locationAlways.status;
+  if (!bgStatus.isGranted) {
+    final result = await Permission.locationAlways.request();
+    if (!result.isGranted) {
+      if (context.mounted) {
+        context.showError(
+          'Background location is required to stay visible on the map when the app is minimised.',
+          action: SnackBarAction(label: 'Settings', onPressed: openAppSettings),
+        );
       }
+      return false;
     }
   }
 
@@ -137,7 +137,9 @@ class _LocationDisclosureSheet extends StatelessWidget {
           const SizedBox(height: AppSpacing.sm),
 
           Text(
-            'On the next screen, select "Allow all the time" to enable this feature.',
+            Platform.isIOS
+                ? 'On the next screen, select "Change to Always Allow" to enable this feature.'
+                : 'On the next screen, select "Allow all the time" to enable this feature.',
             style: AppTextStyles.body.copyWith(fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: AppSpacing.md),

@@ -3,28 +3,30 @@ import 'package:flutter/foundation.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 
-/// Location tracking for truck owners while live.
+/// Continuous background location tracking for truck owners while live.
 ///
 /// Start on go-live, stop on go-offline. Uses distance-based triggering
 /// (30 m) with a 10-second write throttle so stationary trucks barely
 /// touch the DB and moving trucks stay accurate without hammering Supabase.
 ///
-/// Android: runs as a foreground service with a persistent notification, so
-/// it keeps updating while the app is backgrounded (a deliberate, working
-/// background-tracking path).
+/// Android: runs as a foreground service with a persistent notification.
 ///
-/// iOS: foreground-only, by design, not by omission. Info.plist only ever
-/// declared NSLocationWhenInUseUsageDescription, which means
-/// geolocator_apple's permission request only ever obtains "When In Use"
-/// authorization — the app never actually had a path to "Always"
-/// authorization, so allowBackgroundLocationUpdates could never take effect
-/// (app-store-review.md Finding 5.1). Rather than build the second-step
-/// Always-upgrade flow that would require, this scopes the declared
-/// capability down to match what actually runs: no UIBackgroundModes, no
-/// Always usage description, no allowBackgroundLocationUpdates. A truck's
-/// live position naturally goes stale once the owner backgrounds the app,
-/// same as most non-navigation apps — surfacing that honestly is safer than
-/// silently promising continuous tracking that was never really happening.
+/// iOS: runs in the background via UIBackgroundModes + `Always` location
+/// authorization. An earlier iteration found this never actually worked —
+/// Info.plist only declared NSLocationWhenInUseUsageDescription, so
+/// geolocator_apple's single requestPermission() call could only ever grant
+/// "When In Use", regardless of `allowBackgroundLocationUpdates: true` being
+/// set here. That pass took the lower-risk option of scoping the declared
+/// capability down to match what ran (foreground-only), rather than build
+/// the real two-step upgrade. Restored properly this time: `Info.plist`
+/// declares `NSLocationAlwaysAndWhenInUseUsageDescription` +
+/// `UIBackgroundModes: [location]` again, and
+/// `background_location_disclosure.dart`'s `requestLocationForGoLive()` now
+/// performs the actual two-step request on iOS too — "When In Use" first
+/// (required before iOS will even consider an "Always" request), then a
+/// separate `Permission.locationAlways.request()` call, which
+/// `permission_handler_apple`'s own source confirms calls the native
+/// `requestAlwaysAuthorization` directly once "When In Use" is granted.
 class LocationTrackingService {
   LocationTrackingService._();
   static final LocationTrackingService instance = LocationTrackingService._();
@@ -55,6 +57,8 @@ class LocationTrackingService {
         accuracy: LocationAccuracy.high,
         distanceFilter: 30,
         activityType: ActivityType.automotiveNavigation,
+        pauseLocationUpdatesAutomatically: false,
+        allowBackgroundLocationUpdates: true,
       );
     }
 
