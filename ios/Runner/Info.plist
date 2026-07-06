@@ -76,6 +76,8 @@
 		</array>
 		<key>NSLocationWhenInUseUsageDescription</key>
 		<string>Farlo uses your location to show nearby food trucks. Truck owners share their live location with customers.</string>
+		<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+		<string>Farlo uses your location to show nearby food trucks. Truck owners share their live location with customers.</string>
 		<key>UIApplicationSupportsIndirectInputEvents</key>
 		<true/>
 		<key>UILaunchStoryboardName</key>
