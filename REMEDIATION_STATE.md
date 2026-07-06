@@ -148,7 +148,7 @@ Canonical IDs follow `FARLO_FINAL_AUDIT.md`'s Top 20 numbering where an item app
 ## Awaiting sign-off (Hard Stops)
 
 - ~~Hard Stop #1~~ — **closed iteration 8.** User rotated `GOOGLE_PLACES_API_KEY` in Google Cloud Console and set the new value via `supabase secrets set` directly in their own terminal (the plaintext value never passed through this session at any point — verified only via the secret's digest hash changing and `updated_at` timestamp updating to today). End-to-end verified: called the live `places-autocomplete` Edge Function with a real autocomplete query and got back real Google Places predictions (`"status":"OK"`), confirming the new key is both set and actually working.
-- **Hard Stop #6 (App Store submission):** current build was pulled from review per your decision last session — resubmission stays yours to trigger once Ship-Readiness Gate (§12) passes. Not close yet — working through the remaining punch list first (see Next action).
+- **Hard Stop #6 (App Store submission):** ~~resubmission stays yours to trigger~~ — **triggered.** Build 1.0.0+8 submitted to Apple for review this iteration, distribution-signed (`Authority=Apple Distribution: JOHNNY DEE WINBURN`), pre-upload checklist `[PASS]`. Build 8 includes the mid-iteration restoration of real iOS background location for truck owners (see LOG — MFR-3's original foreground-only descope was reversed per direct founder correction: this capability is required and was previously Apple-approved). **Now awaiting Apple's review decision** — nothing further to do on this front until they respond.
 
 ## Blocked-technical
 
