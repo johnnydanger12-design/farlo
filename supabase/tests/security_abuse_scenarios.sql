@@ -381,6 +381,142 @@ BEGIN
 END;
 $scenario12$;
 
+-- ── Scenario 13: founder dashboard access (is_founder()) ────────────────
+-- Added when supabase/migrations/20260707015823_add_founder_dashboard_access.sql
+-- opened read access to the agent fleet + all-rows business metrics for the
+-- founder dashboard (dash.farlo.app). is_founder() is an email check, not a
+-- hardcoded auth.uid(), so a fixture user with the real founder email is
+-- required to exercise the true/false branches of every new policy.
+DO $scenario13$
+DECLARE
+  founder uuid := '99999999-9999-9999-9999-999999999999';
+  truck2 uuid := 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
+  test_run_id uuid;
+  n int;
+BEGIN
+  RESET ROLE;
+
+  INSERT INTO auth.users (id, email) VALUES (founder, 'johnny.danger12@gmail.com');
+  INSERT INTO public.profiles (id, email, display_name, role)
+  VALUES (founder, 'johnny.danger12@gmail.com', 'Founder', 'consumer');
+
+  -- owner_b's second truck, inactive — invisible to the public "is_active"
+  -- policy and to anyone who isn't its owner, so it's a real test of the new
+  -- founder all-rows policy rather than something already publicly readable.
+  INSERT INTO public.food_trucks (id, owner_id, name, cuisine_type, is_active)
+  VALUES (truck2, '22222222-2222-2222-2222-222222222222', 'Truck Two (inactive)', 'BBQ', false);
+
+  INSERT INTO public.subscriptions (owner_id, status, product_identifier)
+  VALUES ('22222222-2222-2222-2222-222222222222', 'active', 'owner_monthly');
+
+  INSERT INTO public.agent_run_log (id, agent_name, status, summary)
+  VALUES (gen_random_uuid(), 'aiden', 'success', 'test run') RETURNING id INTO test_run_id;
+  INSERT INTO public.agent_tool_call_log (run_id, sequence, tool_name)
+  VALUES (test_run_id, 1, 'update_directive');
+  INSERT INTO public.sales_prospects (business_name) VALUES ('Test Prospect Co');
+  INSERT INTO public.supervisor_reports (week_of, report_content)
+  VALUES (current_date, 'weekly report body');
+  INSERT INTO public.content_queue (platform, caption) VALUES ('instagram', 'test caption');
+  INSERT INTO public.support_tickets (from_email, subject, body)
+  VALUES ('someone@test.farlo.internal', 'Help', 'test ticket body');
+
+  INSERT INTO public.agent_directives (directive_key, content, locked) VALUES
+    ('test_unlocked_directive', 'editable content', false),
+    ('test_locked_directive', 'protected content', true);
+
+  -- ── Founder: every newly-opened table must be readable ──────────────────
+  SET LOCAL ROLE authenticated;
+  EXECUTE format('SET LOCAL request.jwt.claims = %L', jsonb_build_object('sub', founder, 'email', 'johnny.danger12@gmail.com', 'role', 'authenticated')::text);
+
+  SELECT count(*) INTO n FROM public.agent_run_log WHERE id = test_run_id;
+  IF n != 1 THEN RAISE EXCEPTION 'SCENARIO 13a FAILED: founder could not read agent_run_log'; END IF;
+
+  SELECT count(*) INTO n FROM public.agent_tool_call_log WHERE run_id = test_run_id;
+  IF n != 1 THEN RAISE EXCEPTION 'SCENARIO 13b FAILED: founder could not read agent_tool_call_log'; END IF;
+
+  SELECT count(*) INTO n FROM public.sales_prospects WHERE business_name = 'Test Prospect Co';
+  IF n != 1 THEN RAISE EXCEPTION 'SCENARIO 13c FAILED: founder could not read sales_prospects'; END IF;
+
+  SELECT count(*) INTO n FROM public.supervisor_reports WHERE report_content = 'weekly report body';
+  IF n != 1 THEN RAISE EXCEPTION 'SCENARIO 13d FAILED: founder could not read supervisor_reports'; END IF;
+
+  SELECT count(*) INTO n FROM public.content_queue WHERE caption = 'test caption';
+  IF n != 1 THEN RAISE EXCEPTION 'SCENARIO 13e FAILED: founder could not read content_queue'; END IF;
+
+  SELECT count(*) INTO n FROM public.support_tickets WHERE subject = 'Help';
+  IF n != 1 THEN RAISE EXCEPTION 'SCENARIO 13f FAILED: founder could not read support_tickets'; END IF;
+
+  SELECT count(*) INTO n FROM public.food_trucks WHERE id = truck2;
+  IF n != 1 THEN RAISE EXCEPTION 'SCENARIO 13g FAILED: founder could not read an inactive truck they do not own'; END IF;
+
+  SELECT count(*) INTO n FROM public.subscriptions WHERE owner_id = '22222222-2222-2222-2222-222222222222';
+  IF n != 1 THEN RAISE EXCEPTION 'SCENARIO 13h FAILED: founder could not read another owner''s subscription'; END IF;
+
+  -- owner_a and owner_b are neither the founder nor an employer/employee of
+  -- the founder — the only thing that could make them visible is the new
+  -- all-rows policy. (employee_c is deliberately not checked here: scenario
+  -- 5, earlier in this same transaction, really deletes that auth.users row.)
+  SELECT count(*) INTO n FROM public.profiles WHERE id IN ('11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222222');
+  IF n != 2 THEN RAISE EXCEPTION 'SCENARIO 13i FAILED: founder profiles read did not return all rows (got % of 2 expected)', n; END IF;
+
+  RAISE NOTICE 'Scenario 13a-i PASSED: founder can read every newly-opened table';
+
+  -- Founder UPDATE on an unlocked directive succeeds.
+  UPDATE public.agent_directives SET content = 'edited by founder' WHERE directive_key = 'test_unlocked_directive';
+  SELECT count(*) INTO n FROM public.agent_directives WHERE directive_key = 'test_unlocked_directive' AND content = 'edited by founder';
+  IF n != 1 THEN RAISE EXCEPTION 'SCENARIO 13j FAILED: founder could not update an unlocked directive'; END IF;
+  RAISE NOTICE 'Scenario 13j PASSED: founder can edit an unlocked directive';
+
+  -- Founder UPDATE on a locked directive must affect zero rows.
+  UPDATE public.agent_directives SET content = 'should not stick' WHERE directive_key = 'test_locked_directive';
+  SELECT count(*) INTO n FROM public.agent_directives WHERE directive_key = 'test_locked_directive' AND content = 'should not stick';
+  IF n != 0 THEN RAISE EXCEPTION 'SCENARIO 13k FAILED: founder was able to edit a locked directive'; END IF;
+  RAISE NOTICE 'Scenario 13k PASSED: founder cannot edit a locked directive';
+
+  -- ── Non-founder (owner_b, a real but different authenticated user):
+  -- every newly-opened table must return zero rows, and directive edits
+  -- must be blocked entirely.
+  RESET ROLE;
+  SET LOCAL ROLE authenticated;
+  EXECUTE format('SET LOCAL request.jwt.claims = %L', jsonb_build_object('sub', '22222222-2222-2222-2222-222222222222', 'email', 'owner-b@test.farlo.internal', 'role', 'authenticated')::text);
+
+  SELECT count(*) INTO n FROM public.agent_run_log;
+  IF n != 0 THEN RAISE EXCEPTION 'SCENARIO 13l FAILED: non-founder could read agent_run_log'; END IF;
+
+  SELECT count(*) INTO n FROM public.agent_tool_call_log;
+  IF n != 0 THEN RAISE EXCEPTION 'SCENARIO 13m FAILED: non-founder could read agent_tool_call_log'; END IF;
+
+  SELECT count(*) INTO n FROM public.sales_prospects;
+  IF n != 0 THEN RAISE EXCEPTION 'SCENARIO 13n FAILED: non-founder could read sales_prospects'; END IF;
+
+  SELECT count(*) INTO n FROM public.supervisor_reports;
+  IF n != 0 THEN RAISE EXCEPTION 'SCENARIO 13o FAILED: non-founder could read supervisor_reports'; END IF;
+
+  SELECT count(*) INTO n FROM public.content_queue;
+  IF n != 0 THEN RAISE EXCEPTION 'SCENARIO 13p FAILED: non-founder could read content_queue'; END IF;
+
+  SELECT count(*) INTO n FROM public.support_tickets;
+  IF n != 0 THEN RAISE EXCEPTION 'SCENARIO 13q FAILED: non-founder could read support_tickets'; END IF;
+
+  SELECT count(*) INTO n FROM public.agent_directives;
+  IF n != 0 THEN RAISE EXCEPTION 'SCENARIO 13r FAILED: non-founder could read agent_directives'; END IF;
+
+  -- owner_b legitimately still sees only their own truck (their own row
+  -- policy), not the founder's all-rows visibility into others'.
+  SELECT count(*) INTO n FROM public.food_trucks WHERE owner_id != '22222222-2222-2222-2222-222222222222' AND is_active = false;
+  IF n != 0 THEN RAISE EXCEPTION 'SCENARIO 13s FAILED: non-founder could read another owner''s inactive truck'; END IF;
+
+  SELECT count(*) INTO n FROM public.profiles;
+  IF n != 1 THEN RAISE EXCEPTION 'SCENARIO 13t FAILED: non-founder profiles read was not scoped to their own row (got %)', n; END IF;
+
+  UPDATE public.agent_directives SET content = 'attacker edit' WHERE directive_key = 'test_unlocked_directive';
+  SELECT count(*) INTO n FROM public.agent_directives WHERE directive_key = 'test_unlocked_directive' AND content = 'attacker edit';
+  IF n != 0 THEN RAISE EXCEPTION 'SCENARIO 13u FAILED: non-founder was able to edit an unlocked directive'; END IF;
+
+  RAISE NOTICE 'Scenario 13l-u PASSED: non-founder is correctly denied read/write on every founder-only table and directive edits';
+END;
+$scenario13$;
+
 RESET ROLE;
 DO $$ BEGIN RAISE NOTICE 'ALL SECURITY ABUSE SCENARIO TESTS PASSED'; END $$;
 
