@@ -1,11 +1,11 @@
 # HANDOFF.md — Farlo
-_Last updated: Jul 3 2026 — Build 1.0.0+5 rejected a third time (Guideline 2.3, inaccurate metadata) and resubmitted same day; also fixed a bug where Aiden's inbox agent re-replied to the same email on 3 separate runs; Cowork's scheduled agents replaced with a self-hosted pg_cron + Supabase Edge Function system, plus per-run Anthropic cost tracking added to the weekly brief. Read time: ~4 min._
+_Last updated: Jul 7 2026 — Farlo is live on the Apple App Store and submitted to Google Play (awaiting review). Production was wiped clean of all test data after Apple's approval. Built and deployed a private founder dashboard (dash.farlo.app) for agent fleet/cost/directives/business metrics, and in the process found + fixed a critical live vulnerability that let anyone with just the public anon key trigger real agent runs for free. Read time: ~6 min._
 
 ---
 
 ## Interrupted Task
 
-None — session ended cleanly. Build 1.0.0+5 metadata corrected, replied-to, and resubmitted, status "Waiting for Review" as of Jul 3. New agent automation system is live and unattended, one duplicate-reply bug in `agent-aiden-inbox` found and fixed Jul 3.
+None — session ended cleanly. Dashboard is live and working, including from an iOS home-screen shortcut. Waiting on Google Play's review; no other open threads.
 
 ---
 
@@ -13,26 +13,38 @@ None — session ended cleanly. Build 1.0.0+5 metadata corrected, replied-to, an
 
 | Feature | Status |
 |---|---|
-| App Store v1.0 | ⏳ Build 1.0.0+5 — rejected three times now. First (Jul 1): broken auth + missing ToS link, fixed. Second (Jul 2, Guideline 2.1(b)): reviewer couldn't locate the IAPs — root cause was the reviewer only ever created a Consumer account, which can never see the Business Owner paywall; replied to Apple + rewrote App Review Notes with explicit navigation steps. Third (Jul 3, Guideline 2.3, Accurate Metadata): App Store Description said "14-day free trial. No credit card required to start." — inaccurate for an iOS IAP subscription, since Apple always requires a payment method on file to start any trial through StoreKit even though the customer isn't charged until day 14. Removed the "No credit card required" sentence, kept "14-day free trial," replied to Apple, resubmitted same day. Waiting on Apple. |
-| Google Play | ✓ Internal testing track — build 2 (1.0.0) |
+| App Store v1.0 | ✅ **Live.** Build 1.0.0+8 approved by Apple Jul 5 after fixing an App Store Connect location-purpose-string warning and properly restoring real iOS background location (previously over-corrected to Android-only in an earlier build). |
+| Google Play | ⏳ Submitted Jul 6 (version 1.0.0+8, matching iOS), pre-upload checks passed, awaiting Google's review. Not a rejection — first submission. |
+| Production data | ✅ Wiped clean Jul 5, immediately after Apple's approval — all 15 test/founder/reviewer accounts and their data deleted, storage objects cleared, verified end-to-end (including a live anon-key API call confirming a genuinely empty app). Agent infrastructure tables (`sales_prospects`, `agent_directives`, `content_queue`, `supervisor_reports`, `agent_run_log`, etc.) deliberately preserved. Production now has real founder + real early users only. |
+| Founder Dashboard | ✅ **Live at dash.farlo.app.** Fleet health/activity feed, Cost (estimated Claude API spend), Directives (view/edit/trigger agent runs), Business snapshot (users, active businesses, subscriptions by plan, support tickets, signups chart). Magic-link/OTP-code sign-in to `johnny.danger12@gmail.com` only. Hosted on Cloudflare Pages, DNS via Squarespace CNAME. See `dashboard/` folder. |
+| farlo.app download buttons | ✅ App Store button updated to the real live URL. Google Play button intentionally still a placeholder until Google approves. |
 | Owner onboarding emails | ✓ 3-email sequence live — emails 1 & 2 fire on signup, email 3 via daily pg_cron at day 7 |
 | Consumer welcome email | ✓ Single email fires on consumer account creation |
-| AI agent system | ✓ Migrated off Claude Cowork (only ran when the desktop app was open/unlocked) to `pg_cron` + Supabase Edge Functions calling the Anthropic API directly — runs 24/7 unattended. All 12 jobs live. See AGENT_AUTOMATION_RUNBOOK.md (current system) — COWORK_AGENT_SETUP.md now describes the retired predecessor. |
-| RevenueCat iOS | ✓ Configured — entitlement `premium`, monthly + yearly products |
-| RevenueCat Android | ⚠ Partially set up — Play Console products created, service account uploaded, waiting for Google permissions propagation (up to 24hrs) |
-| Background location declaration | ⚠ Required before Play Store production — Policy → App content in Play Console |
-| farlo.app download buttons | ⚠ href="#" placeholders — update once Apple approves |
-| EIN / Stripe business update | ⚠ In progress |
+| AI agent system | ✓ `pg_cron` + Supabase Edge Functions, runs 24/7 unattended. All 12 jobs live. See AGENT_AUTOMATION_RUNBOOK.md. **Founder can now also trigger any agent on demand from the dashboard's "Run now" buttons**, via a new `founder_trigger_agent()` RPC. |
+| RevenueCat iOS + Android | ✓ Both configured and live — entitlement `premium`, monthly + yearly products on both stores. |
+| EIN / Stripe business update | ⚠ Status unconfirmed this session — check with founder. |
 
 ---
 
 ## Architecture
 
-Flutter + Riverpod 3.x + GoRouter (StatefulShellRoute — owner and consumer shells are separate indexed stacks). Supabase for auth/Postgres/RLS/realtime/storage/edge functions. Stripe Connect Express for payments (funds go direct to owner). FCM push via custom service-account JWT in edge functions. RevenueCat manages subscriptions (iOS live, Android pending). `business_type` ('mobile'|'fixed') drives GPS vs. stored address logic — fixed businesses show at their stored lat/lng, mobile businesses push GPS on open. **Farlo is a small business platform, not just food trucks** — design all features for any small food business type (pop-ups, brick and mortar, caterers, etc.).
+Flutter + Riverpod 3.x + GoRouter (StatefulShellRoute — owner and consumer shells are separate indexed stacks). Supabase for auth/Postgres/RLS/realtime/storage/edge functions. Stripe Connect Express for payments (funds go direct to owner). FCM push via custom service-account JWT in edge functions. RevenueCat manages subscriptions (live on both iOS and Android). `business_type` ('mobile'|'fixed') drives GPS vs. stored address logic — fixed businesses show at their stored lat/lng, mobile businesses push GPS on open. **Farlo is a small business platform, not just food trucks** — design all features for any small food business type (pop-ups, brick and mortar, caterers, etc.).
+
+**New this session:** `dashboard/` — a separate Vite + React + TypeScript app (not Flutter), client-side only, talking directly to Supabase with the same anon-key + RLS model as the main app. Founder-only via a new `is_founder()` email-check RLS helper. Deployed independently to Cloudflare Pages, not part of the Flutter build/release process.
 
 ---
 
 ## Recent Decisions
+
+**iOS home-screen web app auth fix (Jul 7):** Founder wanted the dashboard as a home-screen shortcut on iPhone. Magic-link sign-in silently failed: a home-screen web app runs in its own isolated WebKit storage container, separate from Safari — tapping the email link opens Safari/Gmail's in-app browser, creates the session *there*, and the home-screen app's own storage never sees it. Fixed by switching to an email → 6-digit-code flow (`supabase.auth.verifyOtp()`), which never leaves the app's own context — no redirect, no cross-context handoff. Requires `{{ .Token }}` in Supabase's Magic Link email template (founder added this manually — not scriptable). Also added a proper `apple-touch-icon` (from the real Farlo app icon) and web manifest so "Add to Home Screen" behaves like a real app. Separately, iOS's keyboard OTP-code suggestion only reads Apple's own Mail/Messages apps, not third-party clients like Gmail — a real OS limitation, not fixable in code; workaround is adding the Gmail account to Apple's Mail app as a secondary account.
+
+**Founder dashboard built and deployed (Jul 7):** `dashboard/` — Vite+React+TS, live at dash.farlo.app via Cloudflare Pages. New migration added `is_founder()` (email-based RLS helper, resilient to account recreation) plus read-only policies opening the agent fleet tables + all-rows profiles/subscriptions/food_trucks to the founder only, verified via `BEGIN...ROLLBACK` JWT simulation directly against production and encoded as permanent Scenario 13 in `security_abuse_scenarios.sql`. **While building the "Run now" trigger, found and fixed a critical, live, unrelated vulnerability:** `agent_cron_call(fn_name, dry_run)` — the function that actually fires a real agent run — had `EXECUTE` granted to `anon`/`authenticated` since the original baseline migration, plus Postgres's default `PUBLIC` grant left in place. Any fully unauthenticated caller with just the public anon key already embedded in the app/website could trigger any of the 12 scheduled agent runs directly via PostgREST RPC, for free, unlimited times — confirmed live-exploitable before fixing. Two migrations were needed: the first `REVOKE ... FROM anon, authenticated` was insufficient (the lingering `PUBLIC` grant still let anon through — caught by re-verifying with `has_function_privilege` rather than trusting the fix), the second explicitly `REVOKE ... FROM PUBLIC`. New `founder_trigger_agent(fn_name)` RPC (SECURITY DEFINER, gated by `is_founder()`) is the dashboard's actual trigger path — simpler than a separate Edge Function since it reuses `agent_cron_call`'s existing Vault-backed secret. Encoded as permanent Scenario 14. Full writeup: `REMEDIATION_LOG.md` Iteration 11. This whole session's work (103 commits, never pushed before) was fast-forward-merged to `main` and pushed to GitHub for the first time this session.
+
+**Google Play submission (Jul 6):** With iOS live, submitted Android build 1.0.0+8 to Google Play. Found and fixed a real stale-build bug before it shipped: the release AAB was built ~2 hours before `REVENUECAT_GOOGLE_KEY` was added to `.env.json`, so it would have shipped with a non-functional Android paywall — rebuilt and verified the key was actually embedded in the compiled `libapp.so` via `strings`, not just assumed from the config file. RevenueCat/Play Billing linkage needed both a Play Console permissions grant *and* enabling the Google Play Android Developer API in Google Cloud Console — founder had done the first but not the second, which was the real blocker. Background location required its own separate Play Console justification form (not just the manifest declaration), with a YouTube walkthrough video. Submitted, pre-upload checks passed, awaiting Google's review.
+
+**Production launch wipe (Jul 5):** Immediately after Apple's approval, wiped all 15 test/founder/reviewer accounts and their data from production per a pre-agreed plan (every account at that point was test data, confirmed one-by-one before wiping, founder explicitly confirmed the full scope before execution). Real mistake caught mid-pass: `supabase storage rm -r --experimental --yes` deletes the bucket itself, not just its objects — caught immediately from the command's own output, all 5 buckets recreated with their exact original config (file-size limits, MIME types) sourced from migration history, not guessed. Verified clean via re-querying every table (0 rows), every bucket/policy back to correct config, and a live unauthenticated `curl` against the real map endpoint returning `HTTP 200 []`.
+
+**iOS background location properly restored, build 1.0.0+8 approved (Jul 4-5):** An App Store Connect warning about an unused location purpose string led to briefly over-correcting real iOS background location down to Android-only. Corrected: `NSLocationAlwaysAndWhenInUseUsageDescription` + `UIBackgroundModes: [location]` restored in Info.plist, `AppleSettings(pauseLocationUpdatesAutomatically: false, allowBackgroundLocationUpdates: true)` restored in `location_tracking_service.dart`, and the `Platform.isAndroid` gates removed from `background_location_disclosure.dart`'s `requestLocationForGoLive()` — this feature was already previously approved by Apple in an earlier submission and needed to keep working, not be silently dropped. Resubmitted as build 1.0.0+8, **approved by Apple Jul 5.**
 
 **Build 1.0.0+5 rejected a third time — Guideline 2.3, inaccurate metadata (Jul 3):** Apple flagged the App Store Description line "14-day free trial. No credit card required to start." as inaccurate metadata. Root cause: that claim is true for a lot of non-IAP trial implementations but false for a StoreKit/RevenueCat auto-renewable subscription — Apple always requires a payment method on the Apple ID before a free trial can start, even though the card isn't charged until day 14. The line was presumably written without that IAP-specific constraint in mind. Fix: removed "No credit card required to start.", kept "14-day free trial." (accurate, matches the actual RevenueCat trial + Subscription screen behavior). No app rebuild needed — pure App Store Connect metadata edit + reply. Checked Promotional Text too ("Free to download — 14-day free trial for business owners") — no "no credit card" claim there, left unchanged.
 
@@ -78,6 +90,13 @@ Flutter + Riverpod 3.x + GoRouter (StatefulShellRoute — owner and consumer she
 
 ## Traps / Dead Ends
 
+- **A `REVOKE EXECUTE ... FROM anon, authenticated` alone is not enough — Postgres also grants `EXECUTE` to `PUBLIC` by default on every function at creation time**, and that grant survives a per-role revoke untouched. Always re-check with `has_function_privilege('anon', 'public.fn(sig)', 'EXECUTE')` (or inspect `pg_proc.proacl` for a lingering `=X/postgres` entry) after any lockdown — don't trust the `REVOKE` succeeding as proof the function is actually locked down. This is exactly how `agent_cron_call` stayed exploitable after the first fix attempt this session.
+- **An iOS home-screen web app cannot complete a magic-link email flow** — it runs in its own isolated storage container separate from Safari, so clicking the emailed link opens Safari/Gmail's in-app browser and creates the session there, not in the home-screen app. Any auth flow meant to work as an iOS home-screen app needs a code-entry (`verifyOtp`) flow instead of (or in addition to) a clickable link.
+- **iOS's keyboard OTP-code autofill suggestion only reads Apple's own Mail and Messages apps** — it has no access to third-party mail clients like the Gmail app, regardless of `autocomplete="one-time-code"` being set correctly. Not fixable from the web app side.
+- **Supabase magic-link `signInWithOtp` needs an explicit `emailRedirectTo`**, or it falls back to the project's Auth "Site URL" — which may be an unrelated marketing site with no Supabase client to consume the login token. The target redirect must also be added to Authentication → URL Configuration → Redirect URLs, or the link silently fails to return to the app.
+- **`mcp__supabase__apply_migration` assigns its own timestamp to a migration, independent of the local file's embedded timestamp.** After applying, always check the actual recorded version (`SELECT version FROM supabase_migrations.schema_migrations ORDER BY version DESC LIMIT 1`) and rename the local file to match, or the local migration ledger silently drifts from what's actually live.
+- **`net.http_post` (pg_net) dispatches asynchronously** — enqueuing a request is not undone by a later `ROLLBACK` on the calling transaction. Never test a function that calls `net.http_post` against a real target inside a `BEGIN...ROLLBACK` — use a nonexistent function name/URL instead, so the dispatch is harmless.
+- **`mcp__supabase__execute_sql` only returns the last statement's result when multiple `SELECT`s are sent in one call.** Issue one query per call if you need to see more than one result.
 - **Never write "no credit card required" (or similar) in App Store metadata for an iOS auto-renewable subscription.** Apple's StoreKit always requires a payment method on the Apple ID before a free trial can begin, even though nothing is charged until the trial ends — so that claim is factually false for any IAP-based trial and will get flagged under Guideline 2.3 (Accurate Metadata) even though the trial itself is real. This applies to Description, Promotional Text, screenshots, and any other App Store Connect metadata field — check all of them, not just the one Apple happened to quote.
 - **Never trust an LLM agent's own judgment to dedupe "have I already handled this?" across runs — enforce it in code.** `agent-aiden-inbox` relied on the model reading free-text `supervisor_reports` history to decide whether it had already replied to a thread; it re-sent the same reply 3 times before it happened to notice its own log entry. Fixed with a real `agent_inbox_replies` tracking table filtered in code before the model ever sees the thread — same lesson as Sage's `support_tickets.gmail_thread_id` circuit breaker, apply it to any new agent that replies to email.
 - **pg_net's `net._http_response` has a 5-second response-capture timeout, independent of the actual HTTP call.** `agent_cron_call()`'s `net.http_post` can time out and leave `content`/`status_code` null in `net._http_response` even though the target edge function ran fine and completed later (confirmed via the edge function logs and `agent_run_log`, both of which showed success). Don't use `net._http_response` to check an agent run's outcome — read `agent_run_log` instead, it's written directly by the function regardless of whether the caller that triggered it is still listening.
@@ -110,16 +129,14 @@ Flutter + Riverpod 3.x + GoRouter (StatefulShellRoute — owner and consumer she
 
 | File | Change |
 |---|---|
-| `lib/main.dart` | Config-missing check changed from `assert()` (stripped in release) to a real `if`/`throw`. `Purchases.configure()` wrapped in a 10s timeout + try/catch so it can never block app launch. |
-| `lib/features/auth/providers/auth_provider.dart` | Added a 20s `.withAuthTimeout` extension, applied to all 6 auth entry points (email sign-in/up, owner sign-up, Apple/Google sign-in, Apple/Google owner sign-up). |
-| `lib/features/auth/screens/login_screen.dart` | Replaced raw `error.toString()` with a `_friendlyError()` mapper (timeout, invalid credentials, email not confirmed, network). |
-| `lib/features/auth/screens/register_screen.dart` | Same `_friendlyError()` pattern for signup (timeout, already-registered, network). |
-| `lib/features/auth/screens/register_owner_screen.dart` | Added a `timeout` case to its existing `_friendlyError()`. |
-| `lib/features/auth/widgets/social_auth_buttons.dart` | Added a `timeout` case to its existing `_friendlyError()`. |
-| `lib/features/owner_dashboard/screens/subscription_screen.dart` | Added a `_LegalLinksRow` (Terms of Use / Privacy Policy) below the auto-renew disclosure text. |
-| `pubspec.yaml` | Bumped to 1.0.0+5 |
+| `dashboard/` (new, 20+ files) | Full new Vite+React+TS founder dashboard app — see Architecture above. |
+| `dashboard/src/components/AuthGate.tsx` | Magic-link → then rewritten to email+code (`verifyOtp`) flow for iOS home-screen app support. |
+| `supabase/migrations/20260707015823_add_founder_dashboard_access.sql` | `is_founder()` + RLS read policies + agent_directives update policy. |
+| `supabase/migrations/20260707021420_lock_down_agent_cron_call.sql`, `20260707021505_revoke_agent_cron_call_public_grant.sql` | Critical fix — see Recent Decisions. |
+| `supabase/tests/security_abuse_scenarios.sql` | +Scenario 13 (founder dashboard RLS), +Scenario 14 (agent_cron_call lockdown). Now 14 scenarios, all passing. |
+| `REMEDIATION_LOG.md` | Iteration 11 entry covering the full dashboard build + critical finding. |
 
-Note: `lib/core/widgets/background_location_disclosure.dart`, `lib/features/account/widgets/transfer_truck_sheet.dart`, `web/index.html`, and the Android icon/splash changes were already pending in the working tree from a prior session — left untouched, not part of this commit.
+Note: this table covers only this session (the dashboard build). See `REMEDIATION_LOG.md` for the full, exhaustive record of every fix across every session in this remediation effort (App Store rejections, launch wipe, Google Play submission, etc.) — too extensive to duplicate here.
 
 ---
 
@@ -127,19 +144,11 @@ Note: `lib/core/widgets/background_location_disclosure.dart`, `lib/features/acco
 
 | Change | Purpose |
 |---|---|
-| `agent_inbox_replies` table (`thread_id text primary key`, `replied_at`) | Jul 3 — durable record of Gmail threads `agent-aiden-inbox` has already replied to, checked in code before a thread is shown to the model. Same `service role only` RLS as the other agent tables. Fixes the duplicate-reply bug. |
-| `agent_directives` table | Key-value store for all agent context. `locked` column separates foundation (Johnny-owned) from operational (Aiden-managed) rows. 10 rows seeded. |
-| `content_queue` table | Piper writes content here; Johnny sets status='posted'/'skipped'. Replaces marketing-queue.md. |
-| `supervisor_reports` table | Aiden writes weekly brief here and emails to johnny@farlo.app. Replaces supervisor-report.md. |
-| RLS on all 3 agent tables | `USING (false)` — service role only, same pattern as support_tickets and sales_prospects |
-| `support_tickets` table | Sage reads/writes — ticket tracking with gmail_thread_id for threading |
-| `sales_prospects` table | Miles reads/writes — 52 Hartsville prospects seeded |
-| `subscriptions.onboarding_emails_sent_at TIMESTAMPTZ` | Guard: prevents duplicate welcome sequence on renewal |
-| `subscriptions.onboarding_email3_sent_at TIMESTAMPTZ` | Guard: prevents day-7 email firing twice |
-| Trigger `on_subscription_onboarding_eligible` | AFTER INSERT OR UPDATE on subscriptions, WHEN `status IN ('trialing','active') AND onboarding_emails_sent_at IS NULL` |
-| Trigger `on_consumer_profile_created` | AFTER INSERT on profiles, WHEN `role='consumer'` |
-| pg_cron `send-owner-day7-checkin` | Runs daily at noon UTC |
-| `GOOGLE_PLACES_API_KEY` Supabase secret | Server-side Places API key — no app restrictions, restricted to Places API only |
+| `is_founder()` function | Email-based (not hardcoded UUID) SECURITY DEFINER helper — resilient to the founder's account ever being recreated. |
+| Founder-only read RLS policies | Opened `agent_run_log`, `agent_tool_call_log`, `agent_directives`, `sales_prospects`, `supervisor_reports`, `content_queue`, `support_tickets` (previously all `service role only`), plus all-rows read on `profiles`/`subscriptions`/`food_trucks` (previously scoped to each user's own rows). Additive — nothing existing was narrowed. |
+| `agent_directives` founder UPDATE policy | Gated by `locked = false`, matches the constraint `update_directive` already enforces for Aiden itself. |
+| `founder_trigger_agent(fn_name)` function | SECURITY DEFINER, gated by `is_founder()` — the dashboard's "Run now" path. Reuses `agent_cron_call`'s existing Vault-backed bearer secret. |
+| `agent_cron_call` lockdown | `REVOKE EXECUTE FROM anon, authenticated, PUBLIC` — closes the critical vulnerability described above. `service_role` (what pg_cron runs as) explicitly re-granted. |
 
 ---
 
@@ -147,42 +156,43 @@ Note: `lib/core/widgets/background_location_disclosure.dart`, `lib/features/acco
 
 | Issue | Severity |
 |---|---|
-| RevenueCat Android credentials not yet validated | Medium — Play Console products created, service account JSON uploaded to RevenueCat, permissions granted in Play Console. Google permissions propagation can take up to 24hrs — retry refresh in RevenueCat tomorrow. Then add products to entitlement, get `REVENUECAT_GOOGLE_KEY`, add to `.env.json`, rebuild AAB. |
-| Background location declaration form | Medium — required before Play Store production. Policy → App content in Play Console |
-| Fixed business can't edit location post-onboarding | Low — manual DB fix workaround. v2 backlog |
+| Google Play review pending | Low — first submission, not a rejection. Standard review turnaround. |
+| No real dollar MRR figure in the founder dashboard | Low — codebase has no hardcoded price points for Owner Monthly/Yearly (RevenueCat resolves pricing dynamically client-side). Dashboard shows subscription counts by plan instead of fabricating a number. Would need the founder to supply actual price points, or an integration with RevenueCat's own API. |
+| Daily active users not tracked | Low — deferred by design (see the approved dashboard plan). Needs a new `last_active_at` column plus a Flutter code change to write it, which means waiting for the next app-store release cycle. |
+| Store analytics (downloads/ratings/crash-free rate) not in dashboard | Low — deferred by design. Needs separate API integrations (signed JWT for App Store Connect, service account for Play Console) — real, separate follow-up work. |
+| `remediation` Supabase test branch has pre-existing migration-ledger drift | Low — unrelated to this session's work, blocks a clean `rebase_branch` call. Worked around by applying individual new migrations directly via `psql` when needed. Not fixed — would need its own dedicated pass. |
 | Entity name in Apple account still "JOHNNY DEE WINBURN" | Low — contact Apple Support to change to Farlo Technologies LLC |
-| farlo.app download buttons are href="#" placeholders | Low — update once Apple approves |
+| EIN / Stripe business bank account update | Unconfirmed status — check with founder |
 
 ---
 
 ## Next Steps
 
-1. **Watch for Apple review result on 1.0.0+5** — replied to the 2.1(b) rejection + rewrote App Review Notes with explicit paywall navigation steps, resubmitted Jul 2, status "Waiting for Review." If approved, do these IN ORDER before posting anything public:
-   - **Wipe all test data** — Supabase dashboard → Authentication → Users → select all → Delete (cascades to profiles, food_trucks, subscriptions, etc.). Do NOT wipe: agent_directives, content_queue, supervisor_reports, sales_prospects, agent_run_log. Every current account is a test account — wipe everything, nothing to preserve. This includes `apple.review@farlo.app`, whose subscription status was reset to `trialing` on Jul 2 for review purposes — no action needed, it gets wiped with everything else.
-   - Update farlo.app download buttons (href="#" → App Store link).
-   - Lift the `sales_targets` HOLD directive so Miles starts real outreach — watch its first live `agent_run_log` entry and actual Gmail drafts before trusting it fully unattended (see Known Gaps in AGENT_AUTOMATION_RUNBOOK.md).
-2. **RevenueCat Android — finish:** In RevenueCat, retry the credentials refresh (Google permissions take up to 24hrs). Once green: Product catalog → Products → add `com.farlo.app.owner.sub.monthly` + `com.farlo.app.owner.sub.yearly` → attach to `premium` entitlement → attach to Default Offering. Copy the `goog_...` API key → add to `.env.json` as `REVENUECAT_GOOGLE_KEY` → `flutter build appbundle --dart-define-from-file=.env.json`.
-3. **Background location declaration** — Play Console → Policy → App content → fill out the background location permission form.
-4. **Watch the agent automation system for its first week live** — check `agent_run_log` for failures periodically (AGENT_AUTOMATION_RUNBOOK.md → Checking logs). Re-enable the matching Cowork task as an emergency fallback if anything looks wrong; Cowork itself hasn't been removed, only paused.
-5. **Promote Android to production** — once Apple approves and RevenueCat Android is live, promote internal testing AAB to production track.
-6. **Stripe business update** — update Stripe account with EIN + business bank account. Google Play merchant account also needs a bank account added (Payments profile → Add payment method).
-7. **Canva integration for Piper (optional, deferred)** — Piper currently ships copy-only content with `needs_asset: true` flagged. Canva's API requires per-user OAuth with rotating refresh tokens, real ongoing maintenance risk for something unattended — worth a dedicated follow-up if wanted, not a quick add.
+1. **Watch for Google Play's review result** on the Jul 6 submission (build 1.0.0+8). If approved, promote to production track.
+2. **Cloudflare Pages auto-deploys from `main`** — any future dashboard changes just need `git push origin main`, no separate deploy step.
+3. **If real MRR is wanted in the dashboard**, get the actual Owner Monthly/Yearly price points from the founder (or wire up RevenueCat's own reporting API) rather than guessing.
+4. **DAU tracking**, if wanted: add a `last_active_at` column to `profiles`, have the Flutter app touch it on open, then add a dashboard stat for it. Needs a real app release to take effect.
+5. **Consider fixing the `remediation` branch's migration-ledger drift** if it starts blocking other work — currently just a friction point, not user-facing.
+6. **Watch the agent automation system** — check `agent_run_log` periodically for failures (AGENT_AUTOMATION_RUNBOOK.md → Checking logs). The founder can now also spot-check this directly via the dashboard's Fleet tab instead of only via SQL.
+7. **Stripe business update / EIN** — confirm current status with founder, this was listed as "in progress" as of Jul 3 and wasn't touched this session.
+8. **Canva integration for Piper (optional, deferred)** — Piper currently ships copy-only content with `needs_asset: true` flagged. Canva's API requires per-user OAuth with rotating refresh tokens, real ongoing maintenance risk for something unattended — worth a dedicated follow-up if wanted, not a quick add.
 
 ---
 
 ## Setup Gotchas
 
-- **`.env.json`** at project root (gitignored). Keys: `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `STRIPE_PUBLISHABLE_KEY` (pk_live), `REVENUECAT_APPLE_KEY` (appl_...), `REVENUECAT_GOOGLE_KEY` (empty until Android set up), `GOOGLE_PLACES_API_KEY`, `GOOGLE_SIGN_IN_WEB_CLIENT_ID`.
-- **iOS build:** `flutter build ipa --dart-define-from-file=.env.json` → IPA at `build/ios/ipa/Farlo.ipa`. **Before uploading, verify the config actually got embedded** (see Traps/Dead Ends above) — 1.0.0+4 shipped with an empty Supabase URL and Apple rejected it for completely broken auth.
+- **`.env.json`** at project root (gitignored). Keys: `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `STRIPE_PUBLISHABLE_KEY` (pk_live), `REVENUECAT_APPLE_KEY` (appl_...), `REVENUECAT_GOOGLE_KEY` (goog_...), `GOOGLE_PLACES_API_KEY`, `GOOGLE_SIGN_IN_WEB_CLIENT_ID`. Both RevenueCat keys are live and confirmed embedded in shipped builds.
+- **iOS build:** `flutter build ipa --dart-define-from-file=.env.json` → IPA at `build/ios/ipa/Farlo.ipa`. **Before uploading, verify the config actually got embedded** (see Traps/Dead Ends above).
 - **Open in Transporter:** `open -a Transporter "/Users/johnny/Desktop/Good Truck Finder/build/ios/ipa/Farlo.ipa"`
-- **Current iOS build number:** 1.0.0+5, in review with Apple as of Jul 1. Next iOS build use `+6`.
-- **Android release:** `flutter build appbundle --dart-define-from-file=.env.json` → `build/app/outputs/bundle/release/app-release.aab`. Requires `android/app/farlo-release.keystore` + `android/key.properties` (both gitignored — back up externally).
-- **Supabase project:** `weflrxyerxpsafcdetya.supabase.co`. Deploy edge functions: `supabase functions deploy <name> --no-verify-jwt`.
+- **Current build number: 1.0.0+8 on both platforms** — iOS approved and live, Android submitted and awaiting review. Next build of either platform, use `+9`.
+- **Android release:** `flutter build appbundle --dart-define-from-file=.env.json` → `build/app/outputs/bundle/release/app-release.aab`. Requires `android/app/farlo-release.keystore` + `android/key.properties` (both gitignored — back up externally). **Before uploading, verify the build isn't stale relative to `.env.json`** — check file timestamps and/or `strings` against the compiled `libapp.so` (see Traps/Dead Ends in REMEDIATION_LOG.md Iteration 10-continued for why).
+- **Supabase project:** `weflrxyerxpsafcdetya.supabase.co`. Deploy edge functions: `supabase functions deploy <name> --no-verify-jwt`. Isolated test branch: `remediation` (project ref `iwufrgjtlikkongopheu`) — has pre-existing migration-ledger drift, see Known Issues.
+- **Founder Dashboard (`dashboard/`):** Vite+React+TS, live at `https://dash.farlo.app` via Cloudflare Pages, auto-deploys on push to `main`. Local dev: `cd dashboard && npm run dev`. Env vars in `dashboard/.env` (gitignored — `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, same values as the main `.env.json`'s Supabase keys). Cloudflare Pages build settings: root directory `dashboard`, build command `npm run build`, output `dist`. Sign-in is founder-only (`johnny.danger12@gmail.com`, checked via `is_founder()` in Postgres) via a 6-digit email code, not a clickable link — required for it to work as an iOS home-screen app (see Traps/Dead Ends). If the Magic Link email template in Supabase (Authentication → Email Templates) is ever reset, it must include `{{ .Token }}` or the code-entry flow has nothing to verify against.
 - **Firebase project:** internal ID `good-truck-finder` (cannot be renamed). `firebase_options.dart` is a stub — do not run `flutterfire configure`.
 - **Stripe webhook:** `https://weflrxyerxpsafcdetya.supabase.co/functions/v1/stripe-webhook` — must have `verify_jwt: false`.
-- **Test accounts:** `apple.review@farlo.app` / `FarloReview2026!` (owner, active sub). `jwinburndcso@gmail.com` / `Farlo26!` (owner). `johnny.danger12@gmail.com` (consumer). All others: `FarloTest123`.
-- **GitHub:** `https://github.com/johnnydanger12-design/farlo`
+- **Production is real user data now, not test data** — the Jul 5 launch wipe cleared all test accounts. Do not create synthetic test data directly in production; use the `remediation` Supabase branch for that instead.
+- **GitHub:** `https://github.com/johnnydanger12-design/farlo` — `main` now reflects everything through Jul 7 (this session pushed 100+ commits that had never been pushed before). Push to `main` directly triggers a Cloudflare Pages dashboard rebuild.
 - **Google Play Console:** play.google.com/console — account under `johnny@farlo.app`. App ID: `4973234026077565344`.
 - **Farlo Technologies LLC:** EIN 42-3336763, incorporated South Carolina Jun 22 2026 via ZenBusiness.
-- **Brand assets:** Logo for emails at `https://weflrxyerxpsafcdetya.supabase.co/storage/v1/object/public/brand/Email%20Logo.png`. Canva brand kit: `https://www.canva.com/brand/kAGpfS3ZJUg`.
-- **AI agents:** Run on `pg_cron` + Supabase Edge Functions (not Cowork — see AGENT_AUTOMATION_RUNBOOK.md for the current system, checking logs, pausing a job, rotating credentials). All context still lives in Supabase `agent_directives` table. Foundation rows (`locked=true`): brand_guidelines, company_story, product_flows_owner, product_flows_consumer, website_content. Operational rows (`locked=false`): farlo_context, company_direction, marketing_focus, sales_targets, support_kb. Aiden manages operational rows; never touch locked rows without updating them directly in Supabase.
+- **Brand assets:** Logo for emails at `https://weflrxyerxpsafcdetya.supabase.co/storage/v1/object/public/brand/Email%20Logo.png`. Canva brand kit: `https://www.canva.com/brand/kAGpfS3ZJUg`. Real app icon source at `assets/icon_source/icon.png` (also used for the dashboard's apple-touch-icon).
+- **AI agents:** Run on `pg_cron` + Supabase Edge Functions (see AGENT_AUTOMATION_RUNBOOK.md for the current system, checking logs, pausing a job, rotating credentials). All context still lives in Supabase `agent_directives` table. Foundation rows (`locked=true`): brand_guidelines, company_story, product_flows_owner, product_flows_consumer, website_content. Operational rows (`locked=false`): farlo_context, company_direction, marketing_focus, sales_targets, support_kb. Aiden manages operational rows; never touch locked rows without updating them directly in Supabase. **The founder can now also view/edit unlocked directives and trigger any agent on demand from the dashboard**, not just via SQL or the twice-daily email to Aiden.
