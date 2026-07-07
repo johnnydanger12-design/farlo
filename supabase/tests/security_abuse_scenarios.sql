@@ -517,6 +517,57 @@ BEGIN
 END;
 $scenario13$;
 
+-- ── Scenario 14: agent_cron_call() reachable by anon/authenticated ──────
+-- Found while building the founder dashboard's "Run now" button — the original
+-- baseline migration granted EXECUTE on agent_cron_call(fn_name, dry_run) to
+-- anon and authenticated (and left the default PUBLIC grant in place), meaning
+-- any fully unauthenticated caller with only the public anon key could invoke
+-- a real, non-dry-run agent run directly via PostgREST RPC. Fixed in
+-- 20260707021420_lock_down_agent_cron_call.sql +
+-- 20260707021505_revoke_agent_cron_call_public_grant.sql. The dashboard's
+-- "Run now" button instead calls founder_trigger_agent(fn_name), a
+-- SECURITY DEFINER wrapper gated by is_founder().
+DO $scenario14$
+BEGIN
+  RESET ROLE;
+
+  SET LOCAL ROLE anon;
+  BEGIN
+    PERFORM public.agent_cron_call('agent-sage', false);
+    RAISE EXCEPTION 'SCENARIO 14a FAILED: anon (fully unauthenticated) was able to call agent_cron_call directly and trigger a real agent run';
+  EXCEPTION
+    WHEN insufficient_privilege THEN
+      RAISE NOTICE 'Scenario 14a PASSED: anon correctly denied EXECUTE on agent_cron_call (%)', SQLERRM;
+  END;
+
+  RESET ROLE;
+  SET LOCAL ROLE authenticated;
+  SET LOCAL request.jwt.claims = '{"sub":"22222222-2222-2222-2222-222222222222","email":"owner-b@test.farlo.internal","role":"authenticated"}';
+  BEGIN
+    PERFORM public.agent_cron_call('agent-sage', false);
+    RAISE EXCEPTION 'SCENARIO 14b FAILED: a regular authenticated user was able to call agent_cron_call directly';
+  EXCEPTION
+    WHEN insufficient_privilege THEN
+      RAISE NOTICE 'Scenario 14b PASSED: regular authenticated user correctly denied EXECUTE on agent_cron_call (%)', SQLERRM;
+  END;
+
+  -- A regular authenticated user must also be denied the founder-only wrapper.
+  BEGIN
+    PERFORM public.founder_trigger_agent('agent-sage');
+    RAISE EXCEPTION 'SCENARIO 14c FAILED: a regular authenticated user was able to call founder_trigger_agent';
+  EXCEPTION
+    WHEN insufficient_privilege THEN
+      RAISE NOTICE 'Scenario 14c PASSED: non-founder correctly denied by founder_trigger_agent (%)', SQLERRM;
+  END;
+
+  RESET ROLE;
+  -- The real path (pg_cron, running as postgres/service_role) must still work.
+  SET LOCAL ROLE service_role;
+  PERFORM public.agent_cron_call('dashboard-verification-noop-test', true);
+  RAISE NOTICE 'Scenario 14d PASSED: service_role (the real pg_cron path) can still call agent_cron_call';
+END;
+$scenario14$;
+
 RESET ROLE;
 DO $$ BEGIN RAISE NOTICE 'ALL SECURITY ABUSE SCENARIO TESTS PASSED'; END $$;
 
