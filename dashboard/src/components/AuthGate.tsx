@@ -19,7 +19,10 @@ export function AuthGate({ children }: { children: (session: Session) => ReactNo
     e.preventDefault();
     setError(null);
     setSending(true);
-    const { error } = await supabase.auth.signInWithOtp({ email: email.trim() });
+    const { error } = await supabase.auth.signInWithOtp({
+      email: email.trim(),
+      options: { emailRedirectTo: window.location.origin },
+    });
     setSending(false);
     if (error) {
       setError(error.message);
