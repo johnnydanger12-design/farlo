@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { Card, ErrorNote, Loading } from './ui';
+import { ErrorNote, Loading } from './ui';
 
 interface ChatMessage {
   id: string;
@@ -72,73 +72,80 @@ export function ChatSection() {
   }
 
   return (
-    <Card title="Chat with Aiden">
-      <div className="flex min-w-0 flex-col gap-3">
-        <div className="flex max-h-[60vh] min-h-[300px] min-w-0 flex-col gap-3 overflow-y-auto rounded-lg border border-[var(--border)] bg-black/10 p-3">
-          {messages === null ? (
-            <Loading />
-          ) : messages.length === 0 ? (
-            <p className="text-sm text-[var(--muted)]">
-              No messages yet — say hi to Aiden below.
-            </p>
-          ) : (
-            messages.map((m) => (
+    // h-full, not a bounded Card: this fills exactly the space its flex-1 parent in
+    // App.tsx gives it (the full screen below the header, no page-level scroll), so
+    // the input below is the last item in an exactly-sized column — it sits at the
+    // true bottom of the screen with no sticky/fixed positioning trick required.
+    <section className="flex min-h-0 min-w-0 flex-1 flex-col rounded-xl border border-[var(--border)] bg-[var(--panel)]">
+      <div className="shrink-0 border-b border-[var(--border)] px-4 py-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">
+          Chat with Aiden
+        </h2>
+      </div>
+
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
+        {messages === null ? (
+          <Loading />
+        ) : messages.length === 0 ? (
+          <p className="text-sm text-[var(--muted)]">
+            No messages yet — say hi to Aiden below.
+          </p>
+        ) : (
+          messages.map((m) => (
+            <div
+              key={m.id}
+              className={`flex min-w-0 ${m.role === 'founder' ? 'justify-end' : 'justify-start'}`}
+            >
               <div
-                key={m.id}
-                className={`flex min-w-0 ${m.role === 'founder' ? 'justify-end' : 'justify-start'}`}
+                className={`min-w-0 max-w-[85%] rounded-lg px-3 py-2 text-sm whitespace-pre-wrap break-words ${
+                  m.role === 'founder'
+                    ? 'bg-[var(--accent)] text-[#04121f]'
+                    : 'border border-[var(--border)] bg-black/20 text-[var(--text)]'
+                }`}
               >
-                <div
-                  className={`min-w-0 max-w-[85%] rounded-lg px-3 py-2 text-sm whitespace-pre-wrap break-words ${
-                    m.role === 'founder'
-                      ? 'bg-[var(--accent)] text-[#04121f]'
-                      : 'border border-[var(--border)] bg-black/20 text-[var(--text)]'
-                  }`}
-                >
-                  {m.content}
-                </div>
-              </div>
-            ))
-          )}
-          {sending && (
-            <div className="flex justify-start">
-              <div className="rounded-lg border border-[var(--border)] bg-black/20 px-3 py-2 text-sm text-[var(--muted)]">
-                Aiden is typing…
+                {m.content}
               </div>
             </div>
-          )}
-          <div ref={bottomRef} />
-        </div>
-
-        {error && <ErrorNote message={error} />}
-
-        {/* sticky, not fixed — stays in normal document flow (so it naturally
-            participates in the browser's own scroll-into-view-above-keyboard
-            behavior) while still visually pinned to the bottom of the viewport
-            as the page scrolls. position:fixed is what caused every earlier
-            layout bug in this app on iOS — sticky doesn't share that failure mode. */}
-        <form
-          onSubmit={send}
-          className="sticky bottom-0 flex min-w-0 gap-2 bg-[var(--panel)] py-2"
-          style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))' }}
-        >
-          <input
-            type="text"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            placeholder="Message Aiden…"
-            disabled={sending}
-            autoFocus
-            className="min-w-0 flex-1 rounded-md border border-[var(--border)] bg-transparent px-3 py-2 text-sm outline-none focus:border-[var(--accent)] disabled:opacity-50"
-          />
-          <button
-            type="submit"
-            disabled={sending || !draft.trim()}
-            className="shrink-0 rounded-md bg-[var(--accent)] px-4 py-2 text-sm font-medium text-[#04121f] disabled:opacity-50"
-          >
-            Send
-          </button>
-        </form>
+          ))
+        )}
+        {sending && (
+          <div className="flex justify-start">
+            <div className="rounded-lg border border-[var(--border)] bg-black/20 px-3 py-2 text-sm text-[var(--muted)]">
+              Aiden is typing…
+            </div>
+          </div>
+        )}
+        <div ref={bottomRef} />
       </div>
-    </Card>
+
+      {error && (
+        <div className="shrink-0 px-4">
+          <ErrorNote message={error} />
+        </div>
+      )}
+
+      <form
+        onSubmit={send}
+        className="flex shrink-0 min-w-0 gap-2 border-t border-[var(--border)] px-3 py-3"
+        style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
+      >
+        <input
+          type="text"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder="Message Aiden…"
+          disabled={sending}
+          autoFocus
+          className="min-w-0 flex-1 rounded-md border border-[var(--border)] bg-transparent px-3 py-2 text-sm outline-none focus:border-[var(--accent)] disabled:opacity-50"
+        />
+        <button
+          type="submit"
+          disabled={sending || !draft.trim()}
+          className="shrink-0 rounded-md bg-[var(--accent)] px-4 py-2 text-sm font-medium text-[#04121f] disabled:opacity-50"
+        >
+          Send
+        </button>
+      </form>
+    </section>
   );
 }

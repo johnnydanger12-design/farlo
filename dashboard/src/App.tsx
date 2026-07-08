@@ -29,28 +29,35 @@ function Dashboard({ session }: { session: Session }) {
   }
 
   return (
-    <div className="mx-auto max-w-6xl px-6 py-8">
-      <header className="mb-8 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setMenuOpen(true)}
-            aria-label="Open menu"
-            className="rounded-md border border-[var(--border)] p-2 text-[var(--text)] hover:border-[var(--accent)]"
-          >
-            <MenuIcon />
-          </button>
-          <div>
-            <h1 className="text-lg font-semibold">Farlo Dashboard</h1>
-            <p className="text-xs text-[var(--muted)]">{session.user.email}</p>
+    // h-full (not min-h) + overflow-hidden: this shell is exactly one screen tall
+    // (#root is a fixed 100dvh, see index.css). Every tab's content lives inside a
+    // flex-1 min-h-0 region below that scrolls *itself* — nothing here relies on
+    // page-level (body) scroll, which is what makes the Chat tab able to fill the
+    // real screen instead of sitting as a box inside a longer scrollable page.
+    <div className="flex h-full flex-col overflow-hidden">
+      <div className="mx-auto w-full max-w-6xl shrink-0 px-6 pt-8">
+        <header className="mb-8 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setMenuOpen(true)}
+              aria-label="Open menu"
+              className="rounded-md border border-[var(--border)] p-2 text-[var(--text)] hover:border-[var(--accent)]"
+            >
+              <MenuIcon />
+            </button>
+            <div>
+              <h1 className="text-lg font-semibold">Farlo Dashboard</h1>
+              <p className="text-xs text-[var(--muted)]">{session.user.email}</p>
+            </div>
           </div>
-        </div>
-        <button
-          onClick={() => supabase.auth.signOut()}
-          className="rounded-md border border-[var(--border)] px-3 py-1.5 text-sm"
-        >
-          Sign out
-        </button>
-      </header>
+          <button
+            onClick={() => supabase.auth.signOut()}
+            className="rounded-md border border-[var(--border)] px-3 py-1.5 text-sm"
+          >
+            Sign out
+          </button>
+        </header>
+      </div>
 
       {/* Backdrop */}
       <div
@@ -98,11 +105,20 @@ function Dashboard({ session }: { session: Session }) {
         </div>
       </nav>
 
-      {tab === 'Business' && <BusinessSnapshot />}
-      {tab === 'Outreach' && <OutreachSection />}
-      {tab === 'Directives' && <DirectivesSection />}
-      {tab === 'Chat' && <ChatSection />}
-      {tab === 'Fleet' && <FleetOverview />}
+      {tab === 'Chat' ? (
+        <div className="mx-auto flex w-full min-h-0 max-w-6xl flex-1 flex-col px-6 pb-6">
+          <ChatSection />
+        </div>
+      ) : (
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="mx-auto max-w-6xl px-6 pb-8">
+            {tab === 'Business' && <BusinessSnapshot />}
+            {tab === 'Outreach' && <OutreachSection />}
+            {tab === 'Directives' && <DirectivesSection />}
+            {tab === 'Fleet' && <FleetOverview />}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

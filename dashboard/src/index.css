@@ -30,7 +30,8 @@ body {
 }
 
 #root {
-  min-height: 100svh;
+  height: 100dvh;
+  overflow-y: auto;
   padding-top: env(safe-area-inset-top);
   padding-bottom: env(safe-area-inset-bottom);
   padding-left: env(safe-area-inset-left);
