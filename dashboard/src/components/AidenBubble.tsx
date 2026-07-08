@@ -26,6 +26,44 @@ export function AidenBubble() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const loadedRef = useRef(false);
 
+  // Below sm (640px) the panel is positioned via JS against window.visualViewport
+  // instead of plain CSS — iOS Safari doesn't shrink position:fixed's containing
+  // block when the on-screen keyboard opens (only the *visual* viewport shrinks),
+  // so a CSS-only bottom-anchored panel ends up partly hidden under the keyboard.
+  // Desktop/tablet has no on-screen keyboard to worry about, so it stays plain
+  // Tailwind (sm: classes below).
+  const [mobileLayout, setMobileLayout] = useState(
+    () => window.matchMedia('(max-width: 639px)').matches,
+  );
+  const [viewport, setViewport] = useState<{ height: number; offsetTop: number } | null>(
+    () => (window.visualViewport
+      ? { height: window.visualViewport.height, offsetTop: window.visualViewport.offsetTop }
+      : null),
+  );
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 639px)');
+    const onChange = () => setMobileLayout(mq.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    function update() {
+      if (window.visualViewport) {
+        setViewport({ height: window.visualViewport.height, offsetTop: window.visualViewport.offsetTop });
+      }
+    }
+    update();
+    window.visualViewport?.addEventListener('resize', update);
+    window.visualViewport?.addEventListener('scroll', update);
+    return () => {
+      window.visualViewport?.removeEventListener('resize', update);
+      window.visualViewport?.removeEventListener('scroll', update);
+    };
+  }, [open]);
+
   useEffect(() => {
     if (!open || loadedRef.current) return;
     loadedRef.current = true;
@@ -94,10 +132,16 @@ export function AidenBubble() {
 
       {open && (
         <div
-          className="fixed z-50 flex min-w-0 flex-col overflow-hidden border border-[var(--border)] bg-[var(--panel)] shadow-2xl
-                     inset-x-3 bottom-3 top-16 rounded-2xl
-                     sm:inset-x-auto sm:top-auto sm:bottom-24 sm:right-6 sm:h-[32rem] sm:w-96 sm:rounded-2xl"
-          style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+          className={`fixed z-50 flex min-w-0 flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--panel)] shadow-2xl
+                     sm:inset-x-auto sm:top-auto sm:bottom-24 sm:right-6 sm:h-[32rem] sm:w-96
+                     ${mobileLayout ? '' : 'inset-x-3 bottom-3 top-16'}`}
+          style={
+            mobileLayout && viewport
+              ? { top: viewport.offsetTop + 12, left: '0.75rem', right: '0.75rem', height: viewport.height - 24 }
+              : mobileLayout
+                ? { top: 'calc(env(safe-area-inset-top) + 1rem)', bottom: '0.75rem', left: '0.75rem', right: '0.75rem' }
+                : undefined
+          }
         >
           <div className="flex shrink-0 items-center justify-between border-b border-[var(--border)] px-4 py-3">
             <span className="text-sm font-semibold">Aiden</span>
@@ -151,7 +195,11 @@ export function AidenBubble() {
             </div>
           )}
 
-          <form onSubmit={send} className="flex min-w-0 shrink-0 gap-2 border-t border-[var(--border)] p-3">
+          <form
+            onSubmit={send}
+            className="flex min-w-0 shrink-0 gap-2 border-t border-[var(--border)] p-3"
+            style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
+          >
             <input
               type="text"
               value={draft}
