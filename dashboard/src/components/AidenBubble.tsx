@@ -25,6 +25,24 @@ export function AidenBubble() {
   const [error, setError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const loadedRef = useRef(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLDivElement>(null);
+  const [debugInfo, setDebugInfo] = useState('');
+
+  useEffect(() => {
+    if (!open) return;
+    const t = setTimeout(() => {
+      const c = containerRef.current?.getBoundingClientRect();
+      const h = headerRef.current?.getBoundingClientRect();
+      const hStyle = headerRef.current ? getComputedStyle(headerRef.current) : null;
+      setDebugInfo(
+        `container: w=${c?.width.toFixed(0)} l=${c?.left.toFixed(0)} r=${c?.right.toFixed(0)} | ` +
+        `header: w=${h?.width.toFixed(0)} top=${h?.top.toFixed(0)} pt=${hStyle?.paddingTop} | ` +
+        `docEl.clientWidth=${document.documentElement.clientWidth} innerWidth=${window.innerWidth} dpr=${window.devicePixelRatio}`,
+      );
+    }, 300);
+    return () => clearTimeout(t);
+  }, [open]);
 
   useEffect(() => {
     if (!open || loadedRef.current) return;
@@ -102,8 +120,14 @@ export function AidenBubble() {
   // already uses successfully, including with the keyboard open. No custom
   // viewport/keyboard math needed at all, unlike the earlier corner-panel version.
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-[var(--bg)]">
+    <div ref={containerRef} className="fixed inset-0 z-50 flex flex-col bg-[var(--bg)]">
+      {debugInfo && (
+        <div className="shrink-0 break-all bg-[var(--bad)]/20 p-2 text-[9px] text-[var(--bad)]">
+          {debugInfo}
+        </div>
+      )}
       <div
+        ref={headerRef}
         className="flex shrink-0 items-center justify-between border-b border-[var(--border)] px-4"
         style={{ paddingTop: 'calc(env(safe-area-inset-top) + 0.75rem)', paddingBottom: '0.75rem' }}
       >
