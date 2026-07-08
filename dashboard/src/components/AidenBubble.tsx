@@ -35,9 +35,9 @@ export function AidenBubble() {
   const [mobileLayout, setMobileLayout] = useState(
     () => window.matchMedia('(max-width: 639px)').matches,
   );
-  const [viewport, setViewport] = useState<{ height: number; offsetTop: number } | null>(
+  const [viewport, setViewport] = useState<{ height: number; width: number } | null>(
     () => (window.visualViewport
-      ? { height: window.visualViewport.height, offsetTop: window.visualViewport.offsetTop }
+      ? { height: window.visualViewport.height, width: window.visualViewport.width }
       : null),
   );
 
@@ -52,7 +52,7 @@ export function AidenBubble() {
     if (!open) return;
     function update() {
       if (window.visualViewport) {
-        setViewport({ height: window.visualViewport.height, offsetTop: window.visualViewport.offsetTop });
+        setViewport({ height: window.visualViewport.height, width: window.visualViewport.width });
       }
     }
     update();
@@ -138,17 +138,14 @@ export function AidenBubble() {
             mobileLayout
               ? {
                   position: 'fixed',
-                  top: (viewport?.offsetTop ?? 0) + 12,
-                  left: 12,
-                  width: 'calc(100vw - 24px)',
-                  height: (viewport?.height ?? window.innerHeight) - 24,
+                  top: `calc(env(safe-area-inset-top) + 12px)`,
+                  left: `calc(env(safe-area-inset-left) + 12px)`,
+                  width: `calc(${viewport?.width ?? window.innerWidth}px - env(safe-area-inset-left) - env(safe-area-inset-right) - 24px)`,
+                  height: `calc(${viewport?.height ?? window.innerHeight}px - env(safe-area-inset-top) - 24px)`,
                 }
               : undefined
           }
         >
-          <div className="flex shrink-0 flex-col gap-1 border-b border-[var(--border)] px-4 py-3 text-[10px] text-[var(--bad)]">
-            DEBUG mobileLayout={String(mobileLayout)} innerWidth={window.innerWidth} vvWidth={String(window.visualViewport?.width)} calcWidth={window.innerWidth - 24}
-          </div>
           <div className="flex shrink-0 items-center justify-between border-b border-[var(--border)] px-4 py-3">
             <span className="text-sm font-semibold">Aiden</span>
             <button
@@ -226,14 +223,20 @@ export function AidenBubble() {
         </div>
       )}
 
-      <button
-        onClick={() => setOpen((v) => !v)}
-        aria-label={open ? 'Close chat with Aiden' : 'Open chat with Aiden'}
-        style={{ bottom: 'calc(env(safe-area-inset-bottom) + 1.5rem)' }}
-        className="fixed right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--accent)] text-[#04121f] shadow-lg transition-transform hover:scale-105 active:scale-95"
-      >
-        {open ? <span className="text-xl">✕</span> : <ChatIcon />}
-      </button>
+      {/* Hidden (not just re-labeled) while open — it used to stay in this same
+          bottom-right spot showing a "✕", which sat directly on top of the panel's
+          own Send button underneath it. The panel's own header close button covers
+          the same need without the overlap. */}
+      {!open && (
+        <button
+          onClick={() => setOpen(true)}
+          aria-label="Open chat with Aiden"
+          style={{ bottom: 'calc(env(safe-area-inset-bottom) + 1.5rem)' }}
+          className="fixed right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--accent)] text-[#04121f] shadow-lg transition-transform hover:scale-105 active:scale-95"
+        >
+          <ChatIcon />
+        </button>
+      )}
     </>
   );
 }
