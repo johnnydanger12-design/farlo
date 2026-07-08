@@ -10,6 +10,7 @@ import {
 } from 'recharts';
 import { supabase } from '../lib/supabase';
 import { Card, ErrorNote, Loading, Stat } from './ui';
+import { CostSection } from './CostSection';
 
 interface Snapshot {
   totalConsumers: number;
@@ -129,6 +130,8 @@ export function BusinessSnapshot() {
           </ResponsiveContainer>
         </div>
       </Card>
+
+      <CostSection />
     </div>
   );
 }
