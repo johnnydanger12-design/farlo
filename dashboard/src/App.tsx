@@ -5,10 +5,10 @@ import { FleetOverview } from './components/FleetOverview';
 import { DirectivesSection } from './components/DirectivesSection';
 import { OutreachSection } from './components/OutreachSection';
 import { BusinessSnapshot } from './components/BusinessSnapshot';
-import { ChatSection } from './components/ChatSection';
+import { AidenBubble } from './components/AidenBubble';
 import { supabase } from './lib/supabase';
 
-const TABS = ['Business', 'Outreach', 'Directives', 'Chat', 'Fleet'] as const;
+const TABS = ['Business', 'Outreach', 'Directives', 'Fleet'] as const;
 type Tab = (typeof TABS)[number];
 
 function MenuIcon() {
@@ -101,8 +101,9 @@ function Dashboard({ session }: { session: Session }) {
       {tab === 'Business' && <BusinessSnapshot />}
       {tab === 'Outreach' && <OutreachSection />}
       {tab === 'Directives' && <DirectivesSection />}
-      {tab === 'Chat' && <ChatSection />}
       {tab === 'Fleet' && <FleetOverview />}
+
+      <AidenBubble />
     </div>
   );
 }

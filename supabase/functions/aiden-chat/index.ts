@@ -9,6 +9,7 @@ import { startRun, finishRun, logToolCalls } from '../_shared/run-log.ts';
 import { runAgentLoop, MODEL_SONNET, type ToolDefinition } from '../_shared/claude-agent.ts';
 import { AIDEN_LOCKED_DIRECTIVES_NOTE, updateDirectiveTool } from '../_shared/aiden-persona.ts';
 import { wrapUntrusted } from '../_shared/prompt-boundaries.ts';
+import { corsHeaders, handlePreflight } from '../_shared/cors.ts';
 
 const FOUNDER_EMAIL = 'johnny.danger12@gmail.com';
 const HISTORY_LIMIT = 30;
@@ -29,10 +30,13 @@ const TOOLS: ToolDefinition[] = [
 ];
 
 Deno.serve(async (req: Request) => {
-  if (req.method !== 'POST') return new Response('Method not allowed', { status: 405 });
+  const preflight = handlePreflight(req);
+  if (preflight) return preflight;
+
+  if (req.method !== 'POST') return new Response('Method not allowed', { status: 405, headers: corsHeaders(req) });
 
   const authHeader = req.headers.get('Authorization');
-  if (!authHeader) return new Response('Unauthorized', { status: 401 });
+  if (!authHeader) return new Response('Unauthorized', { status: 401, headers: corsHeaders(req) });
 
   const userClient = createClient(
     Deno.env.get('SUPABASE_URL')!,
@@ -41,7 +45,7 @@ Deno.serve(async (req: Request) => {
   );
   const { data: { user }, error: authError } = await userClient.auth.getUser();
   if (authError || !user || user.email !== FOUNDER_EMAIL) {
-    return new Response('Unauthorized', { status: 401 });
+    return new Response('Unauthorized', { status: 401, headers: corsHeaders(req) });
   }
 
   let body: { message: string };
@@ -50,13 +54,13 @@ Deno.serve(async (req: Request) => {
   } catch {
     return new Response(JSON.stringify({ error: 'Invalid JSON body' }), {
       status: 400,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
     });
   }
   if (!body.message || typeof body.message !== 'string' || !body.message.trim()) {
     return new Response(JSON.stringify({ error: 'message is required' }), {
       status: 400,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
     });
   }
   const founderMessage = body.message.trim();
@@ -130,13 +134,13 @@ Deno.serve(async (req: Request) => {
 
     return new Response(
       JSON.stringify({ reply: replyText, tool_calls: result.toolCallLog }),
-      { status: 200, headers: { 'Content-Type': 'application/json' } },
+      { status: 200, headers: { ...corsHeaders(req), 'Content-Type': 'application/json' } },
     );
   } catch (err) {
     await finishRun(supabase, runId, 'failed', undefined, String(err));
     return new Response(JSON.stringify({ error: String(err) }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
     });
   }
 });
