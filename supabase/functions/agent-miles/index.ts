@@ -92,6 +92,8 @@ Deno.serve(async (req: Request) => {
       .from('sales_prospects')
       .select('id, business_name, business_type, address, city, state, phone, website')
       .eq('status', 'uncontacted')
+      .order('outreach_wave', { ascending: true, nullsFirst: false })
+      .order('created_at', { ascending: true })
       .limit(50);
 
     const eligible = (uncontacted ?? [])
