@@ -111,13 +111,23 @@ export function ChatSection() {
 
         {error && <ErrorNote message={error} />}
 
-        <form onSubmit={send} className="flex min-w-0 gap-2">
+        {/* sticky, not fixed — stays in normal document flow (so it naturally
+            participates in the browser's own scroll-into-view-above-keyboard
+            behavior) while still visually pinned to the bottom of the viewport
+            as the page scrolls. position:fixed is what caused every earlier
+            layout bug in this app on iOS — sticky doesn't share that failure mode. */}
+        <form
+          onSubmit={send}
+          className="sticky bottom-0 flex min-w-0 gap-2 bg-[var(--panel)] py-2"
+          style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))' }}
+        >
           <input
             type="text"
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             placeholder="Message Aiden…"
             disabled={sending}
+            autoFocus
             className="min-w-0 flex-1 rounded-md border border-[var(--border)] bg-transparent px-3 py-2 text-sm outline-none focus:border-[var(--accent)] disabled:opacity-50"
           />
           <button
