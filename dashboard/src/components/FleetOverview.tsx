@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { Card, ErrorNote, Loading, Pill } from './ui';
+import { Card, ErrorNote, Loading, Modal, Pill } from './ui';
 
 interface RunRow {
   id: string;
@@ -47,7 +47,7 @@ function timeAgo(iso: string) {
 export function FleetOverview() {
   const [runs, setRuns] = useState<RunRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState<string | null>(null);
+  const [openRunId, setOpenRunId] = useState<string | null>(null);
   const [toolCalls, setToolCalls] = useState<Record<string, unknown>[] | null>(null);
 
   useEffect(() => {
@@ -67,13 +67,8 @@ export function FleetOverview() {
     };
   }, []);
 
-  async function toggleExpand(runId: string) {
-    if (expanded === runId) {
-      setExpanded(null);
-      setToolCalls(null);
-      return;
-    }
-    setExpanded(runId);
+  async function openRun(runId: string) {
+    setOpenRunId(runId);
     setToolCalls(null);
     const { data } = await supabase
       .from('agent_tool_call_log')
@@ -91,6 +86,8 @@ export function FleetOverview() {
     if (!latestByAgent.has(r.agent_name)) latestByAgent.set(r.agent_name, r);
   }
 
+  const openRunRow = runs.find((r) => r.id === openRunId) ?? null;
+
   return (
     <div className="grid gap-6">
       <Card title="Fleet health">
@@ -102,9 +99,9 @@ export function FleetOverview() {
               const staleMs = Date.now() - new Date(run.started_at).getTime();
               const stale = staleMs > expectedMins * 60 * 1000 * 1.5;
               return (
-                <div key={agent} className="rounded-lg border border-[var(--border)] p-3">
-                  <div className="mb-1 flex items-center justify-between gap-2">
-                    <span className="truncate text-sm font-medium">{agent}</span>
+                <div key={agent} className="min-w-0 rounded-lg border border-[var(--border)] p-3">
+                  <div className="mb-1 flex min-w-0 items-center justify-between gap-2">
+                    <span className="min-w-0 truncate text-sm font-medium">{agent}</span>
                     <Pill tone={stale ? 'bad' : statusTone(run.status)}>
                       {stale ? 'stale' : run.status}
                     </Pill>
@@ -119,44 +116,63 @@ export function FleetOverview() {
       <Card title="Activity feed">
         <div className="flex flex-col gap-2">
           {runs.slice(0, 30).map((run) => (
-            <div key={run.id} className="rounded-lg border border-[var(--border)] p-3">
-              <button
-                onClick={() => toggleExpand(run.id)}
-                className="flex w-full items-start justify-between gap-3 text-left"
-              >
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">{run.agent_name}</span>
-                    <Pill tone={statusTone(run.status)}>{run.status}</Pill>
-                    {run.run_mode === 'dry_run' && <Pill tone="muted">dry run</Pill>}
-                  </div>
-                  <p className="mt-1 truncate text-sm text-[var(--muted)]">
-                    {run.summary ?? run.error_detail ?? '—'}
-                  </p>
+            <button
+              key={run.id}
+              onClick={() => openRun(run.id)}
+              className="flex min-w-0 items-center justify-between gap-3 rounded-lg border border-[var(--border)] p-3 text-left hover:border-[var(--accent)]"
+            >
+              <div className="min-w-0">
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="min-w-0 truncate text-sm font-medium">{run.agent_name}</span>
+                  <Pill tone={statusTone(run.status)}>{run.status}</Pill>
+                  {run.run_mode === 'dry_run' && <Pill tone="muted">dry run</Pill>}
                 </div>
-                <span className="shrink-0 text-xs text-[var(--muted)]">{timeAgo(run.started_at)}</span>
-              </button>
-              {expanded === run.id && (
-                <div className="mt-3 border-t border-[var(--border)] pt-3">
-                  {toolCalls === null ? (
-                    <Loading />
-                  ) : toolCalls.length === 0 ? (
-                    <p className="text-xs text-[var(--muted)]">No tool calls recorded for this run.</p>
-                  ) : (
-                    <div className="flex flex-col gap-2">
-                      {toolCalls.map((tc, i) => (
-                        <pre key={i} className="overflow-x-auto rounded bg-black/30 p-2 text-xs">
-                          {JSON.stringify(tc, null, 2)}
-                        </pre>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+                <p className="mt-1 truncate text-sm text-[var(--muted)]">
+                  {run.summary ?? run.error_detail ?? '—'}
+                </p>
+              </div>
+              <span className="shrink-0 text-xs text-[var(--muted)]">{timeAgo(run.started_at)}</span>
+            </button>
           ))}
         </div>
       </Card>
+
+      <Modal
+        open={openRunRow !== null}
+        onClose={() => setOpenRunId(null)}
+        title={openRunRow ? `${openRunRow.agent_name} — ${timeAgo(openRunRow.started_at)}` : ''}
+      >
+        {openRunRow && (
+          <div>
+            <div className="mb-3 flex items-center gap-2">
+              <Pill tone={statusTone(openRunRow.status)}>{openRunRow.status}</Pill>
+              {openRunRow.run_mode === 'dry_run' && <Pill tone="muted">dry run</Pill>}
+            </div>
+            <p className="whitespace-pre-wrap break-words text-sm text-[var(--muted)]">
+              {openRunRow.summary ?? openRunRow.error_detail ?? '—'}
+            </p>
+            <div className="mt-4 border-t border-[var(--border)] pt-3">
+              <p className="mb-2 text-xs uppercase tracking-wide text-[var(--muted)]">Tool calls</p>
+              {toolCalls === null ? (
+                <Loading />
+              ) : toolCalls.length === 0 ? (
+                <p className="text-xs text-[var(--muted)]">No tool calls recorded for this run.</p>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {toolCalls.map((tc, i) => (
+                    <pre
+                      key={i}
+                      className="min-w-0 overflow-x-auto whitespace-pre-wrap break-words rounded bg-black/30 p-2 text-xs"
+                    >
+                      {JSON.stringify(tc, null, 2)}
+                    </pre>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

@@ -116,16 +116,16 @@ export function OutreachSection() {
             {drafted.map((p) => (
               <div
                 key={p.id}
-                className="flex items-center justify-between gap-3 rounded-lg border border-[var(--border)] p-3"
+                className="flex min-w-0 items-center justify-between gap-3 rounded-lg border border-[var(--border)] p-3"
               >
-                <div>
-                  <p className="text-sm font-medium">{p.business_name}</p>
-                  <p className="text-xs text-[var(--muted)]">{p.outreach_email}</p>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">{p.business_name}</p>
+                  <p className="truncate text-xs text-[var(--muted)]">{p.outreach_email}</p>
                 </div>
                 <button
                   onClick={() => markInitialSent(p.id)}
                   disabled={updating === p.id}
-                  className="rounded-md bg-[var(--accent)] px-3 py-1.5 text-xs font-medium text-[#04121f] disabled:opacity-50"
+                  className="shrink-0 rounded-md bg-[var(--accent)] px-3 py-1.5 text-xs font-medium text-[#04121f] disabled:opacity-50"
                 >
                   {updating === p.id ? 'Marking…' : 'Mark sent'}
                 </button>
@@ -146,18 +146,18 @@ export function OutreachSection() {
             {followupsDrafted.map((p) => (
               <div
                 key={p.id}
-                className="flex items-center justify-between gap-3 rounded-lg border border-[var(--border)] p-3"
+                className="flex min-w-0 items-center justify-between gap-3 rounded-lg border border-[var(--border)] p-3"
               >
-                <div>
-                  <p className="text-sm font-medium">{p.business_name}</p>
-                  <p className="text-xs text-[var(--muted)]">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">{p.business_name}</p>
+                  <p className="truncate text-xs text-[var(--muted)]">
                     {p.outreach_email} · follow-up #{p.follow_up_count + 1}
                   </p>
                 </div>
                 <button
                   onClick={() => markFollowupSent(p)}
                   disabled={updating === p.id}
-                  className="rounded-md bg-[var(--accent)] px-3 py-1.5 text-xs font-medium text-[#04121f] disabled:opacity-50"
+                  className="shrink-0 rounded-md bg-[var(--accent)] px-3 py-1.5 text-xs font-medium text-[#04121f] disabled:opacity-50"
                 >
                   {updating === p.id ? 'Marking…' : 'Mark sent'}
                 </button>
@@ -173,12 +173,12 @@ export function OutreachSection() {
         ) : (
           <div className="flex flex-col gap-2">
             {sent.map((p) => (
-              <div key={p.id} className="flex items-center justify-between gap-3 rounded-lg border border-[var(--border)] p-3">
-                <div>
-                  <p className="text-sm font-medium">{p.business_name}</p>
-                  <p className="text-xs text-[var(--muted)]">{p.outreach_email}</p>
+              <div key={p.id} className="flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--border)] p-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">{p.business_name}</p>
+                  <p className="truncate text-xs text-[var(--muted)]">{p.outreach_email}</p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex shrink-0 items-center gap-2">
                   <Pill tone={p.status === 'responded' ? 'good' : 'muted'}>{p.status}</Pill>
                   {p.follow_up_count > 0 && <Pill tone="muted">{p.follow_up_count} follow-up(s)</Pill>}
                   <span className="text-xs text-[var(--muted)]">

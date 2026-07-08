@@ -38,6 +38,41 @@ export function Pill({ tone, children }: { tone: PillTone; children: ReactNode }
   );
 }
 
+export function Modal({
+  open,
+  onClose,
+  title,
+  children,
+}: {
+  open: boolean;
+  onClose: () => void;
+  title: string;
+  children: ReactNode;
+}) {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
+      <div onClick={onClose} className="absolute inset-0 bg-black/60" />
+      <div
+        className="relative z-10 max-h-[85vh] w-full min-w-0 overflow-y-auto rounded-t-2xl border border-[var(--border)] bg-[var(--panel)] p-4 sm:max-w-lg sm:rounded-2xl"
+        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 1rem)' }}
+      >
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h3 className="min-w-0 truncate text-sm font-semibold">{title}</h3>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="shrink-0 rounded-md p-1 text-[var(--muted)] hover:text-[var(--text)]"
+          >
+            ✕
+          </button>
+        </div>
+        <div className="min-w-0">{children}</div>
+      </div>
+    </div>
+  );
+}
+
 export function ErrorNote({ message }: { message: string }) {
   return <p className="text-sm text-[var(--bad)]">{message}</p>;
 }
