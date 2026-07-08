@@ -170,7 +170,12 @@ Deno.serve(async (req: Request) => {
           source: { type: 'base64', media_type: fileBlob.type || 'image/jpeg', data: encodeBase64(bytes) },
         });
       }
-      userMessage = [{ type: 'text', text: textBlock }, ...imageBlocks];
+      // Images before the text that references them, plus an explicit instruction
+      // that an image is attached — Anthropic's own recommended ordering, and
+      // verified live to matter: a bare trailing image block after the large
+      // directives/history text was getting lost; this combination isn't.
+      const imageNote = `\n\n${imageBlocks.length} image(s) are attached above this message — look at them and factor in what you actually see.`;
+      userMessage = [...imageBlocks, { type: 'text', text: textBlock + imageNote }];
     }
 
     const result = await runAgentLoop({
