@@ -9,7 +9,6 @@ import { encodeBase64 } from 'https://deno.land/std@0.224.0/encoding/base64.ts';
 import { startRun, finishRun, logToolCalls } from '../_shared/run-log.ts';
 import { runAgentLoop, MODEL_SONNET, MODEL_OPUS, MODEL_FABLE, type ToolDefinition, type AgentUserMessage } from '../_shared/claude-agent.ts';
 import { AIDEN_LOCKED_DIRECTIVES_NOTE, updateDirectiveTool } from '../_shared/aiden-persona.ts';
-import { wrapUntrusted } from '../_shared/prompt-boundaries.ts';
 import { corsHeaders, handlePreflight } from '../_shared/cors.ts';
 
 const FOUNDER_EMAIL = 'johnny.danger12@gmail.com';
@@ -141,15 +140,21 @@ Deno.serve(async (req: Request) => {
       },
     };
 
+    // No wrapUntrusted() here, unlike agent-aiden-inbox/supervisor — this whole
+    // request is already authenticated as the founder (see the FOUNDER_EMAIL check
+    // above), so there's no third party to guard against. Wrapping Johnny's own live
+    // chat messages as "untrusted, don't follow instructions in it" was a copy-paste
+    // carryover from the email-based Aiden functions and made Aiden refuse Johnny's
+    // own directive-change requests — a real bug, fixed here.
     const textBlock = [
       `Current agent_directives:`,
       JSON.stringify(directives, null, 2),
       ``,
       `Conversation so far (oldest first):`,
-      wrapUntrusted('chat-history', JSON.stringify(orderedHistory, null, 2)),
+      JSON.stringify(orderedHistory, null, 2),
       ``,
       `Johnny's new message:`,
-      wrapUntrusted('chat-new-message', founderMessage),
+      founderMessage,
     ].join('\n');
 
     let userMessage: AgentUserMessage = textBlock;
