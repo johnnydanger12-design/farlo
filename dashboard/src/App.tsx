@@ -61,7 +61,12 @@ function Dashboard({ session }: { session: Session }) {
 
       {/* Drawer */}
       <nav
-        className={`fixed inset-y-0 left-0 z-50 w-64 border-r border-[var(--border)] bg-[var(--panel)] p-4 shadow-xl transition-transform duration-200 ${
+        style={{
+          paddingTop: 'calc(env(safe-area-inset-top) + 1rem)',
+          paddingBottom: 'calc(env(safe-area-inset-bottom) + 1rem)',
+          paddingLeft: 'calc(env(safe-area-inset-left) + 1rem)',
+        }}
+        className={`fixed inset-y-0 left-0 z-50 w-64 border-r border-[var(--border)] bg-[var(--panel)] pr-4 shadow-xl transition-transform duration-200 ${
           menuOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
