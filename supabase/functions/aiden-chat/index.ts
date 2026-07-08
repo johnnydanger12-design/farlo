@@ -5,6 +5,7 @@
 // auth pattern create-payment-intent uses — not the AGENT_EMAIL_SECRET cron functions
 // use, which must never be reachable from browser JS.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { encodeBase64 } from 'https://deno.land/std@0.224.0/encoding/base64.ts';
 import { startRun, finishRun, logToolCalls } from '../_shared/run-log.ts';
 import { runAgentLoop, MODEL_SONNET, MODEL_OPUS, MODEL_FABLE, type ToolDefinition, type AgentUserMessage } from '../_shared/claude-agent.ts';
 import { AIDEN_LOCKED_DIRECTIVES_NOTE, updateDirectiveTool } from '../_shared/aiden-persona.ts';
@@ -14,9 +15,6 @@ import { corsHeaders, handlePreflight } from '../_shared/cors.ts';
 const FOUNDER_EMAIL = 'johnny.danger12@gmail.com';
 const HISTORY_LIMIT = 30;
 const ALLOWED_MODELS = new Set([MODEL_SONNET, MODEL_OPUS, MODEL_FABLE]);
-// Signed URLs are only ever handed to Anthropic's API server-to-server for a single
-// fetch, right after being minted — 5 minutes is generous, not a real exposure window.
-const IMAGE_SIGNED_URL_TTL_SECONDS = 300;
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
@@ -156,13 +154,21 @@ Deno.serve(async (req: Request) => {
 
     let userMessage: AgentUserMessage = textBlock;
     if (imagePaths.length > 0) {
+      // base64, not a signed URL — a signed URL is a valid, fetchable HTTPS URL, but
+      // the Messages API accepted a `source.type: 'url'` block without error and
+      // silently never resolved it (verified live: Claude reported no image came
+      // through). base64 is the well-established, actually-supported path.
       const imageBlocks = [];
       for (const path of imagePaths) {
-        const { data: signed, error: signError } = await supabase.storage
+        const { data: fileBlob, error: downloadError } = await supabase.storage
           .from('aiden-chat-photos')
-          .createSignedUrl(path, IMAGE_SIGNED_URL_TTL_SECONDS);
-        if (signError || !signed) throw new Error(`Failed to sign image URL for ${path}: ${signError?.message}`);
-        imageBlocks.push({ type: 'image', source: { type: 'url', url: signed.signedUrl } });
+          .download(path);
+        if (downloadError || !fileBlob) throw new Error(`Failed to download image ${path}: ${downloadError?.message}`);
+        const bytes = new Uint8Array(await fileBlob.arrayBuffer());
+        imageBlocks.push({
+          type: 'image',
+          source: { type: 'base64', media_type: fileBlob.type || 'image/jpeg', data: encodeBase64(bytes) },
+        });
       }
       userMessage = [{ type: 'text', text: textBlock }, ...imageBlocks];
     }
