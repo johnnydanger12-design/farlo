@@ -400,6 +400,24 @@ footer a:hover { color: var(--white); }
 .legal-body ul { padding-left: 20px; }
 .legal-body li { margin-bottom: 6px; }
 
+.support-cta {
+  display: inline-block;
+  background: var(--text);
+  color: var(--white);
+  font-size: 1rem;
+  font-weight: 700;
+  padding: 14px 28px;
+  border-radius: 8px;
+  margin-top: 8px;
+  transition: opacity 0.15s, transform 0.1s;
+}
+
+.support-cta:hover { opacity: 0.92; transform: translateY(-1px); }
+
+@media (max-width: 700px) {
+  .support-cta { display: block; text-align: center; }
+}
+
 /* ── Responsive ── */
 @media (max-width: 700px) {
   .owners-inner { grid-template-columns: 1fr; gap: 40px; }

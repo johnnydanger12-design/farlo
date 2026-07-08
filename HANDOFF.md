@@ -1,11 +1,11 @@
 # HANDOFF.md — Farlo
-_Last updated: Jul 7 2026 — Farlo is live on the Apple App Store and submitted to Google Play (awaiting review). Production was wiped clean of all test data after Apple's approval. Built and deployed a private founder dashboard (dash.farlo.app) for agent fleet/cost/directives/business metrics, and in the process found + fixed a critical live vulnerability that let anyone with just the public anon key trigger real agent runs for free. Read time: ~6 min._
+_Last updated: Jul 7 2026 — Farlo is live on the Apple App Store and submitted to Google Play (awaiting review). Production was wiped clean of all test data after Apple's approval. Built and deployed a private founder dashboard (dash.farlo.app) for agent fleet/cost/directives/business metrics, and in the process found + fixed a critical live vulnerability that let anyone with just the public anon key trigger real agent runs for free. Also swept the marketing website's copy from "food truck" to "business" language, added a Support page, and fixed broken cross-page navigation. Read time: ~7 min._
 
 ---
 
 ## Interrupted Task
 
-None — session ended cleanly. Dashboard is live and working, including from an iOS home-screen shortcut. Waiting on Google Play's review; no other open threads.
+None — session ended cleanly. Dashboard is live and working, including from an iOS home-screen shortcut. The marketing website's nav/footer were just centralized into `header.html`/`footer.html` — founder still needs to re-paste the updated `header.html` into Squarespace's Header Code Injection to pick up a missing button style (see Next Steps). Waiting on Google Play's review; no other open threads.
 
 ---
 
@@ -18,6 +18,7 @@ None — session ended cleanly. Dashboard is live and working, including from an
 | Production data | ✅ Wiped clean Jul 5, immediately after Apple's approval — all 15 test/founder/reviewer accounts and their data deleted, storage objects cleared, verified end-to-end (including a live anon-key API call confirming a genuinely empty app). Agent infrastructure tables (`sales_prospects`, `agent_directives`, `content_queue`, `supervisor_reports`, `agent_run_log`, etc.) deliberately preserved. Production now has real founder + real early users only. |
 | Founder Dashboard | ✅ **Live at dash.farlo.app.** Fleet health/activity feed, Cost (estimated Claude API spend), Directives (view/edit/trigger agent runs), Business snapshot (users, active businesses, subscriptions by plan, support tickets, signups chart). Magic-link/OTP-code sign-in to `johnny.danger12@gmail.com` only. Hosted on Cloudflare Pages, DNS via Squarespace CNAME. See `dashboard/` folder. |
 | farlo.app download buttons | ✅ App Store button updated to the real live URL. Google Play button intentionally still a placeholder until Google approves. |
+| farlo.app marketing site | ✅ Copy swept from "food truck" to "business" language across Home/Terms/Privacy, new Support page added, nav/footer centralized into `website/header.html`/`website/footer.html`. One pending action: re-paste `header.html` into Squarespace's Header Code Injection to pick up a CSS fix (see Next Steps). |
 | Owner onboarding emails | ✓ 3-email sequence live — emails 1 & 2 fire on signup, email 3 via daily pg_cron at day 7 |
 | Consumer welcome email | ✓ Single email fires on consumer account creation |
 | AI agent system | ✓ `pg_cron` + Supabase Edge Functions, runs 24/7 unattended. All 12 jobs live. See AGENT_AUTOMATION_RUNBOOK.md. **Founder can now also trigger any agent on demand from the dashboard's "Run now" buttons**, via a new `founder_trigger_agent()` RPC. |
@@ -35,6 +36,8 @@ Flutter + Riverpod 3.x + GoRouter (StatefulShellRoute — owner and consumer she
 ---
 
 ## Recent Decisions
+
+**Marketing website copy/nav overhaul (Jul 7):** Founder noticed the live farlo.app still used "food truck" language throughout, left over from before this session's app-wide truck→business terminology sweep. Swept `website/index.html`, `terms.html`, and `privacy.html` (founder pasted the actual live Squarespace content each time so this reflects real production text, not guesses), added a new `support.html` page (Squarespace page created at `/support`), and fixed navigation: none of the 4 pages linked to each other, and the "Farlo" logo link on subpages pointed at `index.html` (a repo-only filename, 404s on Squarespace — must be `/`). Learned this site's entire nav+footer+global-CSS is hand-coded via Squarespace Code Injection (Header injection = sitewide `<style>` + the nav bar; Footer injection = sitewide footer HTML) rather than Squarespace's native template chrome (which is explicitly hidden via CSS: `.site-header, header.site-header, ... { display: none !important; }`). Centralized the nav and footer into `website/header.html`/`website/footer.html` as the new single source of truth — the 4 page files (`index.html`/`terms.html`/`privacy.html`/`support.html`) no longer contain their own `<nav>`/`<footer>` markup, just a comment pointing to those two files. One real bug caught mid-fix: `header.html`'s CSS (synced from what's actually live) was missing the `.support-cta` button style added for the new Support page's email button — fixed in the repo file; **founder still needs to re-paste `header.html` into Squarespace's Header Code Injection** to pick this up live (see Next Steps).
 
 **iOS home-screen web app auth fix (Jul 7):** Founder wanted the dashboard as a home-screen shortcut on iPhone. Magic-link sign-in silently failed: a home-screen web app runs in its own isolated WebKit storage container, separate from Safari — tapping the email link opens Safari/Gmail's in-app browser, creates the session *there*, and the home-screen app's own storage never sees it. Fixed by switching to an email → 6-digit-code flow (`supabase.auth.verifyOtp()`), which never leaves the app's own context — no redirect, no cross-context handoff. Requires `{{ .Token }}` in Supabase's Magic Link email template (founder added this manually — not scriptable). Also added a proper `apple-touch-icon` (from the real Farlo app icon) and web manifest so "Add to Home Screen" behaves like a real app. Separately, iOS's keyboard OTP-code suggestion only reads Apple's own Mail/Messages apps, not third-party clients like Gmail — a real OS limitation, not fixable in code; workaround is adding the Gmail account to Apple's Mail app as a secondary account.
 
@@ -168,14 +171,15 @@ Note: this table covers only this session (the dashboard build). See `REMEDIATIO
 
 ## Next Steps
 
-1. **Watch for Google Play's review result** on the Jul 6 submission (build 1.0.0+8). If approved, promote to production track.
-2. **Cloudflare Pages auto-deploys from `main`** — any future dashboard changes just need `git push origin main`, no separate deploy step.
-3. **If real MRR is wanted in the dashboard**, get the actual Owner Monthly/Yearly price points from the founder (or wire up RevenueCat's own reporting API) rather than guessing.
-4. **DAU tracking**, if wanted: add a `last_active_at` column to `profiles`, have the Flutter app touch it on open, then add a dashboard stat for it. Needs a real app release to take effect.
-5. **Consider fixing the `remediation` branch's migration-ledger drift** if it starts blocking other work — currently just a friction point, not user-facing.
-6. **Watch the agent automation system** — check `agent_run_log` periodically for failures (AGENT_AUTOMATION_RUNBOOK.md → Checking logs). The founder can now also spot-check this directly via the dashboard's Fleet tab instead of only via SQL.
-7. **Stripe business update / EIN** — confirm current status with founder, this was listed as "in progress" as of Jul 3 and wasn't touched this session.
-8. **Canva integration for Piper (optional, deferred)** — Piper currently ships copy-only content with `needs_asset: true` flagged. Canva's API requires per-user OAuth with rotating refresh tokens, real ongoing maintenance risk for something unattended — worth a dedicated follow-up if wanted, not a quick add.
+1. **Founder needs to re-paste `website/header.html` into Squarespace's Header Code Injection** — the version currently live is missing the `.support-cta` button style (fixed in the repo file this session, not yet synced back to Squarespace). Everything else in it was already correct.
+2. **Watch for Google Play's review result** on the Jul 6 submission (build 1.0.0+8). If approved, promote to production track.
+3. **Cloudflare Pages auto-deploys from `main`** — any future dashboard changes just need `git push origin main`, no separate deploy step.
+4. **If real MRR is wanted in the dashboard**, get the actual Owner Monthly/Yearly price points from the founder (or wire up RevenueCat's own reporting API) rather than guessing.
+5. **DAU tracking**, if wanted: add a `last_active_at` column to `profiles`, have the Flutter app touch it on open, then add a dashboard stat for it. Needs a real app release to take effect.
+6. **Consider fixing the `remediation` branch's migration-ledger drift** if it starts blocking other work — currently just a friction point, not user-facing.
+7. **Watch the agent automation system** — check `agent_run_log` periodically for failures (AGENT_AUTOMATION_RUNBOOK.md → Checking logs). The founder can now also spot-check this directly via the dashboard's Fleet tab instead of only via SQL.
+8. **Stripe business update / EIN** — confirm current status with founder, this was listed as "in progress" as of Jul 3 and wasn't touched this session.
+9. **Canva integration for Piper (optional, deferred)** — Piper currently ships copy-only content with `needs_asset: true` flagged. Canva's API requires per-user OAuth with rotating refresh tokens, real ongoing maintenance risk for something unattended — worth a dedicated follow-up if wanted, not a quick add.
 
 ---
 
@@ -191,6 +195,7 @@ Note: this table covers only this session (the dashboard build). See `REMEDIATIO
 - **Firebase project:** internal ID `good-truck-finder` (cannot be renamed). `firebase_options.dart` is a stub — do not run `flutterfire configure`.
 - **Stripe webhook:** `https://weflrxyerxpsafcdetya.supabase.co/functions/v1/stripe-webhook` — must have `verify_jwt: false`.
 - **Production is real user data now, not test data** — the Jul 5 launch wipe cleared all test accounts. Do not create synthetic test data directly in production; use the `remediation` Supabase branch for that instead.
+- **Marketing website (`website/`) is hosted on Squarespace, not the repo directly** — these `.html` files are reference/staging copies the founder manually copy-pastes into Squarespace Code Blocks. The site's actual nav/footer/global CSS are **not** Squarespace's native template chrome (that's explicitly hidden via CSS) — they're 100% hand-coded via Squarespace's Code Injection (Design → Custom Code): the **Header** injection slot holds the sitewide `<style>` block plus the nav bar (`website/header.html` mirrors this exactly), and the **Footer** injection slot holds the sitewide footer (`website/footer.html`). The 4 page files (`index.html`/`terms.html`/`privacy.html`/`support.html`) intentionally contain no `<nav>`/`<footer>` of their own — just a comment pointing to those two files. When editing site-wide chrome, edit `header.html`/`footer.html` and re-paste into the matching Squarespace Code Injection slot; when editing one page's content, edit that page's own file and re-paste into that page's own Code Block. Links must be root-relative (`/`, `/terms`, `/privacy`, `/support`) to match Squarespace's URL scheme — not `.html` filenames.
 - **GitHub:** `https://github.com/johnnydanger12-design/farlo` — `main` now reflects everything through Jul 7 (this session pushed 100+ commits that had never been pushed before). Push to `main` directly triggers a Cloudflare Pages dashboard rebuild.
 - **Google Play Console:** play.google.com/console — account under `johnny@farlo.app`. App ID: `4973234026077565344`.
 - **Farlo Technologies LLC:** EIN 42-3336763, incorporated South Carolina Jun 22 2026 via ZenBusiness.

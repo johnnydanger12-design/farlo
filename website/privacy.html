@@ -6,114 +6,175 @@
   <title>Privacy Policy — Farlo</title>
   <meta name="description" content="Farlo Privacy Policy" />
   <link rel="stylesheet" href="styles.css" />
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚚</text></svg>" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📍</text></svg>" />
 </head>
 <body>
 
-  <nav>
-    <div class="nav-inner">
-      <a href="index.html" class="nav-logo">Farlo</a>
-    </div>
-  </nav>
+  <!-- Header lives in header.html — paste into Squarespace separately, not part of this page's Code Block. -->
 
   <div class="legal-hero">
     <h1>Privacy Policy</h1>
-    <p>Last updated: June 14, 2026</p>
+    <p>Last updated: June 23, 2026</p>
   </div>
 
   <div class="legal-body">
-
     <p>Farlo ("we," "our," or "us") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use the Farlo mobile application ("App"). Please read this policy carefully.</p>
+    <p><strong>Data Controller:</strong> Farlo Technologies LLC, a limited liability company organized under the laws of South Carolina. Contact: <a href="mailto:support@farlo.app" style="color:#2563EB">support@farlo.app</a>.</p>
 
     <h2>1. Information We Collect</h2>
-
     <p><strong>Information you provide directly:</strong></p>
     <ul>
       <li>Account registration details: name, email address, and password (or social sign-in credentials via Apple or Google)</li>
       <li>Profile information: display name and profile photo</li>
-      <li>Food truck owner details: truck name and related business information</li>
-      <li>Booking requests: event details, dates, and location information you submit</li>
-      <li>Communications you send through the App</li>
+      <li>Business owner details: business name, type (mobile or fixed location), business address, cuisine or category type, description, logo, photos, and social media handles</li>
+      <li>Menu information: item names, descriptions, prices, categories, and photos</li>
+      <li>Employee information: if you are a business owner who adds employees, we store their email addresses and shift records</li>
+      <li>Booking requests: event details, dates, times, location, guest count, and contact information you submit when requesting a private event</li>
+      <li>Financial information: estimates, deposit requests, and invoices exchanged between business owners and customers. Payment card details are never stored by Farlo — they are handled directly by Stripe (see Section 4).</li>
+      <li>Communications you send through the App, including booking messages</li>
     </ul>
 
     <p><strong>Information collected automatically:</strong></p>
     <ul>
       <li>Device information: device type, operating system, and unique device identifiers</li>
-      <li>Location data: with your permission, we collect your device's location to show nearby food trucks on the map. You can disable location access in your device settings at any time.</li>
+      <li>Precise geolocation: with your permission, we collect your device's real-time GPS location to show nearby businesses on the map. This is <strong>sensitive personal information</strong> under the California Consumer Privacy Act (CPRA) — see Section 11 for your rights regarding this data. You can disable location access in your device settings at any time.</li>
       <li>Usage data: how you interact with the App, features you use, and actions you take</li>
-      <li>Push notification tokens: to deliver notifications about trucks and bookings</li>
+      <li>Push notification tokens: to deliver notifications about businesses and bookings</li>
+      <li>Crash and performance data: technical diagnostic information to help us maintain and improve the App</li>
     </ul>
 
     <p><strong>Information from third parties:</strong></p>
     <ul>
       <li>If you sign in with Apple or Google, we receive basic profile information (name and email) from those providers, subject to your privacy settings with them</li>
+      <li>If you connect a Stripe account as a business owner, we receive your Stripe account identifier to enable payment processing</li>
     </ul>
 
     <h2>2. How We Use Your Information</h2>
     <p>We use the information we collect to:</p>
     <ul>
-      <li>Create and manage your account</li>
-      <li>Display food trucks on the map and power location-based features</li>
-      <li>Process and manage event booking requests</li>
-      <li>Send push notifications about truck locations, booking updates, and announcements (only with your permission)</li>
-      <li>Allow food truck owners to manage their profiles, schedules, and bookings</li>
-      <li>Improve and maintain the App</li>
-      <li>Respond to your questions or support requests</li>
-      <li>Comply with legal obligations</li>
+      <li>Create and manage your account (legal basis: performance of contract)</li>
+      <li>Display local businesses on the map and power location-based features (legal basis: performance of contract / legitimate interests)</li>
+      <li>Process and manage event booking requests, including estimates, deposits, and invoices (legal basis: performance of contract)</li>
+      <li>Facilitate payments between customers and business owners through Stripe (legal basis: performance of contract)</li>
+      <li>Send push notifications about business locations, booking updates, payment activity, and owner announcements (legal basis: consent, which you may withdraw at any time)</li>
+      <li>Allow business owners to manage their profiles, menus, employees, schedules, and bookings (legal basis: performance of contract)</li>
+      <li>Improve and maintain the App (legal basis: legitimate interests)</li>
+      <li>Respond to your questions or support requests (legal basis: legitimate interests)</li>
+      <li>Comply with legal obligations (legal basis: legal obligation)</li>
     </ul>
 
     <h2>3. How We Share Your Information</h2>
-    <p>We do not sell your personal information. We may share your information in the following circumstances:</p>
+    <p>We do not sell your personal information. We do not share your personal information for cross-context behavioral advertising purposes.</p>
+    <p>We may share your information in the following circumstances:</p>
     <ul>
-      <li><strong>With other users:</strong> Your display name and profile photo are visible to other users. If you are a food truck owner, your truck name and location (when live) are visible to consumers on the map.</li>
-      <li><strong>With service providers:</strong> We share information with third-party vendors that help us operate the App, including Supabase (database and authentication), Firebase (push notifications), Google (maps and sign-in), Apple (sign-in), and RevenueCat (subscription management). These providers are bound by confidentiality obligations.</li>
-      <li><strong>For legal reasons:</strong> We may disclose information if required by law, to protect our rights, or to prevent harm.</li>
-      <li><strong>Business transfers:</strong> If Farlo is acquired or merges with another company, your information may be transferred as part of that transaction.</li>
+      <li><strong>With other users:</strong> Your display name and profile photo are visible to other users. If you are a business owner, your business name, profile, menu, and location (when open) are visible to customers on the map. If you submit a booking request, your contact details are shared with the business owner to facilitate the booking.</li>
+      <li><strong>With service providers:</strong> We share information with third-party vendors that help us operate the App, including:
+        <ul>
+          <li><strong>Supabase</strong> — database, authentication, and file storage (servers located in the United States)</li>
+          <li><strong>Stripe</strong> — payment processing. When you make or receive a payment through the App, relevant transaction information is shared with Stripe. Stripe's privacy policy is available at <a href="https://stripe.com/privacy" style="color:#2563EB">stripe.com/privacy</a>.</li>
+          <li><strong>Firebase (Google)</strong> — push notifications</li>
+          <li><strong>Google</strong> — maps, sign-in, and address autocomplete (Places API)</li>
+          <li><strong>Apple</strong> — sign-in and App Store services</li>
+          <li><strong>RevenueCat</strong> — subscription management</li>
+        </ul>
+        These providers act as service providers or data processors on our behalf, bound by confidentiality obligations, and may only use your information as directed by us.
+      </li>
+      <li><strong>For legal reasons:</strong> We may disclose information if required by law, court order, or governmental authority, or to protect the rights, property, or safety of Farlo, our users, or the public.</li>
+      <li><strong>Business transfers:</strong> If Farlo is acquired, merges with another company, or undergoes a similar corporate transaction, your information may be transferred as part of that transaction. We will notify you of any such change via the App or email.</li>
     </ul>
 
-    <h2>4. Location Data</h2>
-    <p>The App requests access to your device's location to show nearby food trucks. Location access is optional — the App will work without it, but the map features will be limited. We do not share your precise location with other users. Food truck owners share their own location voluntarily when they go live on the map.</p>
+    <h2>4. Payment Processing</h2>
+    <p>Payments in the App are processed by Stripe. Farlo does not store payment card numbers, bank account details, or other sensitive financial credentials. When a consumer makes a payment, funds are transferred directly to the business owner's connected Stripe account. Farlo does not hold or control these funds at any point. By using payment features, you agree to Stripe's terms and privacy policy.</p>
 
-    <h2>5. Push Notifications</h2>
-    <p>We may send push notifications about nearby trucks, booking status updates, and owner announcements. You can manage notification preferences within the App or through your device's system settings at any time.</p>
+    <h2>5. Location Data</h2>
+    <p>The App requests access to your precise device location to show nearby businesses. Location access is optional for consumers — the App will work without it, but map features will be limited. We do not share consumer location data with other users or third parties for advertising purposes.</p>
+    <p>Business owners who choose to mark their business as open on the map voluntarily share their real-time location with all App users. This location data is visible on the map while the business is marked as open, and is removed when the owner closes. Business owners control when and whether their location is broadcast.</p>
+    <p>Precise geolocation is classified as <strong>sensitive personal information</strong> under California law. California residents have the right to limit our use of this data to what is necessary to provide the requested service. See Section 11 for how to exercise this right.</p>
 
-    <h2>6. Data Retention</h2>
-    <p>We retain your information for as long as your account is active or as needed to provide the App's services. If you delete your account, we will delete or anonymize your personal information within a reasonable period, except where we are required to retain it by law.</p>
+    <h2>6. Analytics and Tracking</h2>
+    <p>We collect usage and diagnostic data (such as features used, session duration, and crash reports) to understand how the App is used and to improve it. We do not use third-party advertising networks or engage in cross-app tracking. We do not use Apple's Advertising Identifier (IDFA) for advertising purposes.</p>
+    <p>If we introduce analytics tools that engage in cross-app tracking in the future, we will update this policy and present Apple's App Tracking Transparency prompt before doing so.</p>
 
-    <h2>7. Data Security</h2>
-    <p>We implement appropriate technical and organizational measures to protect your information against unauthorized access, loss, or disclosure. However, no method of transmission over the internet or electronic storage is 100% secure, and we cannot guarantee absolute security.</p>
+    <h2>7. Push Notifications</h2>
+    <p>We may send push notifications about nearby businesses, booking status updates, payment activity, and owner announcements. You can manage notification preferences within the App or through your device's system settings at any time. Withdrawing consent for notifications does not affect other aspects of your account.</p>
 
-    <h2>8. Children's Privacy</h2>
-    <p>The App is not directed to children under 13. We do not knowingly collect personal information from children under 13. If you believe a child under 13 has provided us with personal information, please contact us and we will delete it.</p>
-
-    <h2>9. Your Choices and Rights</h2>
-    <p>Depending on your location, you may have certain rights regarding your personal information, including:</p>
+    <h2>8. Data Retention</h2>
+    <p>We retain your personal information for as long as your account is active or as needed to provide the App's services. If you delete your account, we will delete or anonymize your personal information within 30 days, except:</p>
     <ul>
-      <li>Accessing or correcting your account information through the App's account settings</li>
-      <li>Deleting your account through the "Delete Account" option in the App</li>
-      <li>Opting out of push notifications through App or device settings</li>
-      <li>Revoking location access through your device settings</li>
+      <li>Financial records (estimates, deposits, invoices, and transaction logs) may be retained for up to 7 years as required by applicable tax and financial recordkeeping law;</li>
+      <li>Information we are required to retain by applicable law or legal process; and</li>
+      <li>Aggregated or anonymized data that no longer identifies you, which we may retain indefinitely.</li>
     </ul>
-    <p>If you have a request regarding your data that you cannot fulfill through the App, please visit <a href="https://farlo.app" style="color:#2563EB">farlo.app</a>.</p>
 
-    <h2>10. Third-Party Links and Services</h2>
-    <p>The App integrates with third-party services including Google Maps and Apple Maps. This Privacy Policy does not apply to those services. We encourage you to review the privacy policies of any third-party services you use.</p>
+    <h2>9. Data Security</h2>
+    <p>We implement appropriate technical and organizational measures to protect your information against unauthorized access, loss, or disclosure, including encryption in transit (TLS) and access controls on our databases. However, no method of transmission over the internet or electronic storage is 100% secure, and we cannot guarantee absolute security.</p>
+    <p>In the event of a data breach that creates a risk to your rights and freedoms, we will notify affected users and relevant authorities as required by applicable law, including within 72 hours where required by the GDPR.</p>
 
-    <h2>11. Changes to This Policy</h2>
-    <p>We may update this Privacy Policy from time to time. When we do, we will update the "Last updated" date at the top of this page. We encourage you to review this policy periodically. Your continued use of the App after changes constitutes your acceptance of the updated policy.</p>
+    <h2>10. Children's Privacy</h2>
+    <p>The App permits users aged 13 and older to create an account for general browsing and discovery. However, users must be at least 18 years of age to place orders, make payments, or enter into financial transactions through the App. We do not knowingly collect personal information from children under 13. If you believe a child under 13 has provided us with personal information, please contact us at <a href="mailto:support@farlo.app" style="color:#2563EB">support@farlo.app</a> and we will delete it promptly.</p>
 
-    <h2>12. Contact Us</h2>
-    <p>If you have questions or concerns about this Privacy Policy or our data practices, please visit <a href="https://farlo.app" style="color:#2563EB">farlo.app</a>.</p>
+    <h2>11. California Privacy Rights (CCPA / CPRA)</h2>
+    <p>If you are a California resident, the California Consumer Privacy Act (CCPA) and California Privacy Rights Act (CPRA) provide you with the following rights regarding your personal information:</p>
+    <ul>
+      <li><strong>Right to Know:</strong> You may request the categories and specific pieces of personal information we have collected about you, the categories of sources, the business purposes, and the categories of third parties with whom we share it.</li>
+      <li><strong>Right to Delete:</strong> You may request deletion of personal information we have collected, subject to certain exceptions (e.g., to complete a transaction, comply with a legal obligation, or exercise free speech).</li>
+      <li><strong>Right to Correct:</strong> You may request correction of inaccurate personal information we hold about you.</li>
+      <li><strong>Right to Opt Out of Sale or Sharing:</strong> We do not sell your personal information. We do not share your personal information for cross-context behavioral advertising. You may still submit an opt-out request to confirm our practices.</li>
+      <li><strong>Right to Limit Use of Sensitive Personal Information:</strong> We collect precise geolocation, which is sensitive personal information under the CPRA. You may request that we limit our use of your precise location to what is necessary to provide the App's core mapping features. The most effective way to exercise this right is to revoke location access through your device settings.</li>
+      <li><strong>Right to Non-Discrimination:</strong> We will not discriminate against you for exercising any of the above rights.</li>
+    </ul>
+    <p><strong>How to Submit a Request:</strong> You may submit a privacy request by emailing <a href="mailto:support@farlo.app" style="color:#2563EB">support@farlo.app</a> or through the "Delete Account" function in the App. We will respond within 45 days. We may need to verify your identity before processing your request. You may designate an authorized agent to make a request on your behalf by providing written authorization.</p>
+    <p><strong>Minors Under 16:</strong> We do not sell or share the personal information of users we know to be under 16 years of age.</p>
 
+    <h2>12. Other U.S. State Privacy Rights</h2>
+    <p>A number of U.S. states — including Virginia, Colorado, Connecticut, Utah, Texas, Oregon, Montana, and a growing list of others — have enacted comprehensive consumer privacy laws. If you are a resident of a state with such a law, you may have some or all of the following rights, depending on your state of residence:</p>
+    <ul>
+      <li><strong>Right to Confirm and Access:</strong> to confirm whether we are processing your personal data and to access that data.</li>
+      <li><strong>Right to Correct:</strong> to correct inaccuracies in the personal data we hold about you.</li>
+      <li><strong>Right to Delete:</strong> to request deletion of personal data we have collected about you.</li>
+      <li><strong>Right to Data Portability:</strong> to obtain a copy of your personal data in a portable and, to the extent technically feasible, readily usable format.</li>
+      <li><strong>Right to Opt Out:</strong> to opt out of the processing of your personal data for purposes of targeted advertising, the sale of personal data, or profiling in furtherance of decisions that produce legal or similarly significant effects. As described in Section 3, we do not sell your personal data, do not use it for targeted advertising, and do not engage in such profiling.</li>
+    </ul>
+    <p><strong>Sensitive data.</strong> Several of these laws require opt-in consent before processing sensitive data, which includes precise geolocation. We collect precise geolocation only after you grant location permission through your device, and you may withdraw that permission at any time in your device settings.</p>
+    <p><strong>How to exercise your rights.</strong> You may submit a request by emailing <a href="mailto:support@farlo.app" style="color:#2563EB">support@farlo.app</a> or through the "Delete Account" function in the App. We will respond within the timeframe required by your state's law (generally 45 days, with an extension where permitted). We may need to verify your identity before acting on your request.</p>
+    <p><strong>Right to appeal.</strong> Where your state's law provides an appeal right, if we decline to act on your request you may appeal our decision by replying to our response or contacting us at <a href="mailto:support@farlo.app" style="color:#2563EB">support@farlo.app</a>. If your appeal is denied, you may contact your state attorney general.</p>
+
+    <h2>13. International Users and GDPR</h2>
+    <p>The App is operated from the United States. If you are located in the European Union, United Kingdom, or another jurisdiction with data protection laws, please be aware that your information will be transferred to and processed in the United States.</p>
+    <p><strong>Legal Bases for Processing (EU/UK Users):</strong> We process your personal data on the following legal bases under GDPR Article 6: (a) performance of a contract (account creation, bookings, payments); (b) legitimate interests (App improvement, security, fraud prevention); (c) compliance with legal obligations; and (d) your consent (push notifications, optional location sharing).</p>
+    <p><strong>International Transfers:</strong> When we transfer personal data from the EU or UK to the United States, we rely on available transfer mechanisms including Standard Contractual Clauses (SCCs) with our service providers (Supabase, Stripe, Google/Firebase, RevenueCat) where applicable. You may request information about these mechanisms by contacting us.</p>
+    <p><strong>EU/UK Data Subject Rights:</strong> In addition to the access, correction, and deletion rights described elsewhere in this Policy, EU and UK residents have the right to:</p>
+    <ul>
+      <li>Restrict processing of your personal data in certain circumstances;</li>
+      <li>Receive your personal data in a portable format;</li>
+      <li>Object to processing based on legitimate interests;</li>
+      <li>Withdraw consent at any time (for processing based on consent) without affecting the lawfulness of prior processing;</li>
+      <li>Not be subject to solely automated decision-making that produces legal or similarly significant effects; and</li>
+      <li>Lodge a complaint with your local supervisory authority (in the EU, your national data protection authority; in the UK, the Information Commissioner's Office).</li>
+    </ul>
+    <p>We aim to respond to data subject requests within 30 days. We will appoint an EU/UK representative as required by applicable law upon our having an establishment in or significant users from those regions.</p>
+
+    <h2>14. Your Choices and Rights</h2>
+    <p>Regardless of your location, you may:</p>
+    <ul>
+      <li>Access or correct your account information through the App's account settings</li>
+      <li>Delete your account through the "Delete Account" option in the App</li>
+      <li>Opt out of push notifications through App or device settings</li>
+      <li>Revoke location access through your device settings</li>
+      <li>Contact us at <a href="mailto:support@farlo.app" style="color:#2563EB">support@farlo.app</a> for any data request you cannot fulfill through the App</li>
+    </ul>
+
+    <h2>15. Third-Party Links and Services</h2>
+    <p>The App integrates with third-party services including Google Maps, Apple Maps, and Stripe. This Privacy Policy does not apply to those services. We encourage you to review the privacy policies of any third-party services you use.</p>
+
+    <h2>16. Changes to This Policy</h2>
+    <p>We may update this Privacy Policy from time to time. When we do, we will update the "Last updated" date at the top of this page and, for material changes, notify you through the App or by email. Your continued use of the App after changes constitutes your acceptance of the updated policy.</p>
+
+    <h2>17. Contact Us</h2>
+    <p>If you have questions or concerns about this Privacy Policy or our data practices, or to submit a privacy rights request, please contact us at <a href="mailto:support@farlo.app" style="color:#2563EB">support@farlo.app</a>.</p>
   </div>
 
-  <footer>
-    <div class="footer-links">
-      <a href="terms.html">Terms of Service</a>
-      <a href="privacy.html">Privacy Policy</a>
-    </div>
-    <p>&copy; 2026 Farlo. All rights reserved.</p>
-  </footer>
+  <!-- Footer lives in footer.html — paste into Squarespace separately, not part of this page's Code Block. -->
 
 </body>
 </html>
