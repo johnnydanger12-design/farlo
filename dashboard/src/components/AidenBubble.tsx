@@ -209,7 +209,6 @@ export function AidenBubble() {
               onChange={(e) => setDraft(e.target.value)}
               placeholder="Message Aiden…"
               disabled={sending}
-              autoFocus
               className="min-w-0 flex-1 rounded-md border border-[var(--border)] bg-transparent px-3 py-2 text-sm outline-none focus:border-[var(--accent)] disabled:opacity-50"
             />
             <button
