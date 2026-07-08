@@ -1,10 +1,12 @@
-// Runs Mon/Wed/Fri 8:00. Batches to 5 uncontacted prospects per invocation to stay
-// comfortably inside the tool-call/time budget (each prospect needs several web_search
-// round trips) — the sales_prospects.status column is the natural work queue, so any
-// prospect not reached this run just waits for the next one. Newly-fetched prospects
-// from fetch_new_prospects land as 'uncontacted' and are picked up on a LATER run, not
-// immediately — keeps each run's context bounded to prospects it already has full
-// detail on.
+// Runs Mon/Wed/Fri 8:00. Two independent batches per invocation, each capped to stay
+// comfortably inside the tool-call/time budget: up to 5 new uncontacted prospects (each
+// needs several web_search round trips), and up to 5 already-contacted prospects due for
+// a follow-up (+3/+10 days since first contact, per sales_targets). Newly-fetched
+// prospects from fetch_new_prospects land as 'uncontacted' and are picked up on a LATER
+// run, not immediately — keeps each run's context bounded to prospects it already has
+// full detail on. Every run also does a deterministic (non-LLM) pass marking any
+// prospect 'converted' if their business now exists in food_trucks — catches someone who
+// signed up off an earlier email before Miles ever follows up with them again.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { requireAgentSecret, isDryRun } from '../_shared/auth.ts';
 import { startRun, finishRun, logToolCalls } from '../_shared/run-log.ts';
@@ -18,18 +20,25 @@ const supabase = createClient(
 );
 
 const BATCH_SIZE = 5;
+const FOLLOWUP_BATCH_SIZE = 5;
+const FOLLOWUP_1_DAYS = 3;
+const FOLLOWUP_2_DAYS = 10;
 
 const SYSTEM_PROMPT = `You are Miles, the Farlo Sales Agent.
 
-HARD RULE, CHECK FIRST: if the sales_targets directive says outreach is on HOLD, call no tools at all this run. Just explain why in your final text and stop — do not fetch prospects, do not research, do not draft anything, even if that seems conservative. A HOLD means fully stop, not "hold on sending but keep prepping."
+HARD RULE, CHECK FIRST: if the sales_targets directive says outreach is on HOLD, call no tools at all this run. Just explain why in your final text and stop — do not fetch prospects, do not research, do not draft anything, do not follow up, even if that seems conservative. A HOLD means fully stop, not "hold on sending but keep prepping."
 
-If outreach is NOT on hold, do this in order:
+If outreach is NOT on hold, do both of these (independent of each other — do the one with prospects to work first, or both if both have work):
+
+NEW PROSPECTS:
 1. Call fetch_new_prospects with the current primary target city per the sales_targets directive.
 2. You'll be given up to ${BATCH_SIZE} uncontacted prospects with full detail to work through this run. For each, use web_search to research their website, social media, and Google listing for a contact email.
 3. No email found -> call mark_no_email_found with a short note. Never guess or invent an email address.
 4. Email found -> write a bespoke, under-100-word cold email that references something specific and real about that business (never a generic template). Pitch: Farlo puts local food businesses on a discovery map, flat $29.99/mo, no 30% commission like delivery apps. Then call draft_outreach. Do not send anything — draft_outreach only creates a Gmail draft for Johnny to review.
 
-You will be given a list of business names that are already Farlo customers (via the food_trucks table) — never draft outreach to any of them, even if they appear in your prospect batch by mistake.`;
+FOLLOW-UPS: you'll also be given a list of prospects due for a follow-up (contacted with no reply for ${FOLLOWUP_1_DAYS}+ or ${FOLLOWUP_2_DAYS}+ days, per the sequence "initial -> +${FOLLOWUP_1_DAYS} days -> +${FOLLOWUP_2_DAYS} days -> stop"), each with the subject/body of what was last sent to them for context. For each, write a brief (under 60 words), warm, non-pushy follow-up that references you reached out before without just repeating the same pitch — then call draft_followup. Never call draft_followup more than once per prospect this run. Like the initial outreach, this only creates a Gmail draft — Johnny reviews, sends, and confirms on the dashboard, which is what actually advances the follow-up sequence.
+
+You will be given a list of business names that are already Farlo customers (via the food_trucks table) — never draft outreach or a follow-up to any of them, even if they appear in your batches by mistake (this shouldn't happen — prospects that convert are auto-marked before you ever see them — but it's a hard rule regardless).`;
 
 const TOOLS: ToolDefinition[] = [
   {
@@ -67,6 +76,19 @@ const TOOLS: ToolDefinition[] = [
       required: ['prospect_id', 'email', 'subject', 'body'],
     },
   },
+  {
+    name: 'draft_followup',
+    description: 'Creates a Gmail follow-up draft for a prospect already contacted with no reply. Never sends — Johnny reviews, sends, and confirms on the dashboard.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        prospect_id: { type: 'string' },
+        subject: { type: 'string' },
+        body: { type: 'string' },
+      },
+      required: ['prospect_id', 'subject', 'body'],
+    },
+  },
 ];
 
 const HOSTED_TOOLS = [{ type: 'web_search_20250305', name: 'web_search' }];
@@ -85,8 +107,31 @@ Deno.serve(async (req: Request) => {
       .select('directive_key, content')
       .in('directive_key', ['sales_targets', 'brand_guidelines', 'farlo_context', 'company_direction']);
 
-    const { data: existingTrucks } = await supabase.from('food_trucks').select('name');
+    const { data: existingTrucks } = await supabase.from('food_trucks').select('name, owner_id');
     const existingNames = new Set((existingTrucks ?? []).map((t) => t.name.toLowerCase().trim()));
+
+    // Housekeeping, independent of HOLD/dry_run gating below (this isn't a send/draft
+    // action, just correcting stale status against ground truth) — but still skipped in
+    // dry_run since it's a real write. Catches a prospect who signed up off the first or
+    // second email so Miles never nags an already-converted business with a follow-up.
+    if (!dryRun) {
+      const truckByName = new Map(
+        (existingTrucks ?? []).map((t) => [t.name.toLowerCase().trim(), t.owner_id]),
+      );
+      const { data: openProspects } = await supabase
+        .from('sales_prospects')
+        .select('id, business_name')
+        .neq('status', 'converted');
+      for (const p of openProspects ?? []) {
+        const ownerId = truckByName.get(p.business_name.toLowerCase().trim());
+        if (ownerId) {
+          await supabase
+            .from('sales_prospects')
+            .update({ status: 'converted', converted_owner_id: ownerId })
+            .eq('id', p.id);
+        }
+      }
+    }
 
     const { data: uncontacted } = await supabase
       .from('sales_prospects')
@@ -99,6 +144,30 @@ Deno.serve(async (req: Request) => {
     const eligible = (uncontacted ?? [])
       .filter((p) => !existingNames.has(p.business_name.toLowerCase().trim()))
       .slice(0, BATCH_SIZE);
+
+    // Due for a follow-up: contacted, no reply, no follow-up already drafted and
+    // awaiting Johnny's send confirmation, fewer than 2 follow-ups sent so far. Both
+    // thresholds are measured from first_contacted_at (the *initial* send), not
+    // sequential gaps, matching the directive's "initial -> +3 -> +10 -> stop" reading.
+    const { data: contactedCandidates } = await supabase
+      .from('sales_prospects')
+      .select('id, business_name, business_type, outreach_email, follow_up_count, first_contacted_at, last_email_subject, last_email_body')
+      .eq('status', 'contacted')
+      .is('pending_followup_subject', null)
+      .lt('follow_up_count', 2)
+      .not('first_contacted_at', 'is', null)
+      .order('first_contacted_at', { ascending: true })
+      .limit(50);
+
+    const now = Date.now();
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    const dueForFollowup = (contactedCandidates ?? [])
+      .filter((p) => {
+        const daysSince = (now - new Date(p.first_contacted_at).getTime()) / DAY_MS;
+        const thresholdDays = p.follow_up_count === 0 ? FOLLOWUP_1_DAYS : FOLLOWUP_2_DAYS;
+        return daysSince >= thresholdDays;
+      })
+      .slice(0, FOLLOWUP_BATCH_SIZE);
 
     const accessToken = await getGmailAccessToken('johnny@farlo.app');
 
@@ -144,7 +213,29 @@ Deno.serve(async (req: Request) => {
           .update({
             status: 'drafted',
             outreach_email: input.email,
+            last_email_subject: input.subject,
+            last_email_body: input.body,
             response_notes: 'Draft saved in Gmail - awaiting Johnny to send and mark it sent on the dashboard',
+          })
+          .eq('id', input.prospect_id);
+        return error ? { error: error.message } : { success: true };
+      },
+      draft_followup: async (input: { prospect_id: string; subject: string; body: string }) => {
+        const prospect = dueForFollowup.find((p) => p.id === input.prospect_id);
+        if (!prospect) return { error: `unknown or not-yet-due prospect_id ${input.prospect_id}` };
+        if (!prospect.outreach_email) return { error: `${prospect.business_name} has no outreach_email on file` };
+        if (dryRun) return { dry_run: true, would_followup: input };
+        await createDraft(accessToken, {
+          from: 'Miles | Farlo <outreach@farlo.app>',
+          to: prospect.outreach_email,
+          subject: input.subject,
+          bodyText: input.body,
+        });
+        const { error } = await supabase
+          .from('sales_prospects')
+          .update({
+            pending_followup_subject: input.subject,
+            pending_followup_body: input.body,
           })
           .eq('id', input.prospect_id);
         return error ? { error: error.message } : { success: true };
@@ -160,6 +251,9 @@ Deno.serve(async (req: Request) => {
       ``,
       `Uncontacted prospects available this run (up to ${BATCH_SIZE}):`,
       wrapUntrusted('sales-prospects', JSON.stringify(eligible, null, 2)),
+      ``,
+      `Prospects due for a follow-up this run (up to ${FOLLOWUP_BATCH_SIZE}), with what was last sent to them:`,
+      wrapUntrusted('sales-prospects-followup', JSON.stringify(dueForFollowup, null, 2)),
     ].join('\n');
 
     const result = await runAgentLoop({
@@ -187,6 +281,7 @@ Deno.serve(async (req: Request) => {
     return new Response(
       JSON.stringify({
         eligible_this_run: eligible.length,
+        followups_due_this_run: dueForFollowup.length,
         summary: result.finalText,
         tool_calls: result.toolCallLog,
         dry_run: dryRun,
