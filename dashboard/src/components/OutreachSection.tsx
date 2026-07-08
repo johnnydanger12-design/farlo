@@ -107,7 +107,7 @@ export function OutreachSection() {
   if (!drafted || !followupsDrafted || !sent) return <Card title="Outreach"><Loading /></Card>;
 
   return (
-    <div className="grid gap-6">
+    <div className="flex min-w-0 flex-col gap-6">
       <Card title="Drafted — waiting for you to send">
         {drafted.length === 0 ? (
           <p className="text-sm text-[var(--muted)]">Nothing drafted right now.</p>

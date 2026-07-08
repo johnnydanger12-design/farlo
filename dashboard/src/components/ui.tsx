@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 
 export function Card({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
   return (
-    <section className="rounded-xl border border-[var(--border)] bg-[var(--panel)] p-5">
+    <section className="min-w-0 rounded-xl border border-[var(--border)] bg-[var(--panel)] p-5">
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">{title}</h2>
         {action}

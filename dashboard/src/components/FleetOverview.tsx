@@ -89,7 +89,7 @@ export function FleetOverview() {
   const openRunRow = runs.find((r) => r.id === openRunId) ?? null;
 
   return (
-    <div className="grid gap-6">
+    <div className="flex min-w-0 flex-col gap-6">
       <Card title="Fleet health">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           {[...latestByAgent.entries()]

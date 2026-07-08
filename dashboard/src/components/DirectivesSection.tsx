@@ -83,7 +83,7 @@ export function DirectivesSection() {
   }
 
   return (
-    <div className="grid gap-6">
+    <div className="flex min-w-0 flex-col gap-6">
       <Card title="Run an agent now">
         <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
           {AGENT_NAMES.map((name) => (

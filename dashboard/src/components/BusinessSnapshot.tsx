@@ -96,7 +96,7 @@ export function BusinessSnapshot() {
   const totalActiveSubs = Object.values(snapshot.activeSubscriptionsByPlan).reduce((a, b) => a + b, 0);
 
   return (
-    <div className="grid gap-6">
+    <div className="flex min-w-0 flex-col gap-6">
       <Card title="Business snapshot">
         <div className="grid grid-cols-2 gap-6 sm:grid-cols-3 lg:grid-cols-5">
           <Stat label="Consumers" value={snapshot.totalConsumers} />
