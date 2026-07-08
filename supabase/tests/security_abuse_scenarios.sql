@@ -396,9 +396,9 @@ DECLARE
 BEGIN
   RESET ROLE;
 
-  INSERT INTO auth.users (id, email) VALUES (founder, 'johnny.danger12@gmail.com');
+  INSERT INTO auth.users (id, email) VALUES (founder, 'johnny@farlo.app');
   INSERT INTO public.profiles (id, email, display_name, role)
-  VALUES (founder, 'johnny.danger12@gmail.com', 'Founder', 'consumer');
+  VALUES (founder, 'johnny@farlo.app', 'Founder', 'consumer');
 
   -- owner_b's second truck, inactive — invisible to the public "is_active"
   -- policy and to anyone who isn't its owner, so it's a real test of the new
@@ -426,7 +426,7 @@ BEGIN
 
   -- ── Founder: every newly-opened table must be readable ──────────────────
   SET LOCAL ROLE authenticated;
-  EXECUTE format('SET LOCAL request.jwt.claims = %L', jsonb_build_object('sub', founder, 'email', 'johnny.danger12@gmail.com', 'role', 'authenticated')::text);
+  EXECUTE format('SET LOCAL request.jwt.claims = %L', jsonb_build_object('sub', founder, 'email', 'johnny@farlo.app', 'role', 'authenticated')::text);
 
   SELECT count(*) INTO n FROM public.agent_run_log WHERE id = test_run_id;
   IF n != 1 THEN RAISE EXCEPTION 'SCENARIO 13a FAILED: founder could not read agent_run_log'; END IF;
@@ -583,10 +583,10 @@ BEGIN
 
   -- founder row already inserted by Scenario 13's fixtures earlier in this same
   -- transaction; re-insert defensively in case scenario ordering ever changes.
-  INSERT INTO auth.users (id, email) VALUES (founder, 'johnny.danger12@gmail.com')
+  INSERT INTO auth.users (id, email) VALUES (founder, 'johnny@farlo.app')
     ON CONFLICT (id) DO NOTHING;
   INSERT INTO public.profiles (id, email, display_name, role)
-    VALUES (founder, 'johnny.danger12@gmail.com', 'Founder', 'consumer')
+    VALUES (founder, 'johnny@farlo.app', 'Founder', 'consumer')
     ON CONFLICT (id) DO NOTHING;
 
   INSERT INTO public.content_queue (platform, caption, status)
@@ -595,7 +595,7 @@ BEGIN
     VALUES ('Scenario 15 Test Business', 'drafted') RETURNING id INTO prospect_id;
 
   SET LOCAL ROLE authenticated;
-  EXECUTE format('SET LOCAL request.jwt.claims = %L', jsonb_build_object('sub', founder, 'email', 'johnny.danger12@gmail.com', 'role', 'authenticated')::text);
+  EXECUTE format('SET LOCAL request.jwt.claims = %L', jsonb_build_object('sub', founder, 'email', 'johnny@farlo.app', 'role', 'authenticated')::text);
 
   UPDATE public.content_queue SET status = 'posted' WHERE id = content_id;
   SELECT count(*) INTO n FROM public.content_queue WHERE id = content_id AND status = 'posted';
@@ -636,17 +636,17 @@ DECLARE
   n int;
 BEGIN
   RESET ROLE;
-  INSERT INTO auth.users (id, email) VALUES (founder, 'johnny.danger12@gmail.com')
+  INSERT INTO auth.users (id, email) VALUES (founder, 'johnny@farlo.app')
     ON CONFLICT (id) DO NOTHING;
   INSERT INTO public.profiles (id, email, display_name, role)
-    VALUES (founder, 'johnny.danger12@gmail.com', 'Founder', 'consumer')
+    VALUES (founder, 'johnny@farlo.app', 'Founder', 'consumer')
     ON CONFLICT (id) DO NOTHING;
   INSERT INTO public.aiden_conversations (title) VALUES ('seed conversation for scenario 16')
     RETURNING id INTO conv_id;
   INSERT INTO public.aiden_chat_messages (conversation_id, role, content) VALUES (conv_id, 'founder', 'seed message for scenario 16');
 
   SET LOCAL ROLE authenticated;
-  EXECUTE format('SET LOCAL request.jwt.claims = %L', jsonb_build_object('sub', founder, 'email', 'johnny.danger12@gmail.com', 'role', 'authenticated')::text);
+  EXECUTE format('SET LOCAL request.jwt.claims = %L', jsonb_build_object('sub', founder, 'email', 'johnny@farlo.app', 'role', 'authenticated')::text);
 
   SELECT count(*) INTO n FROM public.aiden_chat_messages WHERE conversation_id = conv_id;
   IF n != 1 THEN RAISE EXCEPTION 'SCENARIO 16a FAILED: founder could not read aiden_chat_messages (got %)', n; END IF;
@@ -682,16 +682,16 @@ DECLARE
   n int;
 BEGIN
   RESET ROLE;
-  INSERT INTO auth.users (id, email) VALUES (founder, 'johnny.danger12@gmail.com')
+  INSERT INTO auth.users (id, email) VALUES (founder, 'johnny@farlo.app')
     ON CONFLICT (id) DO NOTHING;
   INSERT INTO public.profiles (id, email, display_name, role)
-    VALUES (founder, 'johnny.danger12@gmail.com', 'Founder', 'consumer')
+    VALUES (founder, 'johnny@farlo.app', 'Founder', 'consumer')
     ON CONFLICT (id) DO NOTHING;
   INSERT INTO public.aiden_conversations (title) VALUES ('seed conversation for scenario 17')
     RETURNING id INTO conv_id;
 
   SET LOCAL ROLE authenticated;
-  EXECUTE format('SET LOCAL request.jwt.claims = %L', jsonb_build_object('sub', founder, 'email', 'johnny.danger12@gmail.com', 'role', 'authenticated')::text);
+  EXECUTE format('SET LOCAL request.jwt.claims = %L', jsonb_build_object('sub', founder, 'email', 'johnny@farlo.app', 'role', 'authenticated')::text);
 
   SELECT count(*) INTO n FROM public.aiden_conversations WHERE id = conv_id;
   IF n != 1 THEN RAISE EXCEPTION 'SCENARIO 17a FAILED: founder could not read aiden_conversations (got %)', n; END IF;
@@ -731,7 +731,7 @@ BEGIN
   VALUES (gen_random_uuid(), 'aiden-chat-photos', 'chat/seed-scenario-18.jpg', founder);
 
   SET LOCAL ROLE authenticated;
-  EXECUTE format('SET LOCAL request.jwt.claims = %L', jsonb_build_object('sub', founder, 'email', 'johnny.danger12@gmail.com', 'role', 'authenticated')::text);
+  EXECUTE format('SET LOCAL request.jwt.claims = %L', jsonb_build_object('sub', founder, 'email', 'johnny@farlo.app', 'role', 'authenticated')::text);
 
   SELECT count(*) INTO n FROM storage.objects WHERE bucket_id = 'aiden-chat-photos' AND name = 'chat/seed-scenario-18.jpg';
   IF n != 1 THEN RAISE EXCEPTION 'SCENARIO 18a FAILED: founder could not read aiden-chat-photos'; END IF;

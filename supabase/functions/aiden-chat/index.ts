@@ -11,7 +11,7 @@ import { runAgentLoop, MODEL_SONNET, MODEL_OPUS, MODEL_FABLE, type ToolDefinitio
 import { AIDEN_LOCKED_DIRECTIVES_NOTE, updateDirectiveTool } from '../_shared/aiden-persona.ts';
 import { corsHeaders, handlePreflight } from '../_shared/cors.ts';
 
-const FOUNDER_EMAIL = 'johnny.danger12@gmail.com';
+const FOUNDER_EMAIL = 'johnny@farlo.app';
 const HISTORY_LIMIT = 30;
 const ALLOWED_MODELS = new Set([MODEL_SONNET, MODEL_OPUS, MODEL_FABLE]);
 
