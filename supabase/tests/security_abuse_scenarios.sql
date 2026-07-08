@@ -632,6 +632,7 @@ $scenario15$;
 DO $scenario16$
 DECLARE
   founder uuid := '99999999-9999-9999-9999-999999999999';
+  conv_id uuid;
   n int;
 BEGIN
   RESET ROLE;
@@ -640,17 +641,19 @@ BEGIN
   INSERT INTO public.profiles (id, email, display_name, role)
     VALUES (founder, 'johnny.danger12@gmail.com', 'Founder', 'consumer')
     ON CONFLICT (id) DO NOTHING;
-  INSERT INTO public.aiden_chat_messages (role, content) VALUES ('founder', 'seed message for scenario 16');
+  INSERT INTO public.aiden_conversations (title) VALUES ('seed conversation for scenario 16')
+    RETURNING id INTO conv_id;
+  INSERT INTO public.aiden_chat_messages (conversation_id, role, content) VALUES (conv_id, 'founder', 'seed message for scenario 16');
 
   SET LOCAL ROLE authenticated;
   EXECUTE format('SET LOCAL request.jwt.claims = %L', jsonb_build_object('sub', founder, 'email', 'johnny.danger12@gmail.com', 'role', 'authenticated')::text);
 
-  SELECT count(*) INTO n FROM public.aiden_chat_messages;
+  SELECT count(*) INTO n FROM public.aiden_chat_messages WHERE conversation_id = conv_id;
   IF n != 1 THEN RAISE EXCEPTION 'SCENARIO 16a FAILED: founder could not read aiden_chat_messages (got %)', n; END IF;
   RAISE NOTICE 'Scenario 16a PASSED: founder can read aiden_chat_messages';
 
   BEGIN
-    INSERT INTO public.aiden_chat_messages (role, content) VALUES ('founder', 'direct client insert attempt');
+    INSERT INTO public.aiden_chat_messages (conversation_id, role, content) VALUES (conv_id, 'founder', 'direct client insert attempt');
     RAISE EXCEPTION 'SCENARIO 16b FAILED: founder was able to insert into aiden_chat_messages directly (bypassing the Edge Function)';
   EXCEPTION
     WHEN insufficient_privilege THEN
@@ -666,6 +669,92 @@ BEGIN
   RAISE NOTICE 'Scenario 16c PASSED: non-founder correctly denied read on aiden_chat_messages';
 END;
 $scenario16$;
+
+-- ── Scenario 17: aiden_conversations — founder read-only, no client writes ──
+-- Same shape as Scenario 16, added when aiden_chat_messages grew a conversation_id
+-- FK to support Recents/New Chat — conversation rows carry the same provenance
+-- requirement as messages: only the aiden-chat Edge Function (service_role) may
+-- create/touch them.
+DO $scenario17$
+DECLARE
+  founder uuid := '99999999-9999-9999-9999-999999999999';
+  conv_id uuid;
+  n int;
+BEGIN
+  RESET ROLE;
+  INSERT INTO auth.users (id, email) VALUES (founder, 'johnny.danger12@gmail.com')
+    ON CONFLICT (id) DO NOTHING;
+  INSERT INTO public.profiles (id, email, display_name, role)
+    VALUES (founder, 'johnny.danger12@gmail.com', 'Founder', 'consumer')
+    ON CONFLICT (id) DO NOTHING;
+  INSERT INTO public.aiden_conversations (title) VALUES ('seed conversation for scenario 17')
+    RETURNING id INTO conv_id;
+
+  SET LOCAL ROLE authenticated;
+  EXECUTE format('SET LOCAL request.jwt.claims = %L', jsonb_build_object('sub', founder, 'email', 'johnny.danger12@gmail.com', 'role', 'authenticated')::text);
+
+  SELECT count(*) INTO n FROM public.aiden_conversations WHERE id = conv_id;
+  IF n != 1 THEN RAISE EXCEPTION 'SCENARIO 17a FAILED: founder could not read aiden_conversations (got %)', n; END IF;
+  RAISE NOTICE 'Scenario 17a PASSED: founder can read aiden_conversations';
+
+  BEGIN
+    INSERT INTO public.aiden_conversations (title) VALUES ('direct client insert attempt');
+    RAISE EXCEPTION 'SCENARIO 17b FAILED: founder was able to insert into aiden_conversations directly (bypassing the Edge Function)';
+  EXCEPTION
+    WHEN insufficient_privilege THEN
+      RAISE NOTICE 'Scenario 17b PASSED: direct founder insert correctly rejected (%)', SQLERRM;
+  END;
+
+  RESET ROLE;
+  SET LOCAL ROLE authenticated;
+  EXECUTE format('SET LOCAL request.jwt.claims = %L', jsonb_build_object('sub', '22222222-2222-2222-2222-222222222222', 'email', 'owner-b@test.farlo.internal', 'role', 'authenticated')::text);
+
+  SELECT count(*) INTO n FROM public.aiden_conversations WHERE id = conv_id;
+  IF n != 0 THEN RAISE EXCEPTION 'SCENARIO 17c FAILED: non-founder could read aiden_conversations'; END IF;
+  RAISE NOTICE 'Scenario 17c PASSED: non-founder correctly denied read on aiden_conversations';
+END;
+$scenario17$;
+
+-- ── Scenario 18: aiden-chat-photos storage bucket — founder only ───────────
+-- Unlike every other bucket in this project (public=true, per-user-folder RLS),
+-- this bucket is founder-only and private — verify a non-founder gets nothing
+-- (SELECT) and can't write (INSERT), even though they're an authenticated user
+-- and every other bucket's convention would otherwise let *some* authenticated
+-- writes through.
+DO $scenario18$
+DECLARE
+  founder uuid := '99999999-9999-9999-9999-999999999999';
+  n int;
+BEGIN
+  RESET ROLE;
+  INSERT INTO storage.objects (id, bucket_id, name, owner)
+  VALUES (gen_random_uuid(), 'aiden-chat-photos', 'chat/seed-scenario-18.jpg', founder);
+
+  SET LOCAL ROLE authenticated;
+  EXECUTE format('SET LOCAL request.jwt.claims = %L', jsonb_build_object('sub', founder, 'email', 'johnny.danger12@gmail.com', 'role', 'authenticated')::text);
+
+  SELECT count(*) INTO n FROM storage.objects WHERE bucket_id = 'aiden-chat-photos' AND name = 'chat/seed-scenario-18.jpg';
+  IF n != 1 THEN RAISE EXCEPTION 'SCENARIO 18a FAILED: founder could not read aiden-chat-photos'; END IF;
+  RAISE NOTICE 'Scenario 18a PASSED: founder can read aiden-chat-photos';
+
+  RESET ROLE;
+  SET LOCAL ROLE authenticated;
+  EXECUTE format('SET LOCAL request.jwt.claims = %L', jsonb_build_object('sub', '22222222-2222-2222-2222-222222222222', 'email', 'owner-b@test.farlo.internal', 'role', 'authenticated')::text);
+
+  SELECT count(*) INTO n FROM storage.objects WHERE bucket_id = 'aiden-chat-photos';
+  IF n != 0 THEN RAISE EXCEPTION 'SCENARIO 18b FAILED: non-founder could read aiden-chat-photos'; END IF;
+  RAISE NOTICE 'Scenario 18b PASSED: non-founder correctly denied read on aiden-chat-photos';
+
+  BEGIN
+    INSERT INTO storage.objects (id, bucket_id, name, owner)
+    VALUES (gen_random_uuid(), 'aiden-chat-photos', 'chat/attack.jpg', '22222222-2222-2222-2222-222222222222');
+    RAISE EXCEPTION 'SCENARIO 18c FAILED: non-founder was able to upload into aiden-chat-photos';
+  EXCEPTION
+    WHEN insufficient_privilege THEN
+      RAISE NOTICE 'Scenario 18c PASSED: non-founder upload correctly rejected (%)', SQLERRM;
+  END;
+END;
+$scenario18$;
 
 RESET ROLE;
 DO $$ BEGIN RAISE NOTICE 'ALL SECURITY ABUSE SCENARIO TESTS PASSED'; END $$;
