@@ -4,12 +4,11 @@ import { AuthGate } from './components/AuthGate';
 import { FleetOverview } from './components/FleetOverview';
 import { CostSection } from './components/CostSection';
 import { DirectivesSection } from './components/DirectivesSection';
-import { ContentSection } from './components/ContentSection';
 import { OutreachSection } from './components/OutreachSection';
 import { BusinessSnapshot } from './components/BusinessSnapshot';
 import { supabase } from './lib/supabase';
 
-const TABS = ['Fleet', 'Cost', 'Directives', 'Content', 'Outreach', 'Business'] as const;
+const TABS = ['Fleet', 'Cost', 'Directives', 'Outreach', 'Business'] as const;
 type Tab = (typeof TABS)[number];
 
 function Dashboard({ session }: { session: Session }) {
@@ -49,7 +48,6 @@ function Dashboard({ session }: { session: Session }) {
       {tab === 'Fleet' && <FleetOverview />}
       {tab === 'Cost' && <CostSection />}
       {tab === 'Directives' && <DirectivesSection />}
-      {tab === 'Content' && <ContentSection />}
       {tab === 'Outreach' && <OutreachSection />}
       {tab === 'Business' && <BusinessSnapshot />}
     </div>
