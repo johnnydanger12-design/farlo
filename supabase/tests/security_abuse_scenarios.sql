@@ -623,6 +623,50 @@ BEGIN
 END;
 $scenario15$;
 
+-- ── Scenario 16: aiden_chat_messages — founder read-only, no client writes ──
+-- Added alongside the dashboard's live Aiden chat. Writes to this table only ever
+-- happen server-side (aiden-chat Edge Function, service_role) — even the founder must
+-- not be able to insert/forge a message directly, since the "founder" role in a chat
+-- message's provenance should only ever mean "actually went through the Anthropic call
+-- and got logged", not "any authenticated client claiming to be founder wrote a row".
+DO $scenario16$
+DECLARE
+  founder uuid := '99999999-9999-9999-9999-999999999999';
+  n int;
+BEGIN
+  RESET ROLE;
+  INSERT INTO auth.users (id, email) VALUES (founder, 'johnny.danger12@gmail.com')
+    ON CONFLICT (id) DO NOTHING;
+  INSERT INTO public.profiles (id, email, display_name, role)
+    VALUES (founder, 'johnny.danger12@gmail.com', 'Founder', 'consumer')
+    ON CONFLICT (id) DO NOTHING;
+  INSERT INTO public.aiden_chat_messages (role, content) VALUES ('founder', 'seed message for scenario 16');
+
+  SET LOCAL ROLE authenticated;
+  EXECUTE format('SET LOCAL request.jwt.claims = %L', jsonb_build_object('sub', founder, 'email', 'johnny.danger12@gmail.com', 'role', 'authenticated')::text);
+
+  SELECT count(*) INTO n FROM public.aiden_chat_messages;
+  IF n != 1 THEN RAISE EXCEPTION 'SCENARIO 16a FAILED: founder could not read aiden_chat_messages (got %)', n; END IF;
+  RAISE NOTICE 'Scenario 16a PASSED: founder can read aiden_chat_messages';
+
+  BEGIN
+    INSERT INTO public.aiden_chat_messages (role, content) VALUES ('founder', 'direct client insert attempt');
+    RAISE EXCEPTION 'SCENARIO 16b FAILED: founder was able to insert into aiden_chat_messages directly (bypassing the Edge Function)';
+  EXCEPTION
+    WHEN insufficient_privilege THEN
+      RAISE NOTICE 'Scenario 16b PASSED: direct founder insert correctly rejected (%)', SQLERRM;
+  END;
+
+  RESET ROLE;
+  SET LOCAL ROLE authenticated;
+  EXECUTE format('SET LOCAL request.jwt.claims = %L', jsonb_build_object('sub', '22222222-2222-2222-2222-222222222222', 'email', 'owner-b@test.farlo.internal', 'role', 'authenticated')::text);
+
+  SELECT count(*) INTO n FROM public.aiden_chat_messages;
+  IF n != 0 THEN RAISE EXCEPTION 'SCENARIO 16c FAILED: non-founder could read aiden_chat_messages'; END IF;
+  RAISE NOTICE 'Scenario 16c PASSED: non-founder correctly denied read on aiden_chat_messages';
+END;
+$scenario16$;
+
 RESET ROLE;
 DO $$ BEGIN RAISE NOTICE 'ALL SECURITY ABUSE SCENARIO TESTS PASSED'; END $$;
 
