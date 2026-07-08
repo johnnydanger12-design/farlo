@@ -146,6 +146,9 @@ export function AidenBubble() {
               : undefined
           }
         >
+          <div className="flex shrink-0 flex-col gap-1 border-b border-[var(--border)] px-4 py-3 text-[10px] text-[var(--bad)]">
+            DEBUG mobileLayout={String(mobileLayout)} innerWidth={window.innerWidth} vvWidth={String(window.visualViewport?.width)} calcWidth={window.innerWidth - 24}
+          </div>
           <div className="flex shrink-0 items-center justify-between border-b border-[var(--border)] px-4 py-3">
             <span className="text-sm font-semibold">Aiden</span>
             <button
