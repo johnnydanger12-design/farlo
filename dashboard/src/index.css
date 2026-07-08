@@ -19,6 +19,9 @@
 
 html, body {
   overflow-x: hidden;
+  /* Stops iOS rubber-band bounce from an inner scroll container (e.g. the Chat
+     message list) from leaking into the outer page/body scroll chrome. */
+  overscroll-behavior: none;
 }
 
 body {

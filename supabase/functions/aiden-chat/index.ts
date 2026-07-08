@@ -6,13 +6,17 @@
 // use, which must never be reachable from browser JS.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { startRun, finishRun, logToolCalls } from '../_shared/run-log.ts';
-import { runAgentLoop, MODEL_SONNET, type ToolDefinition } from '../_shared/claude-agent.ts';
+import { runAgentLoop, MODEL_SONNET, MODEL_OPUS, MODEL_FABLE, type ToolDefinition, type AgentUserMessage } from '../_shared/claude-agent.ts';
 import { AIDEN_LOCKED_DIRECTIVES_NOTE, updateDirectiveTool } from '../_shared/aiden-persona.ts';
 import { wrapUntrusted } from '../_shared/prompt-boundaries.ts';
 import { corsHeaders, handlePreflight } from '../_shared/cors.ts';
 
 const FOUNDER_EMAIL = 'johnny.danger12@gmail.com';
 const HISTORY_LIMIT = 30;
+const ALLOWED_MODELS = new Set([MODEL_SONNET, MODEL_OPUS, MODEL_FABLE]);
+// Signed URLs are only ever handed to Anthropic's API server-to-server for a single
+// fetch, right after being minted — 5 minutes is generous, not a real exposure window.
+const IMAGE_SIGNED_URL_TTL_SECONDS = 300;
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
@@ -48,7 +52,7 @@ Deno.serve(async (req: Request) => {
     return new Response('Unauthorized', { status: 401, headers: corsHeaders(req) });
   }
 
-  let body: { message: string };
+  let body: { message: string; conversation_id?: string; model?: string; image_paths?: string[] };
   try {
     body = await req.json();
   } catch {
@@ -64,11 +68,51 @@ Deno.serve(async (req: Request) => {
     });
   }
   const founderMessage = body.message.trim();
+  const imagePaths = Array.isArray(body.image_paths) ? body.image_paths.filter((p) => typeof p === 'string') : [];
+  const requestedModel = body.model && ALLOWED_MODELS.has(body.model) ? body.model : undefined;
 
   const runId = await startRun(supabase, 'agent-aiden-chat');
 
   try {
-    await supabase.from('aiden_chat_messages').insert({ role: 'founder', content: founderMessage });
+    // Resolve (or create) the conversation this message belongs to. Model resolution
+    // order: an explicit per-request override, else the conversation's own stored
+    // model, else the default — a brand-new conversation with no override starts on
+    // Sonnet 5.
+    let conversationId = body.conversation_id;
+    let model = MODEL_SONNET;
+
+    if (conversationId) {
+      const { data: conversation, error: convError } = await supabase
+        .from('aiden_conversations')
+        .select('id, model')
+        .eq('id', conversationId)
+        .single();
+      if (convError || !conversation) throw new Error(`conversation_id not found: ${conversationId}`);
+      model = requestedModel ?? conversation.model;
+      if (requestedModel && requestedModel !== conversation.model) {
+        await supabase.from('aiden_conversations').update({ model: requestedModel }).eq('id', conversationId);
+      }
+    } else {
+      model = requestedModel ?? MODEL_SONNET;
+      const title = founderMessage.length > 40 ? `${founderMessage.slice(0, 40)}…` : founderMessage;
+      const { data: newConversation, error: createError } = await supabase
+        .from('aiden_conversations')
+        .insert({ title, model })
+        .select('id')
+        .single();
+      if (createError || !newConversation) throw new Error(`Failed to create conversation: ${createError?.message}`);
+      conversationId = newConversation.id;
+    }
+
+    // Persisted before the Claude call (not after) so a failed/slow reply never loses
+    // what Johnny actually typed — same durability property the original single-thread
+    // version had. History below naturally includes this message as its newest entry.
+    await supabase.from('aiden_chat_messages').insert({
+      conversation_id: conversationId,
+      role: 'founder',
+      content: founderMessage,
+      image_paths: imagePaths,
+    });
 
     const { data: directives, error: directivesError } = await supabase
       .from('agent_directives')
@@ -78,6 +122,7 @@ Deno.serve(async (req: Request) => {
     const { data: history } = await supabase
       .from('aiden_chat_messages')
       .select('role, content, created_at')
+      .eq('conversation_id', conversationId)
       .order('created_at', { ascending: false })
       .limit(HISTORY_LIMIT);
     const orderedHistory = (history ?? []).slice().reverse();
@@ -98,7 +143,7 @@ Deno.serve(async (req: Request) => {
       },
     };
 
-    const userMessage = [
+    const textBlock = [
       `Current agent_directives:`,
       JSON.stringify(directives, null, 2),
       ``,
@@ -109,17 +154,36 @@ Deno.serve(async (req: Request) => {
       wrapUntrusted('chat-new-message', founderMessage),
     ].join('\n');
 
+    let userMessage: AgentUserMessage = textBlock;
+    if (imagePaths.length > 0) {
+      const imageBlocks = [];
+      for (const path of imagePaths) {
+        const { data: signed, error: signError } = await supabase.storage
+          .from('aiden-chat-photos')
+          .createSignedUrl(path, IMAGE_SIGNED_URL_TTL_SECONDS);
+        if (signError || !signed) throw new Error(`Failed to sign image URL for ${path}: ${signError?.message}`);
+        imageBlocks.push({ type: 'image', source: { type: 'url', url: signed.signedUrl } });
+      }
+      userMessage = [{ type: 'text', text: textBlock }, ...imageBlocks];
+    }
+
     const result = await runAgentLoop({
       systemPrompt: SYSTEM_PROMPT,
       userMessage,
       tools: TOOLS,
       handlers,
-      model: MODEL_SONNET,
+      model,
       maxTokens: 2048,
     });
 
     const replyText = result.finalText || "I didn't have anything to add there.";
-    await supabase.from('aiden_chat_messages').insert({ role: 'aiden', content: replyText });
+
+    await supabase.from('aiden_chat_messages').insert({
+      conversation_id: conversationId,
+      role: 'aiden',
+      content: replyText,
+    });
+    await supabase.from('aiden_conversations').update({ last_message_at: new Date().toISOString() }).eq('id', conversationId);
 
     await logToolCalls(supabase, runId, result.toolCallLog);
     await finishRun(
@@ -129,11 +193,11 @@ Deno.serve(async (req: Request) => {
       replyText,
       undefined,
       result.usage,
-      MODEL_SONNET,
+      model,
     );
 
     return new Response(
-      JSON.stringify({ reply: replyText, tool_calls: result.toolCallLog }),
+      JSON.stringify({ reply: replyText, conversation_id: conversationId, model, tool_calls: result.toolCallLog }),
       { status: 200, headers: { ...corsHeaders(req), 'Content-Type': 'application/json' } },
     );
   } catch (err) {

@@ -30,6 +30,8 @@ export interface AgentRunResult {
 const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
 const ANTHROPIC_VERSION = '2023-06-01';
 export const MODEL_SONNET = 'claude-sonnet-5';
+export const MODEL_OPUS = 'claude-opus-4-8';
+export const MODEL_FABLE = 'claude-fable-5';
 export const MODEL_HAIKU = 'claude-haiku-4-5-20251001';
 
 const MAX_ITERATIONS = 30;
@@ -39,9 +41,15 @@ function emptyUsage(): UsageTotals {
   return { inputTokens: 0, outputTokens: 0, cacheCreationTokens: 0, cacheReadTokens: 0, webSearchRequests: 0 };
 }
 
+// A plain string for every existing caller, or an array of Anthropic content
+// blocks (text/image) for callers that need to attach images — e.g. aiden-chat's
+// photo attachments. Passed straight through as `content` either way.
+// deno-lint-ignore no-explicit-any
+export type AgentUserMessage = string | Record<string, any>[];
+
 export async function runAgentLoop(opts: {
   systemPrompt: string;
-  userMessage: string;
+  userMessage: AgentUserMessage;
   tools: ToolDefinition[];
   handlers: Record<string, ToolHandler>;
   model?: string;
