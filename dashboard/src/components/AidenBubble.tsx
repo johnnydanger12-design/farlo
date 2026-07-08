@@ -132,15 +132,18 @@ export function AidenBubble() {
 
       {open && (
         <div
-          className={`fixed z-50 flex min-w-0 flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--panel)] shadow-2xl
-                     sm:inset-x-auto sm:top-auto sm:bottom-24 sm:right-6 sm:h-[32rem] sm:w-96
-                     ${mobileLayout ? '' : 'inset-x-3 bottom-3 top-16'}`}
+          className="fixed z-50 flex min-w-0 flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--panel)] shadow-2xl
+                     sm:inset-x-auto sm:top-auto sm:bottom-24 sm:right-6 sm:h-[32rem] sm:w-96"
           style={
-            mobileLayout && viewport
-              ? { top: viewport.offsetTop + 12, left: '0.75rem', right: '0.75rem', height: viewport.height - 24 }
-              : mobileLayout
-                ? { top: 'calc(env(safe-area-inset-top) + 1rem)', bottom: '0.75rem', left: '0.75rem', right: '0.75rem' }
-                : undefined
+            mobileLayout
+              ? {
+                  position: 'fixed',
+                  top: (viewport?.offsetTop ?? 0) + 12,
+                  left: 12,
+                  width: 'calc(100vw - 24px)',
+                  height: (viewport?.height ?? window.innerHeight) - 24,
+                }
+              : undefined
           }
         >
           <div className="flex shrink-0 items-center justify-between border-b border-[var(--border)] px-4 py-3">
