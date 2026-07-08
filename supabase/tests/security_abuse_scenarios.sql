@@ -568,6 +568,61 @@ BEGIN
 END;
 $scenario14$;
 
+-- ── Scenario 15: founder UPDATE on content_queue and sales_prospects ─────
+-- Added alongside the dashboard's new Content and Outreach tabs, which let the founder
+-- mark content_queue items posted/skipped and flip a drafted sales_prospects row to
+-- 'contacted' once actually sent. Both were previously service-role-only for writes.
+DO $scenario15$
+DECLARE
+  founder uuid := '99999999-9999-9999-9999-999999999999';
+  content_id uuid;
+  prospect_id uuid;
+  n int;
+BEGIN
+  RESET ROLE;
+
+  -- founder row already inserted by Scenario 13's fixtures earlier in this same
+  -- transaction; re-insert defensively in case scenario ordering ever changes.
+  INSERT INTO auth.users (id, email) VALUES (founder, 'johnny.danger12@gmail.com')
+    ON CONFLICT (id) DO NOTHING;
+  INSERT INTO public.profiles (id, email, display_name, role)
+    VALUES (founder, 'johnny.danger12@gmail.com', 'Founder', 'consumer')
+    ON CONFLICT (id) DO NOTHING;
+
+  INSERT INTO public.content_queue (platform, caption, status)
+    VALUES ('instagram', 'scenario 15 test caption', 'queued') RETURNING id INTO content_id;
+  INSERT INTO public.sales_prospects (business_name, status)
+    VALUES ('Scenario 15 Test Business', 'drafted') RETURNING id INTO prospect_id;
+
+  SET LOCAL ROLE authenticated;
+  EXECUTE format('SET LOCAL request.jwt.claims = %L', jsonb_build_object('sub', founder, 'email', 'johnny.danger12@gmail.com', 'role', 'authenticated')::text);
+
+  UPDATE public.content_queue SET status = 'posted' WHERE id = content_id;
+  SELECT count(*) INTO n FROM public.content_queue WHERE id = content_id AND status = 'posted';
+  IF n != 1 THEN RAISE EXCEPTION 'SCENARIO 15a FAILED: founder could not mark content_queue posted'; END IF;
+
+  UPDATE public.sales_prospects SET status = 'contacted', last_contacted_at = now() WHERE id = prospect_id;
+  SELECT count(*) INTO n FROM public.sales_prospects WHERE id = prospect_id AND status = 'contacted';
+  IF n != 1 THEN RAISE EXCEPTION 'SCENARIO 15b FAILED: founder could not mark sales_prospects contacted'; END IF;
+
+  RAISE NOTICE 'Scenario 15a-b PASSED: founder can update content_queue and sales_prospects';
+
+  RESET ROLE;
+  SET LOCAL ROLE authenticated;
+  EXECUTE format('SET LOCAL request.jwt.claims = %L', jsonb_build_object('sub', '22222222-2222-2222-2222-222222222222', 'email', 'owner-b@test.farlo.internal', 'role', 'authenticated')::text);
+
+  UPDATE public.content_queue SET status = 'skipped' WHERE id = content_id;
+  SELECT count(*) INTO n FROM public.content_queue WHERE id = content_id AND status = 'skipped';
+  IF n != 0 THEN RAISE EXCEPTION 'SCENARIO 15c FAILED: non-founder was able to update content_queue'; END IF;
+
+  UPDATE public.sales_prospects SET status = 'not_interested' WHERE id = prospect_id;
+  SELECT count(*) INTO n FROM public.sales_prospects WHERE id = prospect_id AND status = 'not_interested';
+  IF n != 0 THEN RAISE EXCEPTION 'SCENARIO 15d FAILED: non-founder was able to update sales_prospects'; END IF;
+
+  RAISE NOTICE 'Scenario 15c-d PASSED: non-founder correctly denied on both tables';
+END;
+$scenario15$;
+
 RESET ROLE;
 DO $$ BEGIN RAISE NOTICE 'ALL SECURITY ABUSE SCENARIO TESTS PASSED'; END $$;
 

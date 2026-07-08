@@ -142,10 +142,9 @@ Deno.serve(async (req: Request) => {
         const { error } = await supabase
           .from('sales_prospects')
           .update({
-            status: 'contacted',
+            status: 'drafted',
             outreach_email: input.email,
-            last_contacted_at: new Date().toISOString(),
-            response_notes: 'Draft saved - not yet sent',
+            response_notes: 'Draft saved in Gmail - awaiting Johnny to send and mark it sent on the dashboard',
           })
           .eq('id', input.prospect_id);
         return error ? { error: error.message } : { success: true };
