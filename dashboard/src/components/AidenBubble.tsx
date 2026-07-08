@@ -26,44 +26,6 @@ export function AidenBubble() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const loadedRef = useRef(false);
 
-  // Below sm (640px) the panel is positioned via JS against window.visualViewport
-  // instead of plain CSS — iOS Safari doesn't shrink position:fixed's containing
-  // block when the on-screen keyboard opens (only the *visual* viewport shrinks),
-  // so a CSS-only bottom-anchored panel ends up partly hidden under the keyboard.
-  // Desktop/tablet has no on-screen keyboard to worry about, so it stays plain
-  // Tailwind (sm: classes below).
-  const [mobileLayout, setMobileLayout] = useState(
-    () => window.matchMedia('(max-width: 639px)').matches,
-  );
-  const [viewport, setViewport] = useState<{ height: number; width: number } | null>(
-    () => (window.visualViewport
-      ? { height: window.visualViewport.height, width: window.visualViewport.width }
-      : null),
-  );
-
-  useEffect(() => {
-    const mq = window.matchMedia('(max-width: 639px)');
-    const onChange = () => setMobileLayout(mq.matches);
-    mq.addEventListener('change', onChange);
-    return () => mq.removeEventListener('change', onChange);
-  }, []);
-
-  useEffect(() => {
-    if (!open) return;
-    function update() {
-      if (window.visualViewport) {
-        setViewport({ height: window.visualViewport.height, width: window.visualViewport.width });
-      }
-    }
-    update();
-    window.visualViewport?.addEventListener('resize', update);
-    window.visualViewport?.addEventListener('scroll', update);
-    return () => {
-      window.visualViewport?.removeEventListener('resize', update);
-      window.visualViewport?.removeEventListener('scroll', update);
-    };
-  }, [open]);
-
   useEffect(() => {
     if (!open || loadedRef.current) return;
     loadedRef.current = true;
@@ -121,121 +83,102 @@ export function AidenBubble() {
     ]);
   }
 
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        aria-label="Open chat with Aiden"
+        style={{ bottom: 'calc(env(safe-area-inset-bottom) + 1.5rem)' }}
+        className="fixed right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--accent)] text-[#04121f] shadow-lg transition-transform hover:scale-105 active:scale-95"
+      >
+        <ChatIcon />
+      </button>
+    );
+  }
+
+  // Full-screen takeover rather than a corner-anchored floating panel — a plain
+  // fixed inset-0 + flex column (header shrink-0, messages flex-1 scrollable, input
+  // shrink-0 at the bottom) is the same well-tested pattern AuthGate's login screen
+  // already uses successfully, including with the keyboard open. No custom
+  // viewport/keyboard math needed at all, unlike the earlier corner-panel version.
   return (
-    <>
-      {open && (
-        <div
-          className="fixed inset-0 z-40 sm:hidden bg-black/50"
+    <div className="fixed inset-0 z-50 flex flex-col bg-[var(--bg)]">
+      <div
+        className="flex shrink-0 items-center justify-between border-b border-[var(--border)] px-4"
+        style={{ paddingTop: 'calc(env(safe-area-inset-top) + 0.75rem)', paddingBottom: '0.75rem' }}
+      >
+        <span className="text-base font-semibold">Aiden</span>
+        <button
           onClick={() => setOpen(false)}
-        />
-      )}
-
-      {open && (
-        <div
-          className="fixed z-50 flex min-w-0 flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--panel)] shadow-2xl
-                     sm:inset-x-auto sm:top-auto sm:bottom-24 sm:right-6 sm:h-[32rem] sm:w-96"
-          style={
-            mobileLayout
-              ? {
-                  position: 'fixed',
-                  top: `calc(env(safe-area-inset-top) + 12px)`,
-                  left: `calc(env(safe-area-inset-left) + 12px)`,
-                  width: `calc(${viewport?.width ?? window.innerWidth}px - env(safe-area-inset-left) - env(safe-area-inset-right) - 24px)`,
-                  height: `calc(${viewport?.height ?? window.innerHeight}px - env(safe-area-inset-top) - 24px)`,
-                }
-              : undefined
-          }
+          aria-label="Close chat"
+          className="rounded-md p-1 text-[var(--muted)] hover:text-[var(--text)]"
         >
-          <div className="flex shrink-0 items-center justify-between border-b border-[var(--border)] px-4 py-3">
-            <span className="text-sm font-semibold">Aiden</span>
-            <button
-              onClick={() => setOpen(false)}
-              aria-label="Close chat"
-              className="rounded-md p-1 text-[var(--muted)] hover:text-[var(--text)]"
-            >
-              ✕
-            </button>
-          </div>
+          ✕
+        </button>
+      </div>
 
-          <div className="flex min-h-0 flex-1 min-w-0 flex-col gap-3 overflow-y-auto p-3">
-            {messages === null ? (
-              <Loading />
-            ) : messages.length === 0 ? (
-              <p className="text-sm text-[var(--muted)]">
-                No messages yet — say hi to Aiden below.
-              </p>
-            ) : (
-              messages.map((m) => (
-                <div
-                  key={m.id}
-                  className={`flex min-w-0 ${m.role === 'founder' ? 'justify-end' : 'justify-start'}`}
-                >
-                  <div
-                    className={`min-w-0 max-w-[85%] rounded-lg px-3 py-2 text-sm whitespace-pre-wrap break-words ${
-                      m.role === 'founder'
-                        ? 'bg-[var(--accent)] text-[#04121f]'
-                        : 'border border-[var(--border)] bg-black/20 text-[var(--text)]'
-                    }`}
-                  >
-                    {m.content}
-                  </div>
-                </div>
-              ))
-            )}
-            {sending && (
-              <div className="flex justify-start">
-                <div className="rounded-lg border border-[var(--border)] bg-black/20 px-3 py-2 text-sm text-[var(--muted)]">
-                  Aiden is typing…
-                </div>
+      <div className="flex min-h-0 flex-1 min-w-0 flex-col gap-3 overflow-y-auto p-4">
+        {messages === null ? (
+          <Loading />
+        ) : messages.length === 0 ? (
+          <p className="text-sm text-[var(--muted)]">
+            No messages yet — say hi to Aiden below.
+          </p>
+        ) : (
+          messages.map((m) => (
+            <div
+              key={m.id}
+              className={`flex min-w-0 ${m.role === 'founder' ? 'justify-end' : 'justify-start'}`}
+            >
+              <div
+                className={`min-w-0 max-w-[85%] rounded-lg px-3 py-2 text-sm whitespace-pre-wrap break-words ${
+                  m.role === 'founder'
+                    ? 'bg-[var(--accent)] text-[#04121f]'
+                    : 'border border-[var(--border)] bg-black/20 text-[var(--text)]'
+                }`}
+              >
+                {m.content}
               </div>
-            )}
-            <div ref={bottomRef} />
-          </div>
-
-          {error && (
-            <div className="shrink-0 px-3">
-              <ErrorNote message={error} />
             </div>
-          )}
+          ))
+        )}
+        {sending && (
+          <div className="flex justify-start">
+            <div className="rounded-lg border border-[var(--border)] bg-black/20 px-3 py-2 text-sm text-[var(--muted)]">
+              Aiden is typing…
+            </div>
+          </div>
+        )}
+        <div ref={bottomRef} />
+      </div>
 
-          <form
-            onSubmit={send}
-            className="flex min-w-0 shrink-0 gap-2 border-t border-[var(--border)] p-3"
-            style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
-          >
-            <input
-              type="text"
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              placeholder="Message Aiden…"
-              disabled={sending}
-              className="min-w-0 flex-1 rounded-md border border-[var(--border)] bg-transparent px-3 py-2 text-sm outline-none focus:border-[var(--accent)] disabled:opacity-50"
-            />
-            <button
-              type="submit"
-              disabled={sending || !draft.trim()}
-              className="shrink-0 rounded-md bg-[var(--accent)] px-4 py-2 text-sm font-medium text-[#04121f] disabled:opacity-50"
-            >
-              Send
-            </button>
-          </form>
+      {error && (
+        <div className="shrink-0 px-4">
+          <ErrorNote message={error} />
         </div>
       )}
 
-      {/* Hidden (not just re-labeled) while open — it used to stay in this same
-          bottom-right spot showing a "✕", which sat directly on top of the panel's
-          own Send button underneath it. The panel's own header close button covers
-          the same need without the overlap. */}
-      {!open && (
+      <form
+        onSubmit={send}
+        className="flex min-w-0 shrink-0 gap-2 border-t border-[var(--border)] p-3"
+        style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
+      >
+        <input
+          type="text"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder="Message Aiden…"
+          disabled={sending}
+          className="min-w-0 flex-1 rounded-md border border-[var(--border)] bg-transparent px-3 py-2 text-sm outline-none focus:border-[var(--accent)] disabled:opacity-50"
+        />
         <button
-          onClick={() => setOpen(true)}
-          aria-label="Open chat with Aiden"
-          style={{ bottom: 'calc(env(safe-area-inset-bottom) + 1.5rem)' }}
-          className="fixed right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--accent)] text-[#04121f] shadow-lg transition-transform hover:scale-105 active:scale-95"
+          type="submit"
+          disabled={sending || !draft.trim()}
+          className="shrink-0 rounded-md bg-[var(--accent)] px-4 py-2 text-sm font-medium text-[#04121f] disabled:opacity-50"
         >
-          <ChatIcon />
+          Send
         </button>
-      )}
-    </>
+      </form>
+    </div>
   );
 }
