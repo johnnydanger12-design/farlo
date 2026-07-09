@@ -12,8 +12,18 @@ class SecureLocalStorage extends LocalStorage {
 
   final String persistSessionKey;
 
+  // iOS defaults to KeychainAccessibility.unlocked, which makes the item
+  // unreadable the instant the device screen locks — not after any fixed
+  // duration. Since Supabase's own background-resume auto-refresh reads the
+  // stored refresh token to restore the session, a locked phone (often within
+  // seconds of backgrounding, per the user's own auto-lock setting) made that
+  // read return null and the session appeared lost, well before the access
+  // token itself would have actually expired. first_unlock keeps the item
+  // readable while locked (it only re-locks on a device restart), matching
+  // what background token refresh actually needs.
   static const _storage = FlutterSecureStorage(
     aOptions: AndroidOptions(encryptedSharedPreferences: true),
+    iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock),
   );
 
   @override
