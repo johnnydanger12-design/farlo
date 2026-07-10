@@ -1,0 +1,36 @@
+@import "tailwindcss";
+
+/* Light theme, matching the real app's brand colors -- see
+   lib/core/constants/app_colors.dart. Deliberately not dark-mode-only
+   like dashboard/'s internal-tool theme; this page needs to look like the
+   consumer-facing product. */
+:root {
+  color-scheme: light;
+  --bg: #f9f9f9;
+  --surface: #ffffff;
+  --border: #e5e7eb;
+  --text: #1a1a2e;
+  --muted: #6b7280;
+  --hint: #9ca3af;
+  --primary: #2563eb;
+  --primary-dark: #1d4ed8;
+  --open: #16a34a;
+  --closed: #dc2626;
+  --star: #fbbf24;
+  --error: #d32f2f;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  overscroll-behavior-y: none;
+  background: var(--bg);
+  color: var(--text);
+}
+
+#root {
+  min-height: 100dvh;
+}

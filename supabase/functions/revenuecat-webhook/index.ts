@@ -39,6 +39,7 @@ serve(async (req: Request) => {
 
   const appUserId = event.app_user_id as string | undefined;
   const eventType = event.type as string | undefined;
+  const eventStore = event.store as string | undefined;
   const expirationMs = event.expiration_at_ms as number | undefined;
 
   if (!appUserId || !eventType) {
@@ -56,6 +57,13 @@ serve(async (req: Request) => {
         return { status: 'active', isActive: true };
       case 'TRIAL_STARTED':
         return { status: 'trialing', isActive: true };
+      case 'NON_RENEWING_PURCHASE':
+        // Dashboard-granted promotional entitlements (revenuecat.com/docs/promotionals)
+        // arrive as NON_RENEWING_PURCHASE with store: 'PROMOTIONAL', not tied to any real
+        // Apple/Google purchase. Treat as free/trialing access, same as a real trial start.
+        // Farlo has no real one-time IAP products today, so any other store value here is
+        // unexpected — ignore rather than silently granting access.
+        return eventStore === 'PROMOTIONAL' ? { status: 'trialing', isActive: true } : null;
       case 'BILLING_ISSUE':
         return { status: 'past_due', isActive: false };
       case 'CANCELLATION':
