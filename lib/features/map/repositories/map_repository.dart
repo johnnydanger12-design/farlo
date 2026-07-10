@@ -10,10 +10,14 @@ class MapRepository {
   final SupabaseClient _supabase;
 
   Future<List<FoodTruck>> fetchActiveTrucks() async {
+    // No explicit is_active filter here — RLS ("food_trucks: public can read
+    // active subscribed trucks") already enforces is_active = true for every
+    // caller except the founder ("founder can read all", is_founder()).
+    // Filtering it here too would silently re-block the founder from seeing
+    // not-yet-live businesses even from their own founder account.
     final data = await _supabase
         .from(SupabaseConstants.foodTrucksTable)
         .select()
-        .eq('is_active', true)
         .eq('is_open', true)
         .not('latitude', 'is', null)
         .not('longitude', 'is', null)
@@ -69,11 +73,13 @@ class MapRepository {
     // not-null location filter fetchActiveTrucks() already has — its absence
     // let a truck that had never gone live (null lat/lng) into search
     // results, crashing the results screen (bugs.md Executive Summary #1).
+    //
+    // No explicit is_active filter — see the same note in fetchActiveTrucks().
+    // RLS enforces it for everyone except the founder.
     final results = await Future.wait([
       _supabase
           .from(SupabaseConstants.foodTrucksTable)
           .select()
-          .eq('is_active', true)
           .not('latitude', 'is', null)
           .not('longitude', 'is', null)
           .ilike('name', '%$q%')
@@ -82,7 +88,6 @@ class MapRepository {
       _supabase
           .from(SupabaseConstants.foodTrucksTable)
           .select()
-          .eq('is_active', true)
           .not('latitude', 'is', null)
           .not('longitude', 'is', null)
           .ilike('cuisine_type', '%$q%')
