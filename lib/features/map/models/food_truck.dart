@@ -7,6 +7,7 @@ class FoodTruck {
     required this.ownerId,
     required this.name,
     required this.cuisineType,
+    this.slug,
     this.description,
     this.logoUrl,
     this.photoUrls = const [],
@@ -41,6 +42,13 @@ class FoodTruck {
   final String ownerId;
   final String name;
   final String cuisineType;
+  // Nullable defensively even though the DB trigger (see
+  // supabase/migrations/20260710213921_add_food_trucks_slug.sql) generates
+  // one for every new row -- older rows or an unforeseen direct-insert path
+  // could theoretically still lack it, and callers (share link building)
+  // should degrade gracefully rather than build a broken "visit.farlo.app/null"
+  // URL.
+  final String? slug;
   final String? description;
   final String? logoUrl;
   final List<String> photoUrls;
@@ -94,6 +102,7 @@ class FoodTruck {
       ownerId: map['owner_id'] as String,
       name: map['name'] as String,
       cuisineType: map['cuisine_type'] as String,
+      slug: map['slug'] as String?,
       description: map['description'] as String?,
       logoUrl: map['logo_url'] as String?,
       photoUrls: (map['photo_urls'] as List?)?.cast<String>() ?? const [],
@@ -156,6 +165,7 @@ class FoodTruck {
       ownerId: ownerId,
       name: name ?? this.name,
       cuisineType: cuisineType ?? this.cuisineType,
+      slug: slug,
       description: description ?? this.description,
       logoUrl: logoUrl ?? this.logoUrl,
       photoUrls: photoUrls ?? this.photoUrls,

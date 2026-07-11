@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -25,6 +26,13 @@ class SecureLocalStorage extends LocalStorage {
     aOptions: AndroidOptions(encryptedSharedPreferences: true),
     iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock),
   );
+
+  /// Exposed only so a test can assert the configured accessibility level
+  /// without a real Keychain round-trip (not achievable in a pure Dart unit
+  /// test) -- a regression trip-wire for this exact bug class: silently
+  /// reverting to the (default) `unlocked` accessibility.
+  @visibleForTesting
+  static Map<String, String> get iOptionsForTesting => _storage.iOptions.toMap();
 
   @override
   Future<void> initialize() async {}

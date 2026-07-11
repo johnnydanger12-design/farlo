@@ -34,6 +34,29 @@ class PushNotificationService {
     _isOwner = user?.isOwner ?? false;
     _authResolved = user != null;
     _drainPending();
+
+    // Retry token registration now that we have a resolved auth state.
+    // Root cause of push tokens never getting saved: initialize() fetches
+    // and stores the token once, unawaited, immediately after runApp() --
+    // completely independent of login. _storeToken() silently no-ops if
+    // auth.currentUser is null at that exact moment (e.g. a brand-new
+    // signup, where nobody's logged in yet when initialize() runs). The
+    // only other path that could retry is onTokenRefresh, which only fires
+    // on rare FCM token rotation, not on login -- so without this, a
+    // user's very first session could go permanently unregistered unless
+    // FCM happens to rotate their token at some later, unpredictable time.
+    // This listener already fires on every auth transition (confirmed via
+    // app_shell.dart's ref.listen(authProvider, ...)), including right
+    // after a fresh signup/login, so it's the right place to close the gap.
+    if (user != null) _registerCurrentToken();
+  }
+
+  static Future<void> _registerCurrentToken() async {
+    String? token;
+    try {
+      token = await FirebaseMessaging.instance.getToken();
+    } catch (_) {}
+    if (token != null) await _storeToken(token);
   }
 
   static void _drainPending() {
@@ -130,12 +153,10 @@ static Future<void> sendTruckClosedAlert(String truckName) async {
       return;
     }
 
-    // Register current token (throws on iOS simulator — safe to ignore)
-    String? token;
-    try {
-      token = await FirebaseMessaging.instance.getToken();
-    } catch (_) {}
-    if (token != null) await _storeToken(token);
+    // Register current token (throws on iOS simulator — safe to ignore).
+    // Also retried from onAuthResolved() -- see that method's doc comment
+    // for why a single attempt here isn't sufficient on its own.
+    await _registerCurrentToken();
 
     // Re-register whenever the token rotates
     FirebaseMessaging.instance.onTokenRefresh.listen(_storeToken);

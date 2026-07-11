@@ -8,6 +8,36 @@ import '../constants/app_spacing.dart';
 import '../constants/app_text_styles.dart';
 import 'snackbar_extensions.dart';
 
+// Pure decision logic, extracted from the async orchestration below so it's
+// unit-testable without a device/plugin channel. This is exactly where the
+// real bug lived: which permission source is trusted for "does the user
+// already have what we need." permission_handler's own
+// Permission.locationAlways.status/request() result has a documented
+// upstream bug where it gets stuck reporting denied/permanentlyDenied on
+// iOS even after the user has genuinely granted "Always" in Settings
+// (confirmed live on a real device: full phone restart didn't clear it,
+// ruling out mere cache staleness). geolocator_apple reads CoreLocation's
+// authorization status directly and correctly reports LocationPermission
+// .always, so these helpers -- and every gate below -- consult ONLY
+// Geolocator's LocationPermission, never permission_handler's status/result.
+// permission_handler is still used for exactly one thing it's needed for:
+// firing the native "upgrade to Always" prompt on iOS, since Geolocator has
+// no API to trigger that (see LocationTrackingService's class doc).
+// See Baseflow/flutter-permission-handler#721, #1391, #780.
+
+/// Whether this permission level is sufficient to go live (background
+/// tracking requires "Always", not just "While In Use").
+@visibleForTesting
+bool hasRequiredLocationAccess(LocationPermission permission) =>
+    permission == LocationPermission.always;
+
+/// Whether foreground location was denied outright (as opposed to just not
+/// yet elevated to "Always").
+@visibleForTesting
+bool isForegroundLocationDenied(LocationPermission permission) =>
+    permission == LocationPermission.denied ||
+    permission == LocationPermission.deniedForever;
+
 /// Shows a prominent background-location disclosure (required by Google Play
 /// policy on Android; matches Apple's own App Review expectation of an
 /// in-app explanation before requesting "Always" on iOS) and then requests
@@ -16,10 +46,10 @@ import 'snackbar_extensions.dart';
 /// Returns true if the caller should proceed with going live, false if the
 /// user declined or permission was denied.
 Future<bool> requestLocationForGoLive(BuildContext context) async {
-  final bgStatusBefore = await Permission.locationAlways.status;
+  LocationPermission permission = await Geolocator.checkPermission();
 
   // If background permission is already granted, nothing to explain.
-  if (!bgStatusBefore.isGranted) {
+  if (!hasRequiredLocationAccess(permission)) {
     if (!context.mounted) return false;
     final accepted = await _showDisclosureSheet(context);
     if (!accepted) return false;
@@ -28,12 +58,10 @@ Future<bool> requestLocationForGoLive(BuildContext context) async {
   // Step 1 — foreground location (both platforms). Required before iOS will
   // even consider an "Always" request — permission_handler_apple's own
   // native code errors with MISSING_WHENINUSE_PERMISSION otherwise.
-  LocationPermission permission = await Geolocator.checkPermission();
   if (permission == LocationPermission.denied) {
     permission = await Geolocator.requestPermission();
   }
-  if (permission == LocationPermission.deniedForever ||
-      permission == LocationPermission.denied) {
+  if (isForegroundLocationDenied(permission)) {
     if (context.mounted) {
       context.showError('Location permission is required to go live.');
     }
@@ -46,10 +74,12 @@ Future<bool> requestLocationForGoLive(BuildContext context) async {
   // this triggers CoreLocation's native "Always" upgrade prompt directly
   // (no Settings round-trip needed the first time). We show our disclosure
   // first so users understand why, on both platforms.
-  final bgStatus = await Permission.locationAlways.status;
-  if (!bgStatus.isGranted) {
-    final result = await Permission.locationAlways.request();
-    if (!result.isGranted) {
+  if (!hasRequiredLocationAccess(permission)) {
+    await Permission.locationAlways.request();
+    // Re-check via Geolocator, not permission_handler's own request()
+    // result -- that result is the same unreliable value as .status above.
+    final recheck = await Geolocator.checkPermission();
+    if (!hasRequiredLocationAccess(recheck)) {
       if (context.mounted) {
         context.showError(
           'Background location is required to stay visible on the map when the app is minimised.',

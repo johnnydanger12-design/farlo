@@ -756,6 +756,44 @@ BEGIN
 END;
 $scenario18$;
 
+-- ── Scenario 19: find_profile_by_email() must not be directly callable by
+-- anon — found during the visit.farlo.app owner-persona backend recon
+-- (2026-07-09), not previously tracked in any audit doc. One of the 4 narrow
+-- SECURITY DEFINER lookup RPCs added when profiles' SELECT policy was
+-- tightened away from USING(true); unlike its siblings it had zero
+-- authorization check and was executable by anon -- a live
+-- email-enumeration oracle (POST any email, learn whether it's registered
+-- plus the account's display name, no login required). Legitimate use
+-- (transfer_truck_sheet.dart's recipient lookup) only ever runs from an
+-- already-authenticated screen, so there's no real anon use case to
+-- preserve -- unlike Scenario 12's functions, this one must stay callable
+-- by ordinary authenticated users (not founder-only, not service-role-only).
+DO $scenario19$
+BEGIN
+  RESET ROLE;
+
+  SET LOCAL ROLE anon;
+  BEGIN
+    PERFORM public.find_profile_by_email('owner-a@test.farlo.internal');
+    RAISE EXCEPTION 'SCENARIO 19a FAILED: anon (fully unauthenticated) was able to call find_profile_by_email and enumerate a registered email';
+  EXCEPTION
+    WHEN insufficient_privilege THEN
+      RAISE NOTICE 'Scenario 19a PASSED: anon correctly denied EXECUTE on find_profile_by_email (%)', SQLERRM;
+  END;
+
+  -- The real path (an ordinary logged-in user looking up a truck-transfer
+  -- recipient by email) must still work -- this RPC is deliberately not
+  -- founder-only or self-only, any authenticated user may call it.
+  RESET ROLE;
+  SET LOCAL ROLE authenticated;
+  EXECUTE format('SET LOCAL request.jwt.claims = %L', jsonb_build_object('sub', '22222222-2222-2222-2222-222222222222', 'email', 'owner-b@test.farlo.internal', 'role', 'authenticated')::text);
+  IF (SELECT display_name FROM public.find_profile_by_email('owner-a@test.farlo.internal')) != 'Owner A' THEN
+    RAISE EXCEPTION 'SCENARIO 19b FAILED: an ordinary authenticated user could not use find_profile_by_email for the real truck-transfer lookup';
+  END IF;
+  RAISE NOTICE 'Scenario 19b PASSED: an ordinary authenticated user can still look up a transfer recipient by email';
+END;
+$scenario19$;
+
 RESET ROLE;
 DO $$ BEGIN RAISE NOTICE 'ALL SECURITY ABUSE SCENARIO TESTS PASSED'; END $$;
 

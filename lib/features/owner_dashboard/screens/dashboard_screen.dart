@@ -85,7 +85,7 @@ class DashboardScreen extends ConsumerWidget {
                   }
                   _showAnnouncementSheet(context, truck.id, truck.name);
                 },
-                onShare: () => _shareTruckProfile(context, truck.name),
+                onShare: () => _shareTruckProfile(context, truck.name, truck.slug),
               ),
               const SizedBox(height: AppSpacing.md),
               DashboardStatusCard(
@@ -245,14 +245,27 @@ class DashboardScreen extends ConsumerWidget {
     );
   }
 
-  void _shareTruckProfile(BuildContext context, String truckName) {
+  void _shareTruckProfile(BuildContext context, String truckName, String? slug) {
     final box = context.findRenderObject() as RenderBox?;
     Share.share(
-      'Check out $truckName on Farlo!\n\n'
-      'Find local businesses near you, see their menus, and follow your favorites.\n\n'
-      'Download the app → https://farlo.app',
+      buildTruckShareMessage(truckName, slug),
       sharePositionOrigin:
           box == null ? null : box.localToGlobal(Offset.zero) & box.size,
     );
   }
+}
+
+/// Extracted as a pure, top-level function so it's unit-testable without a
+/// widget/BuildContext. Real link to the business's own public page
+/// (visit.farlo.app) instead of the generic marketing site -- previously
+/// this shared text mentioned the business by name but the only link was
+/// always the same plain farlo.app, with zero information about which
+/// business was shared. Falls back to the old generic message if slug is
+/// somehow unset (see FoodTruck.slug's doc comment for why that's
+/// defensive, not expected).
+String buildTruckShareMessage(String truckName, String? slug) {
+  final link = slug != null ? 'https://visit.farlo.app/$slug' : 'https://farlo.app';
+  return 'Check out $truckName on Farlo!\n\n'
+      'Find local businesses near you, see their menus, and follow your favorites.\n\n'
+      '$link';
 }
