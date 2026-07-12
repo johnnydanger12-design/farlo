@@ -212,6 +212,7 @@
 				3B06AD1E1E4923F5004D2608 /* Thin Binary */,
 				409B158513775F3507EC0E6A /* [CP] Embed Pods Frameworks */,
 				01BC227C92348FC4E76A3FE7 /* [CP] Copy Pods Resources */,
+				68001C4B0354746561F51C4B /* Crashlytics dSYM Upload */,
 			);
 			buildRules = (
 			);
@@ -399,6 +400,23 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "/bin/sh \"$FLUTTER_ROOT/packages/flutter_tools/bin/xcode_backend.sh\" build";
+		};
+		68001C4B0354746561F51C4B /* Crashlytics dSYM Upload */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}",
+				"$(SRCROOT)/$(BUILT_PRODUCTS_DIR)/$(INFOPLIST_PATH)",
+			);
+			name = "Crashlytics dSYM Upload";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/FirebaseCrashlytics/run\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
