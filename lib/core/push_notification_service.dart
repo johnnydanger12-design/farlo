@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -52,11 +53,43 @@ class PushNotificationService {
   }
 
   static Future<void> _registerCurrentToken() async {
+    // Root cause of push_tokens being permanently empty, confirmed via a
+    // real device log (2026-07-12): getToken() requires the native APNs
+    // device token to already be set, but that handshake with Apple's
+    // servers doesn't complete synchronously with requestPermission()
+    // resolving -- calling getToken() immediately after throws
+    // [firebase_messaging/apns-token-not-set] on every single call, not
+    // just occasionally. Poll for the APNs token first, with a bounded
+    // retry budget, before ever calling getToken().
+    if (Platform.isIOS) {
+      String? apnsToken = await FirebaseMessaging.instance.getAPNSToken();
+      var attempts = 0;
+      while (apnsToken == null && attempts < 10) {
+        await Future.delayed(const Duration(seconds: 1));
+        apnsToken = await FirebaseMessaging.instance.getAPNSToken();
+        attempts++;
+      }
+      if (apnsToken == null) {
+        debugPrint('PushNotificationService: APNS token never arrived after $attempts retries');
+        return;
+      }
+    }
+
     String? token;
     try {
       token = await FirebaseMessaging.instance.getToken();
-    } catch (_) {}
-    if (token != null) await _storeToken(token);
+    } catch (e, st) {
+      debugPrint('PushNotificationService: getToken() failed: $e');
+      await FirebaseCrashlytics.instance.recordError(
+        e,
+        st,
+        reason: 'push token getToken() failed',
+        fatal: false,
+      );
+      return;
+    }
+    if (token == null) return;
+    await _storeToken(token);
   }
 
   static void _drainPending() {
