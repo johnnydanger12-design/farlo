@@ -794,6 +794,60 @@ BEGIN
 END;
 $scenario19$;
 
+-- ── Scenario 20: profile_display_name() and profile_stripe_connected() must
+-- not be directly callable by anon — same class of finding as Scenario 19,
+-- found while fixing it (2026-07-12), not previously tracked in any audit
+-- doc. Both are narrow SECURITY DEFINER lookup RPCs from the same original
+-- batch (profile_display_name: "opened by <employee>" on the owner
+-- dashboard; profile_stripe_connected: an employee checking their owner's
+-- Stripe status). Neither checked the caller's identity, and both were
+-- anon-executable -- profile_stripe_connected is the more real exposure of
+-- the two, since food_trucks.owner_id is a plain, publicly-fetched column
+-- (both in-app and on visit.farlo.app), so any truck's owner UUID is
+-- trivially discoverable. Like Scenario 19, must stay callable by ordinary
+-- authenticated users (not founder-only, not self-only) -- that residual
+-- was already accepted project-wide for this class of RPC.
+DO $scenario20$
+BEGIN
+  RESET ROLE;
+
+  SET LOCAL ROLE anon;
+  BEGIN
+    PERFORM public.profile_display_name('11111111-1111-1111-1111-111111111111');
+    RAISE EXCEPTION 'SCENARIO 20a FAILED: anon (fully unauthenticated) was able to call profile_display_name directly';
+  EXCEPTION
+    WHEN insufficient_privilege THEN
+      RAISE NOTICE 'Scenario 20a PASSED: anon correctly denied EXECUTE on profile_display_name (%)', SQLERRM;
+  END;
+
+  SET LOCAL ROLE anon;
+  BEGIN
+    PERFORM public.profile_stripe_connected('11111111-1111-1111-1111-111111111111');
+    RAISE EXCEPTION 'SCENARIO 20b FAILED: anon (fully unauthenticated) was able to call profile_stripe_connected directly';
+  EXCEPTION
+    WHEN insufficient_privilege THEN
+      RAISE NOTICE 'Scenario 20b PASSED: anon correctly denied EXECUTE on profile_stripe_connected (%)', SQLERRM;
+  END;
+
+  -- The real paths (owner looking up an employee's name; employee checking
+  -- their owner's Stripe status) must still work for any ordinary
+  -- authenticated user.
+  RESET ROLE;
+  SET LOCAL ROLE authenticated;
+  EXECUTE format('SET LOCAL request.jwt.claims = %L', jsonb_build_object('sub', '22222222-2222-2222-2222-222222222222', 'email', 'owner-b@test.farlo.internal', 'role', 'authenticated')::text);
+
+  IF (SELECT public.profile_display_name('11111111-1111-1111-1111-111111111111')) != 'Owner A' THEN
+    RAISE EXCEPTION 'SCENARIO 20c FAILED: an ordinary authenticated user could not use profile_display_name for the real cross-user lookup';
+  END IF;
+  RAISE NOTICE 'Scenario 20c PASSED: an ordinary authenticated user can still look up another user''s display name';
+
+  IF (SELECT public.profile_stripe_connected('11111111-1111-1111-1111-111111111111')) IS DISTINCT FROM false THEN
+    RAISE EXCEPTION 'SCENARIO 20d FAILED: profile_stripe_connected did not return the expected false for a non-connected owner';
+  END IF;
+  RAISE NOTICE 'Scenario 20d PASSED: an ordinary authenticated user can still check another user''s Stripe-connected status';
+END;
+$scenario20$;
+
 RESET ROLE;
 DO $$ BEGIN RAISE NOTICE 'ALL SECURITY ABUSE SCENARIO TESTS PASSED'; END $$;
 
