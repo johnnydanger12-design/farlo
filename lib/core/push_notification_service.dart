@@ -52,7 +52,30 @@ class PushNotificationService {
     if (user != null) _registerCurrentToken();
   }
 
+  // TEMPORARY diagnostic instrumentation (2026-07-12): writes directly to
+  // the `debug_log` Supabase table so the real distribution-signed build's
+  // behavior is directly queryable, without depending on flutter run (proved
+  // invalid for APNs testing -- wrong signing/entitlement context) or
+  // Crashlytics dashboard propagation delay. Remove once root cause is
+  // confirmed and fixed.
+  static Future<void> _logRemote(String event, [String? detail]) async {
+    debugPrint('PushNotificationService: $event${detail != null ? ' -- $detail' : ''}');
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user == null) return;
+      await Supabase.instance.client.from('debug_log').insert({
+        'user_id': user.id,
+        'event': event,
+        'detail': detail,
+      });
+    } catch (e) {
+      debugPrint('PushNotificationService: _logRemote failed: $e');
+    }
+  }
+
   static Future<void> _registerCurrentToken() async {
+    await _logRemote('registerCurrentToken:start');
+
     // Root cause of push_tokens being permanently empty, confirmed via a
     // real device log (2026-07-12): getToken() requires the native APNs
     // device token to already be set, but that handshake with Apple's
@@ -70,16 +93,17 @@ class PushNotificationService {
         attempts++;
       }
       if (apnsToken == null) {
-        debugPrint('PushNotificationService: APNS token never arrived after $attempts retries');
+        await _logRemote('apnsToken:never_arrived', 'attempts=$attempts');
         return;
       }
+      await _logRemote('apnsToken:received', 'attempts=$attempts token_len=${apnsToken.length}');
     }
 
     String? token;
     try {
       token = await FirebaseMessaging.instance.getToken();
     } catch (e, st) {
-      debugPrint('PushNotificationService: getToken() failed: $e');
+      await _logRemote('getToken:error', e.toString());
       await FirebaseCrashlytics.instance.recordError(
         e,
         st,
@@ -88,7 +112,11 @@ class PushNotificationService {
       );
       return;
     }
-    if (token == null) return;
+    if (token == null) {
+      await _logRemote('getToken:returned_null');
+      return;
+    }
+    await _logRemote('getToken:success', 'token_len=${token.length}');
     await _storeToken(token);
   }
 
@@ -275,9 +303,13 @@ static Future<void> sendTruckClosedAlert(String truckName) async {
 
   static Future<void> _storeToken(String token) async {
     final user = Supabase.instance.client.auth.currentUser;
-    if (user == null) return;
+    if (user == null) {
+      await _logRemote('storeToken:no_user');
+      return;
+    }
 
     final platform = Platform.isIOS ? 'ios' : 'android';
+    await _logRemote('storeToken:attempt', 'user_id=${user.id} platform=$platform');
     try {
       await Supabase.instance.client.from('push_tokens').upsert(
         {
@@ -288,8 +320,9 @@ static Future<void> sendTruckClosedAlert(String truckName) async {
         },
         onConflict: 'user_id,platform',
       );
+      await _logRemote('storeToken:success');
     } catch (e) {
-      debugPrint('Failed to store push token: $e');
+      await _logRemote('storeToken:error', e.toString());
     }
   }
 }
