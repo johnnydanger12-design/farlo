@@ -75,7 +75,7 @@ async function sendFCM(
   projectId: string,
   accessToken: string,
   data: Record<string, string> = {},
-): Promise<void> {
+): Promise<{ ok: boolean; error?: string }> {
   const msg: Record<string, unknown> = { token: fcmToken, notification: { title, body } };
   if (Object.keys(data).length > 0) msg.data = data;
   const res = await fetch(
@@ -92,7 +92,9 @@ async function sendFCM(
   if (!res.ok) {
     const err = await res.text();
     console.error('FCM error:', err);
+    return { ok: false, error: err };
   }
+  return { ok: true };
 }
 
 async function checkPrefs(
@@ -302,10 +304,17 @@ Deno.serve(async (req: Request) => {
 
   const sa = JSON.parse(saJson);
   const accessToken = await getFCMAccessToken(sa);
-  await sendFCM(tokenRow.token, title!, notifBody!, sa.project_id, accessToken, {
+  const result = await sendFCM(tokenRow.token, title!, notifBody!, sa.project_id, accessToken, {
     type: notifType!,
     related_id: relatedId ?? '',
   });
+
+  if (!result.ok) {
+    return new Response(
+      JSON.stringify({ sent: false, reason: 'fcm_error', error: result.error }),
+      { status: 200 },
+    );
+  }
 
   return new Response(JSON.stringify({ sent: true }), { status: 200 });
 });
