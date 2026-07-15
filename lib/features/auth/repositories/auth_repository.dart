@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -160,6 +161,25 @@ class AuthRepository {
   }
 
   Future<void> signOut() async {
+    // Delete this device's push token before ending the session — otherwise a
+    // shared device (someone else signing in after) keeps this user's token
+    // registered and they can still receive pushes routed to a device they're
+    // no longer using. currentUser goes null immediately after auth.signOut(),
+    // so the id/platform must be captured first.
+    final userId = _supabase.auth.currentUser?.id;
+    if (userId != null) {
+      final platform = Platform.isIOS ? 'ios' : 'android';
+      try {
+        await _supabase
+            .from('push_tokens')
+            .delete()
+            .eq('user_id', userId)
+            .eq('platform', platform)
+            .withNetworkTimeout;
+      } catch (_) {
+        // Best-effort — don't block sign-out on this cleanup.
+      }
+    }
     await _supabase.auth.signOut().withNetworkTimeout;
   }
 
