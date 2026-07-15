@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -15,6 +16,8 @@ import '../../../services/storage_service.dart';
 import '../../../core/widgets/snackbar_extensions.dart';
 import '../../food_trucks/models/menu_item.dart';
 import '../../food_trucks/providers/food_truck_provider.dart';
+import '../repositories/menu_import_repository.dart';
+import 'menu_import_review_screen.dart';
 
 class ManageMenuScreen extends ConsumerWidget {
   const ManageMenuScreen({super.key});
@@ -34,14 +37,23 @@ class ManageMenuScreen extends ConsumerWidget {
           onPressed: () => context.pop(),
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.add),
+          PopupMenuButton<String>(
+            icon: Icon(Icons.add, color: Theme.of(context).colorScheme.primary),
             tooltip: 'Add menu item',
-            color: Theme.of(context).colorScheme.primary,
-            onPressed: () => asyncTruck.asData?.value != null
-                ? _showAddSheet(context, ref, asyncTruck.asData!.value!.id,
-                    asyncTruck.asData!.value!.menuItems.length)
-                : null,
+            enabled: asyncTruck.asData?.value != null,
+            onSelected: (choice) {
+              final truck = asyncTruck.asData?.value;
+              if (truck == null) return;
+              if (choice == 'manual') {
+                _showAddSheet(context, ref, truck.id, truck.menuItems.length);
+              } else {
+                _showImportOptions(context, ref, truck.id);
+              }
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(value: 'manual', child: Text('Add item manually')),
+              PopupMenuItem(value: 'import', child: Text('Import from photo or PDF')),
+            ],
           ),
         ],
       ),
@@ -65,6 +77,12 @@ class ManageMenuScreen extends ConsumerWidget {
                     label: Text('Add your first item',
                         style: TextStyle(color: Theme.of(context).colorScheme.primary)),
                   ),
+                  TextButton.icon(
+                    onPressed: () => _showImportOptions(context, ref, truck.id),
+                    icon: Icon(Icons.document_scanner_outlined, color: Theme.of(context).colorScheme.primary),
+                    label: Text('Import from photo or PDF',
+                        style: TextStyle(color: Theme.of(context).colorScheme.primary)),
+                  ),
                 ],
               ),
             );
@@ -73,10 +91,41 @@ class ManageMenuScreen extends ConsumerWidget {
           for (final item in truck.menuItems) {
             grouped.putIfAbsent(item.category, () => []).add(item);
           }
+          // Category order comes from the truck's explicit menu_categories
+          // order (falling back to first-appearance order for any category
+          // not yet registered there), not from grouped's insertion order.
+          final orderedCategories = truck.orderedCategoryNames.where((c) => grouped.containsKey(c)).toList();
           final List<Object> rows = [];
-          for (final entry in grouped.entries) {
-            rows.add(entry.key);
-            rows.addAll(entry.value);
+          for (final category in orderedCategories) {
+            rows.add(category);
+            rows.addAll(grouped[category]!);
+          }
+
+          Future<void> moveCategory(String category, int delta) async {
+            final from = orderedCategories.indexOf(category);
+            final to = from + delta;
+            if (to < 0 || to >= orderedCategories.length) return;
+            final reordered = [...orderedCategories];
+            reordered.removeAt(from);
+            reordered.insert(to, category);
+            await ref.read(foodTruckRepositoryProvider).reorderMenuCategories(truck.id, reordered);
+            await ref.read(ownerTruckProvider.notifier).refresh();
+          }
+
+          // Items within a category are already ordered by the existing
+          // global sort_order integer (menu items across every category share
+          // one counter) — moving one up/down just swaps that value with its
+          // neighbor *within this category's slice*, no new column needed.
+          Future<void> moveItem(MenuItem item, int delta) async {
+            final categoryItems = grouped[item.category]!;
+            final from = categoryItems.indexOf(item);
+            final to = from + delta;
+            if (to < 0 || to >= categoryItems.length) return;
+            final other = categoryItems[to];
+            final repo = ref.read(foodTruckRepositoryProvider);
+            await repo.updateMenuItem(item.id, {'sort_order': other.sortOrder});
+            await repo.updateMenuItem(other.id, {'sort_order': item.sortOrder});
+            await ref.read(ownerTruckProvider.notifier).refresh();
           }
 
           return ListView.builder(
@@ -87,12 +136,17 @@ class ManageMenuScreen extends ConsumerWidget {
             itemBuilder: (_, i) {
               final row = rows[i];
               if (row is String) {
+                final index = orderedCategories.indexOf(row);
                 return _CategoryHeader(
                   category: row,
                   count: grouped[row]!.length,
+                  onMoveUp: index > 0 ? () => moveCategory(row, -1) : null,
+                  onMoveDown: index < orderedCategories.length - 1 ? () => moveCategory(row, 1) : null,
                 );
               }
               final item = row as MenuItem;
+              final categoryItems = grouped[item.category]!;
+              final itemIndex = categoryItems.indexOf(item);
               return Padding(
                 padding: const EdgeInsets.only(bottom: AppSpacing.sm),
                 child: _MenuItemTile(
@@ -104,6 +158,8 @@ class ManageMenuScreen extends ConsumerWidget {
                         .updateMenuItem(item.id, {'is_available': val})
                         .then((_) => ref.read(ownerTruckProvider.notifier).refresh());
                   },
+                  onMoveUp: itemIndex > 0 ? () => moveItem(item, -1) : null,
+                  onMoveDown: itemIndex < categoryItems.length - 1 ? () => moveItem(item, 1) : null,
                 ),
               );
             },
@@ -131,6 +187,7 @@ class ManageMenuScreen extends ConsumerWidget {
             sortOrder: nextSort,
             imageUrl: imageUrl,
           );
+          await _registerCategoryIfNew(ref, truckId, category);
           await ref.read(ownerTruckProvider.notifier).refresh();
         },
       ),
@@ -154,10 +211,143 @@ class ManageMenuScreen extends ConsumerWidget {
             'category': category,
             'image_url': imageUrl,
           });
+          await _registerCategoryIfNew(ref, item.truckId, category);
           await ref.read(ownerTruckProvider.notifier).refresh();
         },
       ),
     );
+  }
+
+  void _showImportOptions(BuildContext context, WidgetRef ref, String truckId) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Import Menu', style: AppTextStyles.heading3),
+            const SizedBox(height: AppSpacing.xs),
+            Text('Claude will read the file and draft your menu items — you review and edit before anything is saved.',
+                style: AppTextStyles.caption),
+            const SizedBox(height: AppSpacing.md),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.photo_outlined, color: Theme.of(context).colorScheme.primary),
+              title: const Text('Choose a photo'),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _pickPhotoAndImport(context, ref, truckId);
+              },
+            ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.picture_as_pdf_outlined, color: Theme.of(context).colorScheme.primary),
+              title: const Text('Choose a PDF file'),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _pickPdfAndImport(context, ref, truckId);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickPhotoAndImport(BuildContext context, WidgetRef ref, String truckId) async {
+    XFile? xfile;
+    try {
+      xfile = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 90);
+    } catch (_) {
+      // Backing out of the system picker (e.g. a back gesture rather than its
+      // own Cancel button) can throw on some platforms instead of cleanly
+      // resolving to null — treat any picker-level failure as a cancel.
+      return;
+    }
+    if (xfile == null) return;
+    if (context.mounted) await _uploadAndReview(context, ref, truckId, File(xfile.path));
+  }
+
+  Future<void> _pickPdfAndImport(BuildContext context, WidgetRef ref, String truckId) async {
+    FilePickerResult? result;
+    try {
+      result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['pdf']);
+    } catch (_) {
+      return;
+    }
+    final path = result?.files.single.path;
+    if (path == null) return;
+    if (context.mounted) await _uploadAndReview(context, ref, truckId, File(path));
+  }
+
+  Future<void> _uploadAndReview(BuildContext context, WidgetRef ref, String truckId, File file) async {
+    // Captured once, before the async gap below — popping/pushing via this
+    // stable NavigatorState (rather than repeated Navigator.pop(context)/
+    // Navigator.push(context, ...) calls after an await) is what actually
+    // guarantees we dismiss the exact loading-dialog route showDialog just
+    // pushed, regardless of anything else that happens to `context` while
+    // the parse call is in flight.
+    final navigator = Navigator.of(context, rootNavigator: true);
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const PopScope(
+        // Also blocks the Android hardware back button — otherwise a user
+        // backing out of this early would let a later navigator.pop() (once
+        // the parse finishes) pop the wrong route instead of this dialog.
+        canPop: false,
+        child: AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: AppSpacing.md),
+              Expanded(child: Text('Reading your menu… this can take a minute for longer files.')),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    try {
+      final items = await ref.read(menuImportRepositoryProvider).uploadAndParse(truckId, file);
+      if (navigator.canPop()) navigator.pop(); // dismiss loading dialog
+      if (!context.mounted) return;
+
+      if (items.isEmpty) {
+        context.showError("Couldn't read any items from that file. Try a clearer photo or a higher-resolution scan.");
+        return;
+      }
+
+      await navigator.push(
+        MaterialPageRoute(builder: (_) => MenuImportReviewScreen(truckId: truckId, parsedItems: items)),
+      );
+    } catch (e) {
+      if (navigator.canPop()) navigator.pop(); // dismiss loading dialog
+      if (context.mounted) {
+        context.showError('Could not import menu: ${sanitizeErrorMessage(e)}');
+      }
+    }
+  }
+
+  // Gives a brand-new (or newly-retyped) category an explicit sort position
+  // the first time it's used, appended after whatever categories already
+  // exist — a no-op if the category is already registered (ensureCategoryExists
+  // ignores conflicts, so an existing category's position is never reset).
+  Future<void> _registerCategoryIfNew(WidgetRef ref, String truckId, String category) async {
+    final truck = ref.read(ownerTruckProvider).asData?.value;
+    if (truck == null) return;
+    await ref.read(foodTruckRepositoryProvider).ensureCategoryExists(
+          truckId,
+          category,
+          fallbackSortOrder: truck.orderedCategoryNames.length,
+        );
   }
 
   Future<void> _confirmDelete(BuildContext context, WidgetRef ref, String itemId) async {
@@ -186,10 +376,17 @@ class ManageMenuScreen extends ConsumerWidget {
 }
 
 class _CategoryHeader extends StatelessWidget {
-  const _CategoryHeader({required this.category, required this.count});
+  const _CategoryHeader({
+    required this.category,
+    required this.count,
+    required this.onMoveUp,
+    required this.onMoveDown,
+  });
 
   final String category;
   final int count;
+  final VoidCallback? onMoveUp;
+  final VoidCallback? onMoveDown;
 
   @override
   Widget build(BuildContext context) {
@@ -203,7 +400,64 @@ class _CategoryHeader extends StatelessWidget {
             '$count ${count == 1 ? 'item' : 'items'}',
             style: AppTextStyles.caption,
           ),
+          const Spacer(),
+          IconButton(
+            icon: const Icon(Icons.keyboard_arrow_up, size: 20),
+            color: AppColors.textSecondary,
+            visualDensity: VisualDensity.compact,
+            tooltip: 'Move $category up',
+            onPressed: onMoveUp,
+          ),
+          IconButton(
+            icon: const Icon(Icons.keyboard_arrow_down, size: 20),
+            color: AppColors.textSecondary,
+            visualDensity: VisualDensity.compact,
+            tooltip: 'Move $category down',
+            onPressed: onMoveDown,
+          ),
         ],
+      ),
+    );
+  }
+}
+
+class _ReorderArrows extends StatelessWidget {
+  const _ReorderArrows({required this.onMoveUp, required this.onMoveDown});
+
+  final VoidCallback? onMoveUp;
+  final VoidCallback? onMoveDown;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _ArrowButton(icon: Icons.keyboard_arrow_up, onPressed: onMoveUp, tooltip: 'Move up'),
+        _ArrowButton(icon: Icons.keyboard_arrow_down, onPressed: onMoveDown, tooltip: 'Move down'),
+      ],
+    );
+  }
+}
+
+class _ArrowButton extends StatelessWidget {
+  const _ArrowButton({required this.icon, required this.onPressed, required this.tooltip});
+
+  final IconData icon;
+  final VoidCallback? onPressed;
+  final String tooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 24,
+      height: 20,
+      child: IconButton(
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints(),
+        icon: Icon(icon, size: 16),
+        color: AppColors.textSecondary,
+        tooltip: tooltip,
+        onPressed: onPressed,
       ),
     );
   }
@@ -215,12 +469,16 @@ class _MenuItemTile extends StatelessWidget {
     required this.onEdit,
     required this.onDelete,
     required this.onToggleAvailable,
+    required this.onMoveUp,
+    required this.onMoveDown,
   });
 
   final MenuItem item;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
   final ValueChanged<bool> onToggleAvailable;
+  final VoidCallback? onMoveUp;
+  final VoidCallback? onMoveDown;
 
   @override
   Widget build(BuildContext context) {
@@ -232,9 +490,14 @@ class _MenuItemTile extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
         ),
         child: ListTile(
-          contentPadding: const EdgeInsets.fromLTRB(AppSpacing.md, 4, 4, 4),
-          leading: item.imageUrl != null
-              ? ClipRRect(
+          contentPadding: const EdgeInsets.fromLTRB(4, 4, 4, 4),
+          leading: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _ReorderArrows(onMoveUp: onMoveUp, onMoveDown: onMoveDown),
+              const SizedBox(width: 4),
+              if (item.imageUrl != null)
+                ClipRRect(
                   borderRadius: BorderRadius.circular(8),
                   child: CachedNetworkImage(
                     imageUrl: transformedImageUrl(item.imageUrl!, width: 96, height: 96),
@@ -243,8 +506,9 @@ class _MenuItemTile extends StatelessWidget {
                     fit: BoxFit.cover,
                     errorWidget: (_, _, _) => const SizedBox(width: 48, height: 48),
                   ),
-                )
-              : null,
+                ),
+            ],
+          ),
           title: Text(item.name, style: AppTextStyles.label),
           subtitle: Text(
             item.description != null && item.description!.isNotEmpty

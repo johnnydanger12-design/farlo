@@ -71,7 +71,7 @@ class EmployeeGoLiveNotifier extends AsyncNotifier<FoodTruck?> {
   Future<FoodTruck?> build() async {
     final data = await Supabase.instance.client
         .from('food_trucks')
-        .select('*, operating_hours(*), menu_items(*)')
+        .select('*, operating_hours(*), menu_items(*), menu_categories(*)')
         .eq('id', _truckId)
         .single();
     final truck = FoodTruck.fromMap(data);
@@ -101,7 +101,7 @@ class EmployeeGoLiveNotifier extends AsyncNotifier<FoodTruck?> {
     try {
       final data = await Supabase.instance.client
           .from('food_trucks')
-          .select('*, operating_hours(*), menu_items(*)')
+          .select('*, operating_hours(*), menu_items(*), menu_categories(*)')
           .eq('id', _truckId)
           .single();
       final fresh = FoodTruck.fromMap(data);

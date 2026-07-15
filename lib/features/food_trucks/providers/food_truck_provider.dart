@@ -19,13 +19,26 @@ class _FoodTruckNotifier extends AsyncNotifier<FoodTruck> {
   Future<FoodTruck> build() async {
     final truck = await ref.read(foodTruckRepositoryProvider).fetchById(_truckId);
 
-    // Realtime: refresh when menu items change so consumer profile stays current.
+    // Realtime: refresh when menu items or category order change so consumer
+    // profile stays current (e.g. an owner reordering categories while a
+    // customer already has this profile open).
     final channel = Supabase.instance.client
         .channel('consumer-menu-$_truckId')
         .onPostgresChanges(
           event: PostgresChangeEvent.all,
           schema: 'public',
           table: 'menu_items',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'truck_id',
+            value: _truckId,
+          ),
+          callback: (_) => ref.invalidateSelf(),
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'menu_categories',
           filter: PostgresChangeFilter(
             type: PostgresChangeFilterType.eq,
             column: 'truck_id',
@@ -79,13 +92,28 @@ class OwnerTruckNotifier extends AsyncNotifier<FoodTruck?> {
           .subscribe();
       ref.onDispose(truckChannel.unsubscribe);
 
-      // Realtime for menu item changes (availability toggles, add/remove).
+      // Realtime for menu item changes (availability toggles, add/remove,
+      // item reordering) and category reordering — both needed so a second
+      // session on the same truck (e.g. an employee's dashboard, or the
+      // owner on another device) sees reorders live instead of only after
+      // navigating away and back.
       final menuChannel = Supabase.instance.client
           .channel('owner-menu-${truck.id}')
           .onPostgresChanges(
             event: PostgresChangeEvent.all,
             schema: 'public',
             table: 'menu_items',
+            filter: PostgresChangeFilter(
+              type: PostgresChangeFilterType.eq,
+              column: 'truck_id',
+              value: truck.id,
+            ),
+            callback: (_) => refresh(),
+          )
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'menu_categories',
             filter: PostgresChangeFilter(
               type: PostgresChangeFilterType.eq,
               column: 'truck_id',

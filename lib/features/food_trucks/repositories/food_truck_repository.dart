@@ -11,7 +11,7 @@ class FoodTruckRepository {
   Future<FoodTruck> fetchById(String id) async {
     final data = await _supabase
         .from(SupabaseConstants.foodTrucksTable)
-        .select('*, operating_hours(*), menu_items(*)')
+        .select('*, operating_hours(*), menu_items(*), menu_categories(*)')
         .eq('id', id)
         .single()
         .withNetworkTimeout;
@@ -21,7 +21,7 @@ class FoodTruckRepository {
   Future<List<FoodTruck>> fetchOwnerTrucks(String ownerId) async {
     final data = await _supabase
         .from(SupabaseConstants.foodTrucksTable)
-        .select('*, operating_hours(*), menu_items(*)')
+        .select('*, operating_hours(*), menu_items(*), menu_categories(*)')
         .eq('owner_id', ownerId)
         .withNetworkTimeout;
     return (data as List).map((e) => FoodTruck.fromMap(e as Map<String, dynamic>)).toList();
@@ -118,5 +118,63 @@ class FoodTruckRepository {
 
   Future<void> deleteMenuItem(String itemId) async {
     await _supabase.from(SupabaseConstants.menuItemsTable).delete().eq('id', itemId).withNetworkTimeout;
+  }
+
+  // Bulk-insert confirmed items from a menu photo/PDF import — one round trip
+  // for the whole batch rather than N (same convention as
+  // upsertOperatingHoursBatch above).
+  Future<void> bulkAddMenuItems(String truckId, List<({
+    String name, String? description, double price, String category, int sortOrder,
+  })> items) async {
+    await _supabase.from(SupabaseConstants.menuItemsTable).insert([
+      for (final i in items)
+        {
+          'truck_id': truckId,
+          'name': i.name,
+          'description': i.description,
+          'price': i.price,
+          'category': i.category,
+          'sort_order': i.sortOrder,
+          'is_available': true,
+        },
+    ]).withNetworkTimeout;
+  }
+
+  // Menu categories
+  // Persists a full new ordering in one batch upsert (same pattern as
+  // upsertOperatingHoursBatch above) rather than one round-trip per category.
+  // Takes plain names (not MenuCategory rows) since the caller may include a
+  // category that only exists on menu_items so far and has no row here yet —
+  // the upsert creates it in the same call.
+  Future<void> reorderMenuCategories(String truckId, List<String> namesInNewOrder) async {
+    await _supabase.from(SupabaseConstants.menuCategoriesTable).upsert(
+          [
+            for (var i = 0; i < namesInNewOrder.length; i++)
+              {
+                'truck_id': truckId,
+                'name': namesInNewOrder[i],
+                'sort_order': i,
+              },
+          ],
+          onConflict: 'truck_id,name',
+        ).withNetworkTimeout;
+  }
+
+  // Called after adding/editing a menu item — registers a category row the
+  // first time a given category name is used for this truck (e.g. a
+  // newly-typed custom category), so it gets an explicit sort position
+  // instead of only ever being derived from item order. Existing categories
+  // are left untouched (ignoreDuplicates) so this never resets a category's
+  // position that the owner has already reordered.
+  Future<void> ensureCategoryExists(String truckId, String category, {required int fallbackSortOrder}) async {
+    await _supabase.from(SupabaseConstants.menuCategoriesTable).upsert(
+          {
+            'truck_id': truckId,
+            'name': category,
+            'sort_order': fallbackSortOrder,
+          },
+          onConflict: 'truck_id,name',
+          ignoreDuplicates: true,
+        ).withNetworkTimeout;
   }
 }

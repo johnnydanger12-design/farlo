@@ -1,4 +1,5 @@
 import '../../../features/food_trucks/models/operating_hours.dart';
+import '../../../features/food_trucks/models/menu_category.dart';
 import '../../../features/food_trucks/models/menu_item.dart';
 
 class FoodTruck {
@@ -24,6 +25,7 @@ class FoodTruck {
     required this.isActive,
     this.operatingHours = const [],
     this.menuItems = const [],
+    this.menuCategories = const [],
     this.socialInstagram,
     this.socialTiktok,
     this.socialFacebook,
@@ -79,6 +81,23 @@ class FoodTruck {
   final bool isActive;
   final List<OperatingHours> operatingHours;
   final List<MenuItem> menuItems;
+  final List<MenuCategory> menuCategories;
+
+  // Category order used to be implicit (whichever category's first item had
+  // the lowest global sort_order) with no way to change it. menu_categories
+  // now carries an explicit order, but a brand-new custom category typed into
+  // the menu-item form may not have a row there yet (created lazily) — so any
+  // category name found on an item but missing from menuCategories is
+  // appended at the end, in first-appearance order, rather than dropped.
+  List<String> get orderedCategoryNames {
+    final known = [...menuCategories]..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+    final names = known.map((c) => c.name).toList();
+    final seen = names.toSet();
+    for (final item in menuItems) {
+      if (seen.add(item.category)) names.add(item.category);
+    }
+    return names;
+  }
 
   factory FoodTruck.fromMap(Map<String, dynamic> map) {
     List<OperatingHours> hours = [];
@@ -93,6 +112,14 @@ class FoodTruck {
     if (map['menu_items'] != null) {
       items = (map['menu_items'] as List)
           .map((e) => MenuItem.fromMap(e as Map<String, dynamic>))
+          .toList()
+        ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+    }
+
+    List<MenuCategory> categories = [];
+    if (map['menu_categories'] != null) {
+      categories = (map['menu_categories'] as List)
+          .map((e) => MenuCategory.fromMap(e as Map<String, dynamic>))
           .toList()
         ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
     }
@@ -123,6 +150,7 @@ class FoodTruck {
       isActive: map['is_active'] as bool? ?? false,
       operatingHours: hours,
       menuItems: items,
+      menuCategories: categories,
       socialInstagram: map['social_instagram'] as String?,
       socialTiktok: map['social_tiktok'] as String?,
       socialFacebook: map['social_facebook'] as String?,
@@ -157,6 +185,7 @@ class FoodTruck {
     Object? openedByUserId = _unset,
     List<OperatingHours>? operatingHours,
     List<MenuItem>? menuItems,
+    List<MenuCategory>? menuCategories,
     String? businessType,
     bool? hasEverOpened,
   }) {
@@ -189,6 +218,7 @@ class FoodTruck {
       isActive: isActive,
       operatingHours: operatingHours ?? this.operatingHours,
       menuItems: menuItems ?? this.menuItems,
+      menuCategories: menuCategories ?? this.menuCategories,
       cancellationPolicyHours: cancellationPolicyHours,
       businessType: businessType ?? this.businessType,
       hasEverOpened: hasEverOpened ?? this.hasEverOpened,

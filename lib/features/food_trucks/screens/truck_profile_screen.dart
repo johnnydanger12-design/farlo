@@ -89,13 +89,25 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
           callback: (_) { if (mounted) ref.invalidate(foodTruckProvider(widget.truck.id)); },
         )
         .subscribe();
-    // Realtime: refresh when the owner changes menu item availability.
+    // Realtime: refresh when the owner changes menu item availability/order,
+    // or reorders categories.
     _menuChannel = Supabase.instance.client
         .channel('truck-menu-${widget.truck.id}')
         .onPostgresChanges(
           event: PostgresChangeEvent.all,
           schema: 'public',
           table: 'menu_items',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'truck_id',
+            value: widget.truck.id,
+          ),
+          callback: (_) { if (mounted) ref.invalidate(foodTruckProvider(widget.truck.id)); },
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'menu_categories',
           filter: PostgresChangeFilter(
             type: PostgresChangeFilterType.eq,
             column: 'truck_id',
@@ -350,7 +362,7 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
             SliverToBoxAdapter(
               child: Section(
                 title: 'Menu',
-                child: MenuGrid(items: truck.menuItems, canOrder: canOrder),
+                child: MenuGrid(items: truck.menuItems, canOrder: canOrder, categoryOrder: truck.orderedCategoryNames),
               ),
             ),
             const SectionSpacer(),

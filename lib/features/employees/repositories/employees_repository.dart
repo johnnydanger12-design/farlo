@@ -63,7 +63,7 @@ class EmployeesRepository {
   Future<List<FoodTruck>> fetchEmployeeTrucks(String userId) async {
     final data = await _supabase
         .from(SupabaseConstants.truckEmployeesTable)
-        .select('food_trucks(*, operating_hours(*), menu_items(*))')
+        .select('food_trucks(*, operating_hours(*), menu_items(*), menu_categories(*))')
         .eq('user_id', userId)
         .eq('status', 'active')
         .withNetworkTimeout;

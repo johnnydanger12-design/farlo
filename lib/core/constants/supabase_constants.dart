@@ -6,6 +6,7 @@ class SupabaseConstants {
   static const foodTrucksTable = 'food_trucks';
   static const operatingHoursTable = 'operating_hours';
   static const menuItemsTable = 'menu_items';
+  static const menuCategoriesTable = 'menu_categories';
   static const reviewsTable = 'reviews';
   static const favoritesTable = 'favorites';
   static const subscriptionsTable = 'subscriptions';

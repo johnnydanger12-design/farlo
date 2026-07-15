@@ -29,9 +29,14 @@ bool tryAddToCart(BuildContext context, WidgetRef ref, CartItem item) {
 }
 
 class MenuGrid extends StatefulWidget {
-  const MenuGrid({super.key, required this.items, required this.canOrder});
+  const MenuGrid({super.key, required this.items, required this.canOrder, this.categoryOrder = const []});
   final List<MenuItem> items;
   final bool canOrder;
+  // Owner-defined category order (FoodTruck.orderedCategoryNames) — shares
+  // the same source of truth as the owner's manage-menu screen so the two
+  // never disagree on category order. Falls back to first-appearance order
+  // (via LinkedHashMap insertion order) for any category not included here.
+  final List<String> categoryOrder;
 
   @override
   State<MenuGrid> createState() => _MenuGridState();
@@ -45,7 +50,14 @@ class _MenuGridState extends State<MenuGrid> {
     for (final item in widget.items.where((i) => i.isAvailable)) {
       map.putIfAbsent(item.category, () => []).add(item);
     }
-    return map;
+    final ordered = <String, List<MenuItem>>{};
+    for (final name in widget.categoryOrder) {
+      if (map.containsKey(name)) ordered[name] = map[name]!;
+    }
+    for (final entry in map.entries) {
+      ordered.putIfAbsent(entry.key, () => entry.value);
+    }
+    return ordered;
   }
 
   @override
