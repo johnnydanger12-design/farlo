@@ -97,14 +97,20 @@ class SupabaseBookingFinancialsDataSource implements BookingFinancialsDataSource
     String? notes,
     DateTime? dueDate,
   }) async {
+    // Upsert on booking_id (unique per booking) rather than a bare insert —
+    // this guards against ever creating a second deposit row for the same
+    // booking, which would break fetchDeposit()'s .maybeSingle() call for
+    // both parties. Explicitly reset status to 'requested' so re-sending
+    // still works as expected even if a prior deposit had been refunded.
     final row = await _supabase
         .from('booking_deposits')
-        .insert({
+        .upsert({
           'booking_id': bookingId,
           'amount': amount,
           'notes': notes,
           'due_date': dueDate?.toIso8601String().substring(0, 10),
-        })
+          'status': 'requested',
+        }, onConflict: 'booking_id')
         .select()
         .single()
         .withNetworkTimeout;

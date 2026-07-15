@@ -56,6 +56,12 @@ class _SendInvoiceSheetState extends ConsumerState<SendInvoiceSheet> {
       setState(() => _error = 'Enter a valid amount.');
       return;
     }
+    // Card payments have a hard $0.50 minimum (Stripe) — anything less would be
+    // accepted here but silently fail when the customer tries to pay it.
+    if (amount < 0.50) {
+      setState(() => _error = 'Invoice must be at least \$0.50.');
+      return;
+    }
     setState(() { _submitting = true; _error = null; });
     try {
       await ref.read(bookingsRepositoryProvider).sendInvoice(

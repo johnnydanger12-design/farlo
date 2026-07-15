@@ -691,11 +691,24 @@ class _ConsumerFinancialSectionState extends ConsumerState<_ConsumerFinancialSec
       if (e.error.code != FailureCode.Canceled && mounted) {
         setState(() => _error = e.error.localizedMessage ?? 'Payment failed.');
       }
-    } catch (_) {
-      if (mounted) setState(() => _error = 'Payment failed. Please try again.');
+    } catch (e) {
+      if (mounted) setState(() => _error = _friendlyPaymentError(e));
     } finally {
       if (mounted) setState(() => _paying = false);
     }
+  }
+
+  String _friendlyPaymentError(Object e) {
+    final message = e.toString().replaceFirst('Exception: ', '');
+    return switch (message) {
+      'amount is below the minimum chargeable amount' =>
+        'This amount is too small to charge — card payments require at least \$0.50.',
+      'deposit_already_paid' || 'invoice_already_paid' => 'This has already been paid.',
+      'deposit_not_found' || 'invoice_not_found' => 'This request is no longer available. Please refresh and try again.',
+      'truck_subscription_inactive' => 'This business\'s account is temporarily inactive. Please contact them directly.',
+      'owner_stripe_not_connected' => 'This business hasn\'t finished setting up payments yet. Please contact them directly.',
+      _ => 'Payment failed. Please try again.',
+    };
   }
 
   Future<void> _respondEstimate(String quoteId, bool accepted) async {

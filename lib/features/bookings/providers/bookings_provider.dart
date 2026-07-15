@@ -210,15 +210,86 @@ final bookingMessageCountProvider =
 });
 
 // ─── Financial: quotes (estimates & invoices) ─────────────────────────────────
+//
+// Realtime-backed so the other party's screen updates live — a FutureProvider
+// here would fetch once and cache forever while the widget stays mounted, so
+// e.g. a customer already sitting on the requests screen would never see a
+// deposit/estimate the owner just sent until they left and reopened the page.
 
 final bookingQuotesProvider =
-    FutureProvider.autoDispose.family<List<BookingQuote>, String>((ref, bookingId) {
-  return ref.read(bookingsRepositoryProvider).fetchQuotes(bookingId);
+    StreamProvider.autoDispose.family<List<BookingQuote>, String>((ref, bookingId) {
+  final controller = StreamController<List<BookingQuote>>();
+
+  Future<void> refresh() async {
+    try {
+      final quotes = await ref.read(bookingsRepositoryProvider).fetchQuotes(bookingId);
+      if (!controller.isClosed) controller.add(quotes);
+    } catch (e, st) {
+      if (!controller.isClosed) controller.addError(e, st);
+    }
+  }
+
+  refresh();
+
+  final channel = Supabase.instance.client
+      .channel('booking_quotes_$bookingId')
+      .onPostgresChanges(
+        event: PostgresChangeEvent.all,
+        schema: 'public',
+        table: 'booking_quotes',
+        filter: PostgresChangeFilter(
+          type: PostgresChangeFilterType.eq,
+          column: 'booking_id',
+          value: bookingId,
+        ),
+        callback: (_) => refresh(),
+      )
+      .subscribe();
+
+  ref.onDispose(() {
+    channel.unsubscribe();
+    controller.close();
+  });
+
+  return controller.stream;
 });
 
 // ─── Financial: deposit ───────────────────────────────────────────────────────
 
 final bookingDepositProvider =
-    FutureProvider.autoDispose.family<BookingDeposit?, String>((ref, bookingId) {
-  return ref.read(bookingsRepositoryProvider).fetchDeposit(bookingId);
+    StreamProvider.autoDispose.family<BookingDeposit?, String>((ref, bookingId) {
+  final controller = StreamController<BookingDeposit?>();
+
+  Future<void> refresh() async {
+    try {
+      final deposit = await ref.read(bookingsRepositoryProvider).fetchDeposit(bookingId);
+      if (!controller.isClosed) controller.add(deposit);
+    } catch (e, st) {
+      if (!controller.isClosed) controller.addError(e, st);
+    }
+  }
+
+  refresh();
+
+  final channel = Supabase.instance.client
+      .channel('booking_deposits_$bookingId')
+      .onPostgresChanges(
+        event: PostgresChangeEvent.all,
+        schema: 'public',
+        table: 'booking_deposits',
+        filter: PostgresChangeFilter(
+          type: PostgresChangeFilterType.eq,
+          column: 'booking_id',
+          value: bookingId,
+        ),
+        callback: (_) => refresh(),
+      )
+      .subscribe();
+
+  ref.onDispose(() {
+    channel.unsubscribe();
+    controller.close();
+  });
+
+  return controller.stream;
 });

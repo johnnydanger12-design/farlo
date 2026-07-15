@@ -263,18 +263,28 @@ class BookingsRepository {
     // generated once per payment attempt by the caller and reused across
     // retries, so a network-blip retry reuses the same Stripe PaymentIntent
     // instead of charging twice.
-    final res = await _supabase.functions.invoke(
-      'create-booking-payment-intent',
-      body: {
-        'type': type,
-        'record_id': recordId,
-        'booking_id': bookingId,
-        'idempotency_key': idempotencyKey,
-      },
-    ).withNetworkTimeout;
-    final data = res.data as Map<String, dynamic>;
-    if (data['error'] != null) throw Exception(data['error']);
-    return data;
+    try {
+      final res = await _supabase.functions.invoke(
+        'create-booking-payment-intent',
+        body: {
+          'type': type,
+          'record_id': recordId,
+          'booking_id': bookingId,
+          'idempotency_key': idempotencyKey,
+        },
+      ).withNetworkTimeout;
+      final data = res.data as Map<String, dynamic>;
+      if (data['error'] != null) throw Exception(data['error']);
+      return data;
+    } on FunctionException catch (e) {
+      // The edge function returns a non-2xx status (e.g. amount below Stripe's
+      // minimum, deposit already paid, owner not Stripe-connected) with a JSON
+      // body like {"error": "..."}. Surface that message instead of letting
+      // the caller see only a generic FunctionException.
+      final details = e.details;
+      final message = details is Map && details['error'] is String ? details['error'] as String : null;
+      throw Exception(message ?? 'Payment failed.');
+    }
   }
 
   void _invokeConfirmationEmail(String bookingId) {
