@@ -141,10 +141,29 @@ class DashboardScreen extends ConsumerWidget {
       return;
     }
 
-    final isFixed = ref.read(ownerTruckProvider).asData?.value?.isFixed ?? false;
+    final truck = ref.read(ownerTruckProvider).asData?.value;
+    final isFixed = truck?.isFixed ?? false;
 
     if (isFixed) {
       // Fixed businesses have a permanent address — no GPS needed, just open.
+      // But coordinates only ever get set by picking a suggestion in the
+      // address autocomplete (edit_truck_screen.dart) — a truck that somehow
+      // never got that (e.g. a seeded/test account, or a pre-validator row)
+      // would otherwise go "live" and simply not appear anywhere on the map,
+      // with no indication to the owner of why.
+      if (truck?.latitude == null || truck?.longitude == null) {
+        if (context.mounted) {
+          context.showError(
+            'Set your business address before opening',
+            showCloseIcon: true,
+            action: SnackBarAction(
+              label: 'Set address',
+              onPressed: () => context.go('/dashboard/edit-truck'),
+            ),
+          );
+        }
+        return;
+      }
       try {
         await ref.read(ownerTruckProvider.notifier).setOpenStatus(true);
         final prefs = ref.read(notificationPrefsProvider).asData?.value;

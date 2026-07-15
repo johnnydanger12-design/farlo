@@ -44,6 +44,12 @@ class _EditTruckScreenState extends ConsumerState<EditTruckScreen> {
   String _businessType = 'mobile';
   double? _staticLat;
   double? _staticLng;
+  // Tracks the address text that _staticLat/_staticLng actually correspond to
+  // — if the owner retypes the address without tapping a new suggestion (so
+  // onCoordinatesSelected never fires), the text and coordinates would
+  // otherwise silently drift apart and save a location that doesn't match the
+  // address shown. See _onAddressTextChanged below.
+  String? _resolvedAddress;
   bool _loading = false;
   bool _initialized = false;
 
@@ -76,6 +82,13 @@ class _EditTruckScreenState extends ConsumerState<EditTruckScreen> {
     _youtubeCtrl = TextEditingController();
     _websiteCtrl = TextEditingController();
     _addressCtrl = TextEditingController();
+    _addressCtrl.addListener(_onAddressTextChanged);
+  }
+
+  void _onAddressTextChanged() {
+    if (_addressCtrl.text != _resolvedAddress && (_staticLat != null || _staticLng != null)) {
+      setState(() { _staticLat = null; _staticLng = null; });
+    }
   }
 
   @override
@@ -89,6 +102,7 @@ class _EditTruckScreenState extends ConsumerState<EditTruckScreen> {
     _twitterCtrl.dispose();
     _youtubeCtrl.dispose();
     _websiteCtrl.dispose();
+    _addressCtrl.removeListener(_onAddressTextChanged);
     _addressCtrl.dispose();
     _otherCuisineCtrl.dispose();
     super.dispose();
@@ -120,6 +134,7 @@ class _EditTruckScreenState extends ConsumerState<EditTruckScreen> {
     _addressCtrl.text = truck.address ?? '';
     _staticLat = truck.latitude;
     _staticLng = truck.longitude;
+    _resolvedAddress = truck.address;
     _initialized = true;
   }
 
@@ -158,6 +173,15 @@ class _EditTruckScreenState extends ConsumerState<EditTruckScreen> {
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
+    // Same guard as signup (register_owner_screen.dart) — lat/lng only ever
+    // get set by selecting a suggestion in PlacesAutocompleteField, never by
+    // typing alone. Without this, retyping an address (e.g. a brick-and-mortar
+    // moving locations) without picking a suggestion would save the new
+    // address text next to stale or null coordinates.
+    if (_businessType == 'fixed' && (_staticLat == null || _staticLng == null)) {
+      context.showError('Select your business address from the suggestions.');
+      return;
+    }
     setState(() => _loading = true);
 
     try {
@@ -356,7 +380,11 @@ class _EditTruckScreenState extends ConsumerState<EditTruckScreen> {
                   PlacesAutocompleteField(
                     controller: _addressCtrl,
                     label: 'Business address',
-                    onCoordinatesSelected: (lat, lng) => setState(() { _staticLat = lat; _staticLng = lng; }),
+                    onCoordinatesSelected: (lat, lng) => setState(() {
+                      _staticLat = lat;
+                      _staticLng = lng;
+                      _resolvedAddress = _addressCtrl.text;
+                    }),
                   ),
                   const SizedBox(height: AppSpacing.lg),
                 ],
