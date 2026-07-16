@@ -5,6 +5,7 @@ plugins {
     id("com.android.application")
     // START: FlutterFire Configuration
     id("com.google.gms.google-services")
+    id("com.google.firebase.crashlytics")
     // END: FlutterFire Configuration
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
@@ -58,4 +59,18 @@ kotlin {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    // Forces every Firebase native dependency pulled in transitively by the
+    // various FlutterFire plugins (firebase_core, firebase_messaging,
+    // firebase_crashlytics) onto one consistent, mutually-compatible version
+    // set. Without this, each plugin's own internally-pinned version can
+    // drift, which is exactly what caused a real crash-on-launch bug found
+    // via a Google Play rejection: multiple Firebase Ktx component registrars
+    // (Messaging, Crashlytics, Installations) all failed reflection-based
+    // instantiation with NoSuchMethodException, because Firebase merged the
+    // separate -ktx modules into the main modules in mid-2025 and an
+    // unpinned build can end up mixing pre- and post-merge artifact versions.
+    implementation(platform("com.google.firebase:firebase-bom:34.16.0"))
 }

@@ -21,7 +21,13 @@ plugins {
     id("dev.flutter.flutter-plugin-loader") version "1.0.0"
     id("com.android.application") version "9.0.1" apply false
     // START: FlutterFire Configuration
-    id("com.google.gms.google-services") version("4.3.15") apply false
+    id("com.google.gms.google-services") version("4.4.4") apply false
+    // Crashlytics was never actually wired up on Android (only iOS had its
+    // dSYM-equivalent build phase) — this is what let a NullPointerException
+    // ("FirebaseCrashlytics component is not present") crash the app on
+    // every real release-build launch, found via a real Google Play
+    // rejection ("does not open or load") and reproduced on an emulator.
+    id("com.google.firebase.crashlytics") version("3.0.7") apply false
     // END: FlutterFire Configuration
     id("org.jetbrains.kotlin.android") version "2.3.20" apply false
 }
