@@ -39,6 +39,47 @@ async function logAttempt(orderId: string, truckId: string, success: boolean, er
   }
 }
 
+// Finds (or creates) a Clover Customer by phone number, so this order counts
+// toward the merchant's own Clover Rewards loyalty points the same as an
+// in-person phone-number entry would. Best-effort: the Customers API needs a
+// broader-scoped token than Orders+Print (unverified against a real account
+// as of this writing — every relevant endpoint 401s under Hope's current
+// token). Any failure here must never break the order push itself, so this
+// always returns null instead of throwing.
+async function findOrCreateCloverCustomer(
+  baseUrl: string,
+  merchantId: string,
+  authHeaders: Record<string, string>,
+  phone: string,
+): Promise<string | null> {
+  try {
+    const searchRes = await fetch(
+      `${baseUrl}/v3/merchants/${merchantId}/customers?filter=phoneNumber=${encodeURIComponent(phone)}`,
+      { headers: authHeaders },
+    );
+    if (searchRes.ok) {
+      const searchBody = await searchRes.json();
+      const existing = searchBody?.elements?.[0];
+      if (existing?.id) return existing.id;
+    }
+
+    const createRes = await fetch(`${baseUrl}/v3/merchants/${merchantId}/customers`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ phoneNumbers: [{ phoneNumber: phone }] }),
+    });
+    if (!createRes.ok) {
+      console.error(`Clover customer create failed (${createRes.status}): ${await createRes.text()}`);
+      return null;
+    }
+    const created = await createRes.json();
+    return created?.id ?? null;
+  } catch (err) {
+    console.error('findOrCreateCloverCustomer failed:', err);
+    return null;
+  }
+}
+
 async function notifyOwnerPrintFailed(ownerId: string | null, truckId: string, orderId: string) {
   if (!ownerId) return;
   await notifyUser(
@@ -122,7 +163,7 @@ Deno.serve(async (req: Request) => {
 
   const { data: order, error: orderError } = await supabase
     .from('orders')
-    .select('id, truck_id, tax_price, pickup_note, order_items(menu_item_name, menu_item_price, quantity, removed_modifiers, added_modifiers), profiles(display_name)')
+    .select('id, truck_id, tax_price, pickup_note, order_items(menu_item_name, menu_item_price, quantity, removed_modifiers, added_modifiers), profiles(display_name, phone)')
     .eq('id', orderId)
     .single();
 
@@ -166,7 +207,8 @@ Deno.serve(async (req: Request) => {
     // their Clover dashboard) purely so the printed ticket shows a server name —
     // API-created orders otherwise print with no server name at all.
     // title is set to the customer's name so the ticket identifies whose order it is.
-    const consumerName = (order.profiles as { display_name?: string } | null)?.display_name || 'Farlo Customer';
+    const consumerProfile = order.profiles as { display_name?: string; phone?: string } | null;
+    const consumerName = consumerProfile?.display_name || 'Farlo Customer';
     const orderBody: Record<string, unknown> = {
       state: 'Open',
       currency: 'USD',
@@ -175,6 +217,21 @@ Deno.serve(async (req: Request) => {
     };
     if (credentials.clover_order_type_id) {
       orderBody.orderType = { id: credentials.clover_order_type_id };
+    }
+    // Associates this order with a Clover Customer record (matched/created by
+    // phone) so it counts toward the merchant's Clover Rewards points, same as
+    // an in-person phone-number entry. No-op if the customer collected no
+    // phone at checkout, or if the lookup/create fails for any reason.
+    if (consumerProfile?.phone) {
+      const cloverCustomerId = await findOrCreateCloverCustomer(
+        baseUrl,
+        credentials.external_merchant_id,
+        authHeaders,
+        consumerProfile.phone,
+      );
+      if (cloverCustomerId) {
+        orderBody.customers = [{ id: cloverCustomerId }];
+      }
     }
     // Pickup note (allergies, special requests, etc.) — without this, a
     // business with auto_accept_orders on may never open the Farlo app for

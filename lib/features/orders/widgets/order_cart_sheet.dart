@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -32,6 +33,7 @@ class OrderCartSheet extends ConsumerStatefulWidget {
 
 class _OrderCartSheetState extends ConsumerState<OrderCartSheet> {
   final _pickupNoteCtrl = TextEditingController();
+  final _phoneCtrl = TextEditingController();
   bool _paying = false;
 
   // Generated once per checkout attempt and reused across retries of that
@@ -41,8 +43,30 @@ class _OrderCartSheetState extends ConsumerState<OrderCartSheet> {
   String? _idempotencyKey;
 
   @override
+  void initState() {
+    super.initState();
+    _loadSavedPhone();
+  }
+
+  // Prefills from whatever phone the consumer entered on a past order (if
+  // any) so it's a one-time thing, not re-typed every checkout. Purely a
+  // convenience — never required to place an order.
+  Future<void> _loadSavedPhone() async {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null) return;
+    final row = await Supabase.instance.client
+        .from('profiles')
+        .select('phone')
+        .eq('id', userId)
+        .maybeSingle();
+    final phone = row?['phone'] as String?;
+    if (phone != null && mounted) _phoneCtrl.text = phone;
+  }
+
+  @override
   void dispose() {
     _pickupNoteCtrl.dispose();
+    _phoneCtrl.dispose();
     super.dispose();
   }
 
@@ -121,6 +145,16 @@ class _OrderCartSheetState extends ConsumerState<OrderCartSheet> {
       cartNotifier.clear();
       _idempotencyKey = null;
 
+      // Best-effort — never blocks a successful order on a save failure. Lets
+      // a Clover-integrated business match this order to a loyalty/rewards
+      // customer record by phone, same as an in-person phone-number entry.
+      final phone = _phoneCtrl.text.trim();
+      if (phone.isNotEmpty) {
+        unawaited(
+          Supabase.instance.client.from('profiles').update({'phone': phone}).eq('id', consumerId),
+        );
+      }
+
       if (mounted) {
         Navigator.of(context).pop(order);
       }
@@ -194,7 +228,7 @@ class _OrderCartSheetState extends ConsumerState<OrderCartSheet> {
                           ...cartItems.map((ci) => _CartItemRow(cartItem: ci)),
                           const Divider(height: 1),
                           Padding(
-                            padding: const EdgeInsets.all(AppSpacing.lg),
+                            padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, AppSpacing.sm),
                             child: TextField(
                               controller: _pickupNoteCtrl,
                               decoration: const InputDecoration(
@@ -203,6 +237,18 @@ class _OrderCartSheetState extends ConsumerState<OrderCartSheet> {
                                 border: OutlineInputBorder(),
                               ),
                               maxLines: 2,
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.lg),
+                            child: TextField(
+                              controller: _phoneCtrl,
+                              decoration: const InputDecoration(
+                                labelText: 'Phone number (optional)',
+                                hintText: 'For loyalty rewards, if this business has one',
+                                border: OutlineInputBorder(),
+                              ),
+                              keyboardType: TextInputType.phone,
                             ),
                           ),
                         ],
