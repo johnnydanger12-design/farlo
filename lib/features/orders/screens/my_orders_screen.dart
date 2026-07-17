@@ -153,7 +153,7 @@ class _OrderCard extends StatelessWidget {
     final itemCount = order.items.fold(0, (sum, i) => sum + i.quantity);
     final (statusLabel, statusColor) = switch (order.status) {
       'pending' => ('Pending', Colors.orange),
-      'accepted' => ('Accepted', Colors.blue),
+      'accepted' => ('Preparing', Colors.blue),
       'ready' => ('Ready for Pickup!', Colors.green),
       'completed' => ('Completed', AppColors.textHint),
       'declined' => ('Declined', Colors.red),

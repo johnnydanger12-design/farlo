@@ -10,6 +10,7 @@ class Order {
     required this.status,
     this.pickupNote,
     required this.totalPrice,
+    this.taxPrice = 0,
     this.paymentIntentId,
     required this.paymentStatus,
     required this.items,
@@ -25,6 +26,7 @@ class Order {
   final String status; // pending | accepted | ready | completed | declined | cancelled
   final String? pickupNote;
   final double totalPrice;
+  final double taxPrice;
   final String? paymentIntentId;
   final String paymentStatus; // unpaid | paid | refunded
   final List<OrderItem> items;
@@ -54,6 +56,7 @@ class Order {
       status: map['status'] as String,
       pickupNote: map['pickup_note'] as String?,
       totalPrice: (map['total_price'] as num).toDouble(),
+      taxPrice: (map['tax_price'] as num?)?.toDouble() ?? 0,
       paymentIntentId: map['stripe_payment_intent_id'] as String?,
       paymentStatus: map['payment_status'] as String? ?? 'unpaid',
       items: items,
@@ -72,6 +75,7 @@ class Order {
       status: status ?? this.status,
       pickupNote: pickupNote,
       totalPrice: totalPrice,
+      taxPrice: taxPrice,
       paymentIntentId: paymentIntentId,
       paymentStatus: paymentStatus ?? this.paymentStatus,
       items: items,

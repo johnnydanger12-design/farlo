@@ -214,6 +214,10 @@ class ManageMenuScreen extends ConsumerWidget {
           await _registerCategoryIfNew(ref, item.truckId, category);
           await ref.read(ownerTruckProvider.notifier).refresh();
         },
+        onSaveModifiers: (modifiers) async {
+          await ref.read(foodTruckRepositoryProvider).replaceMenuItemModifiers(item.id, modifiers);
+          await ref.read(ownerTruckProvider.notifier).refresh();
+        },
       ),
     );
   }
@@ -549,18 +553,30 @@ class _MenuItemTile extends StatelessWidget {
   }
 }
 
+class _ModifierEntry {
+  _ModifierEntry({required this.nameCtrl, required this.priceCtrl, required this.includedByDefault});
+  final TextEditingController nameCtrl;
+  final TextEditingController priceCtrl;
+  bool includedByDefault;
+}
+
 class _MenuItemSheet extends StatefulWidget {
   const _MenuItemSheet({
     required this.truckId,
     required this.nextSortOrder,
     required this.onSave,
     this.existing,
+    this.onSaveModifiers,
   });
 
   final String truckId;
   final int nextSortOrder;
   final MenuItem? existing;
   final Future<void> Function(String name, String desc, double price, String category, String? imageUrl) onSave;
+  // Only provided when editing an existing item — a brand-new item has no id
+  // yet for modifiers to attach to, so customization options are added after
+  // the item is first saved and reopened for editing.
+  final Future<void> Function(List<({String name, double priceDelta, bool includedByDefault})> modifiers)? onSaveModifiers;
 
   @override
   State<_MenuItemSheet> createState() => _MenuItemSheetState();
@@ -578,6 +594,7 @@ class _MenuItemSheetState extends State<_MenuItemSheet> {
   File? _pickedImage;
   String? _existingImageUrl;
   bool _removeImage = false;
+  final List<_ModifierEntry> _modifiers = [];
 
   static const List<String> _defaultCategories = [
     'Mains', 'Sides', 'Drinks', 'Desserts', 'Specials',
@@ -600,12 +617,23 @@ class _MenuItemSheetState extends State<_MenuItemSheet> {
     _dropdownCategory = _isCustomCategory ? _otherOption : existingCat;
     _customCategoryCtrl = TextEditingController(text: _isCustomCategory ? existingCat : '');
     _existingImageUrl = widget.existing?.imageUrl;
+    for (final m in widget.existing?.modifiers ?? const []) {
+      _modifiers.add(_ModifierEntry(
+        nameCtrl: TextEditingController(text: m.name),
+        priceCtrl: TextEditingController(text: m.priceDelta.toStringAsFixed(2)),
+        includedByDefault: m.includedByDefault,
+      ));
+    }
   }
 
   @override
   void dispose() {
     _nameCtrl.dispose();
     _descCtrl.dispose();
+    for (final m in _modifiers) {
+      m.nameCtrl.dispose();
+      m.priceCtrl.dispose();
+    }
     _priceCtrl.dispose();
     _customCategoryCtrl.dispose();
     super.dispose();
@@ -648,6 +676,18 @@ class _MenuItemSheetState extends State<_MenuItemSheet> {
         _effectiveCategory,
         imageUrl,
       );
+      if (widget.onSaveModifiers != null) {
+        await widget.onSaveModifiers!(
+          _modifiers
+              .where((m) => m.nameCtrl.text.trim().isNotEmpty)
+              .map((m) => (
+                    name: m.nameCtrl.text.trim(),
+                    priceDelta: double.tryParse(m.priceCtrl.text.trim()) ?? 0,
+                    includedByDefault: m.includedByDefault,
+                  ))
+              .toList(),
+        );
+      }
       if (mounted) Navigator.pop(context);
     } catch (e) {
       if (mounted) {
@@ -814,6 +854,86 @@ class _MenuItemSheetState extends State<_MenuItemSheet> {
                       (v == null || v.trim().isEmpty) ? 'Required' : null,
                 ),
               ],
+
+              if (widget.existing != null) ...[
+                const SizedBox(height: AppSpacing.lg),
+                Text('Customization Options', style: AppTextStyles.heading3),
+                const SizedBox(height: 4),
+                Text(
+                  'What this dish comes with — customers can remove a default ingredient (free) or add an optional extra (priced). Leave empty if this item has none.',
+                  style: AppTextStyles.caption,
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                for (int i = 0; i < _modifiers.length; i++)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Expanded(
+                          flex: 3,
+                          child: TextFormField(
+                            controller: _modifiers[i].nameCtrl,
+                            decoration: _inputDecoration('Name', context),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          flex: 2,
+                          child: TextFormField(
+                            controller: _modifiers[i].priceCtrl,
+                            decoration: _inputDecoration(r'+$', context),
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            inputFormatters: [
+                              FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
+                            ],
+                          ),
+                        ),
+                        Semantics(
+                          label: _modifiers[i].includedByDefault
+                              ? 'Comes standard — tap to make this a paid add-on instead'
+                              : 'Paid add-on — tap to make this a default that comes standard',
+                          button: true,
+                          child: IconButton(
+                            tooltip: _modifiers[i].includedByDefault ? 'Comes standard' : 'Optional add-on',
+                            icon: Icon(
+                              _modifiers[i].includedByDefault
+                                  ? Icons.check_circle
+                                  : Icons.add_circle_outline,
+                              color: _modifiers[i].includedByDefault
+                                  ? AppColors.openGreen
+                                  : Theme.of(context).colorScheme.primary,
+                            ),
+                            onPressed: () => setState(() {
+                              _modifiers[i].includedByDefault = !_modifiers[i].includedByDefault;
+                            }),
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Remove option',
+                          icon: const Icon(Icons.close, size: 18, color: AppColors.textSecondary),
+                          onPressed: () => setState(() {
+                            _modifiers[i].nameCtrl.dispose();
+                            _modifiers[i].priceCtrl.dispose();
+                            _modifiers.removeAt(i);
+                          }),
+                        ),
+                      ],
+                    ),
+                  ),
+                OutlinedButton.icon(
+                  onPressed: () => setState(() {
+                    _modifiers.add(_ModifierEntry(
+                      nameCtrl: TextEditingController(),
+                      priceCtrl: TextEditingController(text: '0.00'),
+                      includedByDefault: true,
+                    ));
+                  }),
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('Add Option'),
+                ),
+              ],
+
               const SizedBox(height: AppSpacing.lg),
               AppButton(
                 label: widget.existing == null ? 'Add Item' : 'Save Changes',

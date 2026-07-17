@@ -11,7 +11,7 @@ class FoodTruckRepository {
   Future<FoodTruck> fetchById(String id) async {
     final data = await _supabase
         .from(SupabaseConstants.foodTrucksTable)
-        .select('*, operating_hours(*), menu_items(*), menu_categories(*)')
+        .select('*, operating_hours(*), menu_items(*, menu_item_modifiers(*)), menu_categories(*)')
         .eq('id', id)
         .single()
         .withNetworkTimeout;
@@ -21,7 +21,7 @@ class FoodTruckRepository {
   Future<List<FoodTruck>> fetchOwnerTrucks(String ownerId) async {
     final data = await _supabase
         .from(SupabaseConstants.foodTrucksTable)
-        .select('*, operating_hours(*), menu_items(*), menu_categories(*)')
+        .select('*, operating_hours(*), menu_items(*, menu_item_modifiers(*)), menu_categories(*)')
         .eq('owner_id', ownerId)
         .withNetworkTimeout;
     return (data as List).map((e) => FoodTruck.fromMap(e as Map<String, dynamic>)).toList();
@@ -92,7 +92,7 @@ class FoodTruckRepository {
   }
 
   // Menu items
-  Future<void> addMenuItem(String truckId, {
+  Future<String> addMenuItem(String truckId, {
     required String name,
     String? description,
     required double price,
@@ -100,7 +100,7 @@ class FoodTruckRepository {
     required int sortOrder,
     String? imageUrl,
   }) async {
-    await _supabase.from(SupabaseConstants.menuItemsTable).insert({
+    final row = await _supabase.from(SupabaseConstants.menuItemsTable).insert({
       'truck_id': truckId,
       'name': name,
       'description': description,
@@ -109,7 +109,34 @@ class FoodTruckRepository {
       'sort_order': sortOrder,
       'is_available': true,
       'image_url': ?imageUrl,
-    }).withNetworkTimeout;
+    }).select('id').single().withNetworkTimeout;
+    return row['id'] as String;
+  }
+
+  // Customization options (removable defaults / paid add-ons) for one menu
+  // item. Full replace on save rather than a diff — simplest correct approach
+  // for a short list an owner edits occasionally, matching the same
+  // replace-on-save convention used for operating hours/category order.
+  Future<void> replaceMenuItemModifiers(
+    String menuItemId,
+    List<({String name, double priceDelta, bool includedByDefault})> modifiers,
+  ) async {
+    await _supabase
+        .from('menu_item_modifiers')
+        .delete()
+        .eq('menu_item_id', menuItemId)
+        .withNetworkTimeout;
+    if (modifiers.isEmpty) return;
+    await _supabase.from('menu_item_modifiers').insert([
+      for (var i = 0; i < modifiers.length; i++)
+        {
+          'menu_item_id': menuItemId,
+          'name': modifiers[i].name,
+          'price_delta': modifiers[i].priceDelta,
+          'included_by_default': modifiers[i].includedByDefault,
+          'sort_order': i,
+        },
+    ]).withNetworkTimeout;
   }
 
   Future<void> updateMenuItem(String itemId, Map<String, dynamic> fields) async {

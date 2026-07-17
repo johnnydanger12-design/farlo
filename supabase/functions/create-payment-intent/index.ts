@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { computeOrderAmountCents, MenuItemMismatchError } from './pricing.ts';
+import { computeOrderAmountCents, MenuItemMismatchError, ModifierMismatchError } from './pricing.ts';
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
@@ -57,7 +57,7 @@ Deno.serve(async (req: Request) => {
 
   let body: {
     truck_id: string;
-    items: { menu_item_id: string; quantity: number }[];
+    items: { menu_item_id: string; quantity: number; added_modifier_ids?: string[] }[];
     idempotency_key?: string;
   };
   try {
@@ -99,11 +99,27 @@ Deno.serve(async (req: Request) => {
     );
   }
 
+  const modifierIds = [...new Set(items.flatMap((i) => i.added_modifier_ids ?? []))];
+  let modifiers: { id: string; menu_item_id: string; price_delta: number | string }[] = [];
+  if (modifierIds.length > 0) {
+    const { data: modifierRows, error: modifierErr } = await supabase
+      .from('menu_item_modifiers')
+      .select('id, menu_item_id, price_delta')
+      .in('id', modifierIds);
+    if (modifierErr || !modifierRows || modifierRows.length !== modifierIds.length) {
+      return new Response(
+        JSON.stringify({ error: 'one or more modifiers were not found' }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } },
+      );
+    }
+    modifiers = modifierRows;
+  }
+
   let amountCents: number;
   try {
-    amountCents = computeOrderAmountCents(items, menuItems, truckId);
+    amountCents = computeOrderAmountCents(items, menuItems, modifiers, truckId);
   } catch (e) {
-    if (e instanceof MenuItemMismatchError) {
+    if (e instanceof MenuItemMismatchError || e instanceof ModifierMismatchError) {
       return new Response(
         JSON.stringify({ error: e.message }),
         { status: 400, headers: { 'Content-Type': 'application/json' } },
@@ -112,17 +128,12 @@ Deno.serve(async (req: Request) => {
     throw e;
   }
 
-  if (amountCents < 50) {
-    return new Response(
-      JSON.stringify({ error: 'order total is below the minimum chargeable amount' }),
-      { status: 400, headers: { 'Content-Type': 'application/json' } },
-    );
-  }
-
-  // Look up the truck owner's Stripe account
+  // Look up the truck owner's Stripe account + their own tax rate — each
+  // business sets their own rate (varies by city/county), not something we can
+  // read off Clover or any other external source of truth.
   const { data: truck, error: truckErr } = await supabase
     .from('food_trucks')
-    .select('owner_id')
+    .select('owner_id, tax_rate_percent')
     .eq('id', truckId)
     .single();
 
@@ -130,6 +141,17 @@ Deno.serve(async (req: Request) => {
     return new Response(
       JSON.stringify({ error: 'truck_not_found' }),
       { status: 404, headers: { 'Content-Type': 'application/json' } },
+    );
+  }
+
+  const taxRatePercent = Number(truck.tax_rate_percent) || 0;
+  const taxCents = Math.round(amountCents * (taxRatePercent / 100));
+  const totalCents = amountCents + taxCents;
+
+  if (totalCents < 50) {
+    return new Response(
+      JSON.stringify({ error: 'order total is below the minimum chargeable amount' }),
+      { status: 400, headers: { 'Content-Type': 'application/json' } },
     );
   }
 
@@ -168,7 +190,7 @@ Deno.serve(async (req: Request) => {
   // that same attempt (bugs.md Executive Summary #3 — stranded charge with no
   // idempotency key, inviting an immediate double-charge retry).
   const piRes = await stripePost('/payment_intents', {
-    amount: String(amountCents),
+    amount: String(totalCents),
     currency: 'usd',
     'payment_method_types[]': 'card',
     'transfer_data[destination]': profile.stripe_account_id,
@@ -184,7 +206,13 @@ Deno.serve(async (req: Request) => {
   }
 
   return new Response(
-    JSON.stringify({ client_secret: pi.client_secret, payment_intent_id: pi.id }),
+    JSON.stringify({
+      client_secret: pi.client_secret,
+      payment_intent_id: pi.id,
+      subtotal_cents: amountCents,
+      tax_cents: taxCents,
+      total_cents: totalCents,
+    }),
     { status: 200, headers: { 'Content-Type': 'application/json' } },
   );
 });

@@ -1,3 +1,5 @@
+import 'menu_item_modifier.dart';
+
 class MenuItem {
   const MenuItem({
     required this.id,
@@ -9,6 +11,7 @@ class MenuItem {
     required this.category,
     required this.isAvailable,
     required this.sortOrder,
+    this.modifiers = const [],
   });
 
   final String id;
@@ -20,10 +23,23 @@ class MenuItem {
   final String category;
   final bool isAvailable;
   final int sortOrder;
+  final List<MenuItemModifier> modifiers;
 
   String get priceDisplay => '\$${price.toStringAsFixed(2)}';
 
+  List<MenuItemModifier> get removableDefaults =>
+      modifiers.where((m) => m.includedByDefault).toList();
+  List<MenuItemModifier> get paidAddOns =>
+      modifiers.where((m) => !m.includedByDefault).toList();
+
   factory MenuItem.fromMap(Map<String, dynamic> map) {
+    List<MenuItemModifier> modifiers = [];
+    if (map['menu_item_modifiers'] != null) {
+      modifiers = (map['menu_item_modifiers'] as List)
+          .map((e) => MenuItemModifier.fromMap(e as Map<String, dynamic>))
+          .toList()
+        ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+    }
     return MenuItem(
       id: map['id'] as String,
       truckId: map['truck_id'] as String,
@@ -34,6 +50,7 @@ class MenuItem {
       category: map['category'] as String? ?? 'Mains',
       isAvailable: map['is_available'] as bool? ?? true,
       sortOrder: map['sort_order'] as int? ?? 0,
+      modifiers: modifiers,
     );
   }
 
@@ -56,6 +73,7 @@ class MenuItem {
     String? category,
     bool? isAvailable,
     int? sortOrder,
+    List<MenuItemModifier>? modifiers,
   }) {
     return MenuItem(
       id: id,
@@ -67,6 +85,7 @@ class MenuItem {
       category: category ?? this.category,
       isAvailable: isAvailable ?? this.isAvailable,
       sortOrder: sortOrder ?? this.sortOrder,
+      modifiers: modifiers ?? this.modifiers,
     );
   }
 }

@@ -11,6 +11,7 @@ import '../../employees/providers/employees_provider.dart';
 import '../../employees/providers/shifts_provider.dart';
 import '../../favorites/providers/favorites_provider.dart';
 import '../../food_trucks/providers/food_truck_provider.dart';
+import '../../map/providers/map_provider.dart';
 import '../../notifications/providers/notifications_provider.dart';
 import '../models/app_user.dart';
 import '../repositories/auth_repository.dart';
@@ -278,6 +279,13 @@ class AuthNotifier extends AsyncNotifier<AppUser?> {
     ref.invalidate(notificationsProvider);
     ref.invalidate(unreadNotificationsCountProvider);
     ref.invalidate(notificationPrefsProvider);
+    // activeTrucksProvider is a realtime stream that only re-fetches on its
+    // own initiative (on first listen, or when *any* truck row changes
+    // anywhere) — without invalidating it here, a truck only visible under
+    // the previous session's RLS context (e.g. the owner viewing their own
+    // not-yet-public truck) keeps showing on the map after sign-out until an
+    // unrelated truck update happens to trigger a fresh fetch.
+    ref.invalidate(activeTrucksProvider);
   }
 
   Future<void> refreshUser() async {

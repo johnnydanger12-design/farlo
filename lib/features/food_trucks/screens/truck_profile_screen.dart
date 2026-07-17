@@ -344,7 +344,7 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
           ),
 
           // ── Hours ────────────────────────────────────────────────────────
-          if (truck.operatingHours.isNotEmpty) ...[
+          if (truck.operatingHours.isNotEmpty && !truck.hoursHidden) ...[
             const SectionSpacer(),
             SliverToBoxAdapter(
               child: Section(

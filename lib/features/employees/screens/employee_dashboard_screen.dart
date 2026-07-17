@@ -774,7 +774,7 @@ class _CompactOrderRow extends StatelessWidget {
             Text(
               switch (order.status) {
                 'pending' => 'New',
-                'accepted' => 'Accepted',
+                'accepted' => 'Preparing',
                 'ready' => 'Ready',
                 _ => order.status,
               },

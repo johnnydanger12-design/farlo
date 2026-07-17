@@ -67,36 +67,40 @@ final myOrdersProvider =
   MyOrdersNotifier.new,
 );
 
-// ─── Cart: in-memory, keyed by menuItemId ────────────────────────────────────
+// ─── Cart: in-memory, keyed by CartItem.cartKey (menuItemId, or
+// menuItemId+customization if the item has any removed/added modifiers — see
+// CartItem.cartKey) so two different customizations of the same dish are
+// separate lines instead of colliding into one.
 
 class CartNotifier extends Notifier<Map<String, CartItem>> {
   @override
   Map<String, CartItem> build() => {};
 
   void add(CartItem item) {
-    final current = state[item.menuItemId];
+    final key = item.cartKey;
+    final current = state[key];
     if (current != null) {
-      state = {...state, item.menuItemId: current.copyWith(quantity: current.quantity + 1)};
+      state = {...state, key: current.copyWith(quantity: current.quantity + 1)};
     } else {
-      state = {...state, item.menuItemId: item};
+      state = {...state, key: item};
     }
   }
 
-  void remove(String menuItemId) {
-    final current = state[menuItemId];
+  void remove(String cartKey) {
+    final current = state[cartKey];
     if (current == null) return;
     if (current.quantity <= 1) {
-      final next = Map<String, CartItem>.from(state)..remove(menuItemId);
+      final next = Map<String, CartItem>.from(state)..remove(cartKey);
       state = next;
     } else {
-      state = {...state, menuItemId: current.copyWith(quantity: current.quantity - 1)};
+      state = {...state, cartKey: current.copyWith(quantity: current.quantity - 1)};
     }
   }
 
-  void setSpecialRequest(String menuItemId, String? text) {
-    final current = state[menuItemId];
+  void setSpecialRequest(String cartKey, String? text) {
+    final current = state[cartKey];
     if (current == null) return;
-    state = {...state, menuItemId: current.copyWith(specialRequest: text)};
+    state = {...state, cartKey: current.copyWith(specialRequest: text)};
   }
 
   void clear() => state = {};
@@ -106,6 +110,12 @@ class CartNotifier extends Notifier<Map<String, CartItem>> {
   double get total => state.values.fold(0.0, (sum, i) => sum + i.lineTotal);
 
   int get totalQuantity => state.values.fold(0, (sum, i) => sum + i.quantity);
+
+  // Aggregate quantity across every customization of one menu item — used for
+  // the simple "+N" badge on a menu card, which doesn't distinguish which
+  // customization is in the cart, just how many of that dish total.
+  int quantityForMenuItem(String menuItemId) =>
+      state.values.where((i) => i.menuItemId == menuItemId).fold(0, (sum, i) => sum + i.quantity);
 }
 
 final cartProvider = NotifierProvider<CartNotifier, Map<String, CartItem>>(

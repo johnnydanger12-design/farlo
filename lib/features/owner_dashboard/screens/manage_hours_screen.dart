@@ -21,6 +21,16 @@ class _ManageHoursScreenState extends ConsumerState<ManageHoursScreen> {
   bool _initialized = false;
   bool _saving = false;
 
+  Future<void> _toggleAutoHours(String truckId, bool value) async {
+    await ref.read(foodTruckRepositoryProvider).updateProfile(truckId, {'auto_hours_enabled': value});
+    await ref.read(ownerTruckProvider.notifier).refresh();
+  }
+
+  Future<void> _toggleHoursHidden(String truckId, bool hidden) async {
+    await ref.read(foodTruckRepositoryProvider).updateProfile(truckId, {'hours_hidden': hidden});
+    await ref.read(ownerTruckProvider.notifier).refresh();
+  }
+
   void _init(List<OperatingHours> existing) {
     if (_initialized) return;
     for (int d = 0; d < 7; d++) {
@@ -96,15 +106,39 @@ class _ManageHoursScreenState extends ConsumerState<ManageHoursScreen> {
               ),
             ],
           ),
-          body: ListView.separated(
+          body: ListView(
             padding: const EdgeInsets.all(AppSpacing.lg),
-            itemCount: 7,
-            separatorBuilder: (_, _) => const Divider(height: 1),
-            itemBuilder: (_, day) => _DayRow(
-              day: day,
-              entry: _entries[day] ?? _HourEntry(isClosed: false, openTime: '09:00', closeTime: '17:00'),
-              onChanged: (e) => setState(() => _entries[day] = e),
-            ),
+            children: [
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Open/close automatically'),
+                subtitle: const Text(
+                  'Uses these hours to open and close your business, and turns off online ordering 15 minutes before close — no need to tap Go Live/Go Offline yourself.',
+                ),
+                value: truck?.autoHoursEnabled ?? false,
+                onChanged: truck == null ? null : (val) => _toggleAutoHours(truck.id, val),
+                activeThumbColor: AppColors.openGreen,
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Show hours to customers'),
+                subtitle: const Text(
+                  'Turn off if you\'d rather not display a fixed schedule on your public profile — these hours can still drive automatic open/close above either way.',
+                ),
+                value: !(truck?.hoursHidden ?? false),
+                onChanged: truck == null ? null : (val) => _toggleHoursHidden(truck.id, !val),
+                activeThumbColor: AppColors.openGreen,
+              ),
+              const Divider(height: 32),
+              ...List.generate(7, (day) {
+                final row = _DayRow(
+                  day: day,
+                  entry: _entries[day] ?? _HourEntry(isClosed: false, openTime: '09:00', closeTime: '17:00'),
+                  onChanged: (e) => setState(() => _entries[day] = e),
+                );
+                return day == 0 ? row : Column(children: [const Divider(height: 1), row]);
+              }),
+            ],
           ),
         );
       },

@@ -38,6 +38,14 @@ class FoodTruck {
     this.openedByUserId,
     this.businessType = 'mobile',
     this.hasEverOpened = false,
+    this.autoHoursEnabled = false,
+    this.hoursHidden = false,
+    this.taxRatePercent,
+    this.autoAcceptOrders = false,
+    this.autoMarkReady = false,
+    this.autoMarkReadyDelayMinutes = 0,
+    this.autoMarkComplete = false,
+    this.autoMarkCompleteDelayMinutes = 0,
   });
 
   final String id;
@@ -69,6 +77,14 @@ class FoodTruck {
   final String? openedByUserId;
   final String businessType;
   final bool hasEverOpened;
+  final bool autoHoursEnabled;
+  final bool hoursHidden;
+  final double? taxRatePercent;
+  final bool autoAcceptOrders;
+  final bool autoMarkReady;
+  final int autoMarkReadyDelayMinutes;
+  final bool autoMarkComplete;
+  final int autoMarkCompleteDelayMinutes;
 
   bool get isFixed => businessType == 'fixed';
   final double? latitude;
@@ -163,6 +179,14 @@ class FoodTruck {
       openedByUserId: map['opened_by_user_id'] as String?,
       businessType: map['business_type'] as String? ?? 'mobile',
       hasEverOpened: map['has_ever_opened'] as bool? ?? false,
+      autoHoursEnabled: map['auto_hours_enabled'] as bool? ?? false,
+      hoursHidden: map['hours_hidden'] as bool? ?? false,
+      taxRatePercent: (map['tax_rate_percent'] as num?)?.toDouble(),
+      autoAcceptOrders: map['auto_accept_orders'] as bool? ?? false,
+      autoMarkReady: map['auto_mark_ready'] as bool? ?? false,
+      autoMarkReadyDelayMinutes: map['auto_mark_ready_delay_minutes'] as int? ?? 0,
+      autoMarkComplete: map['auto_mark_complete'] as bool? ?? false,
+      autoMarkCompleteDelayMinutes: map['auto_mark_complete_delay_minutes'] as int? ?? 0,
     );
   }
 
@@ -188,6 +212,14 @@ class FoodTruck {
     List<MenuCategory>? menuCategories,
     String? businessType,
     bool? hasEverOpened,
+    bool? autoHoursEnabled,
+    bool? hoursHidden,
+    Object? taxRatePercent = _unset,
+    bool? autoAcceptOrders,
+    bool? autoMarkReady,
+    int? autoMarkReadyDelayMinutes,
+    bool? autoMarkComplete,
+    int? autoMarkCompleteDelayMinutes,
   }) {
     return FoodTruck(
       id: id,
@@ -222,6 +254,16 @@ class FoodTruck {
       cancellationPolicyHours: cancellationPolicyHours,
       businessType: businessType ?? this.businessType,
       hasEverOpened: hasEverOpened ?? this.hasEverOpened,
+      autoHoursEnabled: autoHoursEnabled ?? this.autoHoursEnabled,
+      hoursHidden: hoursHidden ?? this.hoursHidden,
+      taxRatePercent: taxRatePercent == _unset
+          ? this.taxRatePercent
+          : taxRatePercent as double?,
+      autoAcceptOrders: autoAcceptOrders ?? this.autoAcceptOrders,
+      autoMarkReady: autoMarkReady ?? this.autoMarkReady,
+      autoMarkReadyDelayMinutes: autoMarkReadyDelayMinutes ?? this.autoMarkReadyDelayMinutes,
+      autoMarkComplete: autoMarkComplete ?? this.autoMarkComplete,
+      autoMarkCompleteDelayMinutes: autoMarkCompleteDelayMinutes ?? this.autoMarkCompleteDelayMinutes,
     );
   }
 }

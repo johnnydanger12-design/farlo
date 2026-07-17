@@ -51,6 +51,7 @@ void main() {
         consumerId: 'c1',
         items: items,
         paymentIntentId: 'pi_1',
+        taxPrice: 0,
       );
 
       expect(result, same(existing));
@@ -60,6 +61,7 @@ void main() {
             items: any(named: 'items'),
             paymentIntentId: any(named: 'paymentIntentId'),
             pickupNote: any(named: 'pickupNote'),
+            taxPrice: any(named: 'taxPrice'),
           ));
     });
 
@@ -72,6 +74,7 @@ void main() {
             items: any(named: 'items'),
             paymentIntentId: any(named: 'paymentIntentId'),
             pickupNote: any(named: 'pickupNote'),
+            taxPrice: any(named: 'taxPrice'),
           )).thenAnswer((_) async => inserted);
 
       final result = await repository.placeOrder(
@@ -80,6 +83,7 @@ void main() {
         items: items,
         pickupNote: 'Ring the bell',
         paymentIntentId: 'pi_2',
+        taxPrice: 0.9,
       );
 
       expect(result, same(inserted));
@@ -89,6 +93,7 @@ void main() {
             items: items,
             paymentIntentId: 'pi_2',
             pickupNote: 'Ring the bell',
+            taxPrice: 0.9,
           )).called(1);
     });
   });

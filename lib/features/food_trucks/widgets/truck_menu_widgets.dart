@@ -28,6 +28,29 @@ bool tryAddToCart(BuildContext context, WidgetRef ref, CartItem item) {
   return true;
 }
 
+// Items with no customization options add straight to cart as before. Items
+// with any (removable defaults or paid add-ons) go through CustomizeItemSheet
+// first — returns whether it was actually added (false if cancelled, or if
+// the sign-in prompt was shown instead).
+Future<bool> addItemOrCustomize(BuildContext context, WidgetRef ref, MenuItem item) async {
+  if (item.modifiers.isEmpty) {
+    return tryAddToCart(context, ref, CartItem(
+      menuItemId: item.id,
+      name: item.name,
+      price: item.price,
+      quantity: 1,
+    ));
+  }
+  final cartItem = await showModalBottomSheet<CartItem>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (_) => CustomizeItemSheet(item: item),
+  );
+  if (cartItem == null || !context.mounted) return false;
+  return tryAddToCart(context, ref, cartItem);
+}
+
 class MenuGrid extends StatefulWidget {
   const MenuGrid({super.key, required this.items, required this.canOrder, this.categoryOrder = const []});
   final List<MenuItem> items;
@@ -167,7 +190,8 @@ class MenuItemCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final qty = canOrder ? (ref.watch(cartProvider)[item.id]?.quantity ?? 0) : 0;
+    ref.watch(cartProvider); // rebuild on cart changes
+    final qty = canOrder ? ref.read(cartProvider.notifier).quantityForMenuItem(item.id) : 0;
 
     return GestureDetector(
       onTap: () => showModalBottomSheet(
@@ -252,12 +276,7 @@ class AddButton extends ConsumerWidget {
       label: qty == 0 ? 'Add ${item.name} to order' : 'Add another ${item.name}, $qty in order',
       button: true,
       child: GestureDetector(
-        onTap: () => tryAddToCart(context, ref, CartItem(
-          menuItemId: item.id,
-          name: item.name,
-          price: item.price,
-          quantity: 1,
-        )),
+        onTap: () => addItemOrCustomize(context, ref, item),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
           padding: qty == 0
@@ -336,16 +355,12 @@ class ItemDetailSheet extends StatelessWidget {
                   const SizedBox(height: AppSpacing.lg),
                   Consumer(
                     builder: (context, ref, _) {
-                      final qty = ref.watch(cartProvider)[item.id]?.quantity ?? 0;
+                      ref.watch(cartProvider); // rebuild on cart changes
+                      final qty = ref.read(cartProvider.notifier).quantityForMenuItem(item.id);
                       return FilledButton.icon(
-                        onPressed: () {
-                          final added = tryAddToCart(context, ref, CartItem(
-                            menuItemId: item.id,
-                            name: item.name,
-                            price: item.price,
-                            quantity: 1,
-                          ));
-                          if (added) Navigator.pop(context);
+                        onPressed: () async {
+                          final added = await addItemOrCustomize(context, ref, item);
+                          if (added && context.mounted) Navigator.pop(context);
                         },
                         icon: const Icon(Icons.add_shopping_cart_outlined, size: 18),
                         label: Text(qty == 0 ? 'Add to Bag' : 'Add One More'),
@@ -405,6 +420,125 @@ class FloatingCartBar extends ConsumerWidget {
                   style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 16)),
               Text('\$${total.toStringAsFixed(2)}',
                   style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 15)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// Shown before adding an item that has any customization options — lets a
+// customer remove one of the dish's default ingredients (free) or add one of
+// its optional paid extras, then adds exactly one of that customization to
+// the cart (matching the app's existing one-tap-per-add convention; tapping
+// "Add" again for the same dish opens this sheet fresh rather than assuming
+// the same customization is wanted twice).
+class CustomizeItemSheet extends StatefulWidget {
+  const CustomizeItemSheet({super.key, required this.item});
+  final MenuItem item;
+
+  @override
+  State<CustomizeItemSheet> createState() => _CustomizeItemSheetState();
+}
+
+class _CustomizeItemSheetState extends State<CustomizeItemSheet> {
+  final Set<String> _removedNames = {};
+  final Set<String> _addedIds = {};
+
+  double get _total {
+    final addedTotal = widget.item.paidAddOns
+        .where((m) => _addedIds.contains(m.id))
+        .fold(0.0, (sum, m) => sum + m.priceDelta);
+    return widget.item.price + addedTotal;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isLight = Theme.of(context).brightness == Brightness.light;
+    return Container(
+      decoration: BoxDecoration(
+        color: isLight ? Colors.white : Theme.of(context).colorScheme.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(child: Text(widget.item.name, style: AppTextStyles.heading3)),
+                  Text(
+                    '\$${_total.toStringAsFixed(2)}',
+                    style: AppTextStyles.heading3.copyWith(color: Theme.of(context).colorScheme.primary),
+                  ),
+                ],
+              ),
+              if (widget.item.removableDefaults.isNotEmpty) ...[
+                const SizedBox(height: AppSpacing.lg),
+                Text('Comes with', style: AppTextStyles.label),
+                for (final modifier in widget.item.removableDefaults)
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    title: Text(modifier.name),
+                    value: !_removedNames.contains(modifier.name),
+                    onChanged: (checked) => setState(() {
+                      if (checked ?? true) {
+                        _removedNames.remove(modifier.name);
+                      } else {
+                        _removedNames.add(modifier.name);
+                      }
+                    }),
+                  ),
+              ],
+              if (widget.item.paidAddOns.isNotEmpty) ...[
+                const SizedBox(height: AppSpacing.sm),
+                Text('Add extras', style: AppTextStyles.label),
+                for (final modifier in widget.item.paidAddOns)
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    title: Text('${modifier.name} (+\$${modifier.priceDelta.toStringAsFixed(2)})'),
+                    value: _addedIds.contains(modifier.id),
+                    onChanged: (checked) => setState(() {
+                      if (checked ?? false) {
+                        _addedIds.add(modifier.id);
+                      } else {
+                        _addedIds.remove(modifier.id);
+                      }
+                    }),
+                  ),
+              ],
+              const SizedBox(height: AppSpacing.md),
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: FilledButton(
+                  onPressed: () {
+                    final addedModifiers = widget.item.paidAddOns
+                        .where((m) => _addedIds.contains(m.id))
+                        .map((m) => SelectedModifier(id: m.id, name: m.name, priceDelta: m.priceDelta))
+                        .toList();
+                    Navigator.pop(
+                      context,
+                      CartItem(
+                        menuItemId: widget.item.id,
+                        name: widget.item.name,
+                        price: widget.item.price,
+                        quantity: 1,
+                        removedModifiers: _removedNames.toList(),
+                        addedModifiers: addedModifiers,
+                      ),
+                    );
+                  },
+                  child: const Text('Add to Bag'),
+                ),
+              ),
             ],
           ),
         ),

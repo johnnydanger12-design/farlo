@@ -35,23 +35,29 @@ class OrdersRepository {
   // Consumer — payment + order placement
   // -------------------------------------------------------------------------
 
-  Future<({String clientSecret, String paymentIntentId})> createPaymentIntent({
+  Future<({String clientSecret, String paymentIntentId, double taxPrice})> createPaymentIntent({
     required String truckId,
     required List<CartItem> items,
     required String idempotencyKey,
   }) async {
-    // The server recomputes the charge amount from real menu_items prices — it
-    // no longer trusts a client-supplied total, so only item/quantity is sent.
-    // idempotencyKey is generated once per checkout attempt by the caller and
-    // reused across retries of that same attempt, so a network-blip retry
-    // reuses the same Stripe PaymentIntent instead of charging twice
-    // (bugs.md Executive Summary #3).
+    // The server recomputes the charge amount (including tax, from the truck's
+    // own tax_rate_percent) from real menu_items prices — it no longer trusts a
+    // client-supplied total, so only item/quantity is sent. idempotencyKey is
+    // generated once per checkout attempt by the caller and reused across
+    // retries of that same attempt, so a network-blip retry reuses the same
+    // Stripe PaymentIntent instead of charging twice (bugs.md Executive
+    // Summary #3).
     final res = await _supabase.functions.invoke(
       'create-payment-intent',
       body: {
         'truck_id': truckId,
         'items': items
-            .map((i) => {'menu_item_id': i.menuItemId, 'quantity': i.quantity})
+            .map((i) => {
+                  'menu_item_id': i.menuItemId,
+                  'quantity': i.quantity,
+                  if (i.addedModifiers.isNotEmpty)
+                    'added_modifier_ids': i.addedModifiers.map((m) => m.id).toList(),
+                })
             .toList(),
         'idempotency_key': idempotencyKey,
       },
@@ -61,6 +67,7 @@ class OrdersRepository {
     return (
       clientSecret: data['client_secret'] as String,
       paymentIntentId: data['payment_intent_id'] as String,
+      taxPrice: (data['tax_cents'] as num) / 100,
     );
   }
 
@@ -70,6 +77,7 @@ class OrdersRepository {
     required List<CartItem> items,
     String? pickupNote,
     required String paymentIntentId,
+    required double taxPrice,
   }) async {
     // Idempotent by paymentIntentId: if a prior attempt already inserted the
     // order for this same charge (e.g. the charge succeeded but a later step
@@ -86,6 +94,7 @@ class OrdersRepository {
       items: items,
       paymentIntentId: paymentIntentId,
       pickupNote: pickupNote,
+      taxPrice: taxPrice,
     );
 
     _invokeNotification('order_placed', order.id);

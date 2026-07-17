@@ -46,6 +46,21 @@ class _FoodTruckNotifier extends AsyncNotifier<FoodTruck> {
           ),
           callback: (_) => ref.invalidateSelf(),
         )
+        // Realtime for the truck row itself — is_open, hours_hidden,
+        // auto_hours_enabled, orders_accepting, etc. Without this, a consumer
+        // already viewing this profile never sees an owner-side change (e.g.
+        // toggling "Show hours to customers") until they leave and re-enter.
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
+          schema: 'public',
+          table: SupabaseConstants.foodTrucksTable,
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'id',
+            value: _truckId,
+          ),
+          callback: (_) => ref.invalidateSelf(),
+        )
         .subscribe();
     ref.onDispose(channel.unsubscribe);
 

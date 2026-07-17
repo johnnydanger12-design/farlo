@@ -75,7 +75,7 @@ class _OrderCartSheetState extends ConsumerState<OrderCartSheet> {
     // session found live: an owner mid-onboarding with no Stripe account
     // connected made every consumer see that scary message despite zero
     // payment ever being attempted.
-    final ({String clientSecret, String paymentIntentId}) checkout;
+    final ({String clientSecret, String paymentIntentId, double taxPrice}) checkout;
     try {
       checkout = await repo.createPaymentIntent(
         truckId: widget.truck.id,
@@ -115,6 +115,7 @@ class _OrderCartSheetState extends ConsumerState<OrderCartSheet> {
         items: items,
         pickupNote: _pickupNoteCtrl.text.trim().isEmpty ? null : _pickupNoteCtrl.text.trim(),
         paymentIntentId: checkout.paymentIntentId,
+        taxPrice: checkout.taxPrice,
       );
 
       cartNotifier.clear();
@@ -144,7 +145,13 @@ class _OrderCartSheetState extends ConsumerState<OrderCartSheet> {
   Widget build(BuildContext context) {
     final cart = ref.watch(cartProvider);
     final cartNotifier = ref.read(cartProvider.notifier);
-    final total = cartNotifier.total;
+    final subtotal = cartNotifier.total;
+    // Preview only — the server recomputes and charges the authoritative
+    // amount in create-payment-intent from this same truck.tax_rate_percent,
+    // so this can never diverge from what's actually charged.
+    final taxRate = widget.truck.taxRatePercent ?? 0;
+    final estimatedTax = subtotal * (taxRate / 100);
+    final payTotal = subtotal + estimatedTax;
     final hasItems = cart.isNotEmpty;
     final cartItems = cart.values.toList();
     final bottomPad = MediaQuery.of(context).viewPadding.bottom;
@@ -207,24 +214,54 @@ class _OrderCartSheetState extends ConsumerState<OrderCartSheet> {
                   color: Theme.of(context).colorScheme.surface,
                   border: Border(top: BorderSide(color: AppColors.divider)),
                 ),
-                child: SizedBox(
-                  width: double.infinity,
-                  height: 52,
-                  child: FilledButton(
-                    onPressed: (!hasItems || _paying) ? null : _pay,
-                    child: _paying
-                        ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                        : Text(
-                            hasItems ? 'Place Order · \$${total.toStringAsFixed(2)}' : 'Add items to order',
-                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                          ),
-                  ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (hasItems && taxRate > 0) ...[
+                      _PriceRow(label: 'Subtotal', amount: subtotal),
+                      _PriceRow(label: 'Tax', amount: estimatedTax),
+                      const SizedBox(height: 4),
+                    ],
+                    SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: FilledButton(
+                        onPressed: (!hasItems || _paying) ? null : _pay,
+                        child: _paying
+                            ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                            : Text(
+                                hasItems ? 'Place Order · \$${payTotal.toStringAsFixed(2)}' : 'Add items to order',
+                                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                              ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
         );
       },
+    );
+  }
+}
+
+class _PriceRow extends StatelessWidget {
+  const _PriceRow({required this.label, required this.amount});
+  final String label;
+  final double amount;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: AppTextStyles.bodySmall.copyWith(color: AppColors.textSecondary)),
+          Text('\$${amount.toStringAsFixed(2)}', style: AppTextStyles.bodySmall),
+        ],
+      ),
     );
   }
 }
@@ -244,7 +281,7 @@ class _CartItemRow extends ConsumerWidget {
             label: cartItem.quantity == 1 ? 'Remove item' : 'Decrease quantity',
             button: true,
             child: GestureDetector(
-              onTap: () => notifier.remove(cartItem.menuItemId),
+              onTap: () => notifier.remove(cartItem.cartKey),
               child: Icon(
                 cartItem.quantity == 1 ? Icons.delete_outline : Icons.remove_circle_outline,
                 size: 20,
@@ -264,7 +301,22 @@ class _CartItemRow extends ConsumerWidget {
             ),
           ),
           const SizedBox(width: AppSpacing.md),
-          Expanded(child: Text(cartItem.name, style: AppTextStyles.bodySmall)),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(cartItem.name, style: AppTextStyles.bodySmall),
+                if (cartItem.removedModifiers.isNotEmpty || cartItem.addedModifiers.isNotEmpty)
+                  Text(
+                    [
+                      ...cartItem.removedModifiers.map((m) => 'No $m'),
+                      ...cartItem.addedModifiers.map((m) => '+ ${m.name}'),
+                    ].join(', '),
+                    style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
+                  ),
+              ],
+            ),
+          ),
           Text('\$${cartItem.lineTotal.toStringAsFixed(2)}',
               style: AppTextStyles.bodySmall.copyWith(fontWeight: FontWeight.w600)),
         ],

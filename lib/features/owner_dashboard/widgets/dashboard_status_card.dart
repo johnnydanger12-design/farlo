@@ -256,13 +256,15 @@ class DashboardStatusCard extends ConsumerWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        truck.isOpen
-                            ? (_isEmployeeLive
-                                ? 'You\'re open on the map'
-                                : 'Customers can see you on the map')
-                            : (truck.isFixed
-                                ? 'Flip to show you\'re open'
-                                : 'Flip to open and share your location'),
+                        truck.autoHoursEnabled
+                            ? 'Following your set hours'
+                            : truck.isOpen
+                                ? (_isEmployeeLive
+                                    ? 'You\'re open on the map'
+                                    : 'Customers can see you on the map')
+                                : (truck.isFixed
+                                    ? 'Flip to show you\'re open'
+                                    : 'Flip to open and share your location'),
                         style: AppTextStyles.caption,
                       ),
                     ],
@@ -313,7 +315,11 @@ class DashboardStatusCard extends ConsumerWidget {
                     toggled: truck.isOpen,
                     child: Switch(
                       value: truck.isOpen,
-                      onChanged: onGoLive,
+                      // null onChanged disables the switch — auto_hours_enabled
+                      // means sync-truck-hours (cron) is the only thing that
+                      // should flip is_open, not a manual tap that it would
+                      // just overwrite again within a few minutes anyway.
+                      onChanged: truck.autoHoursEnabled ? null : onGoLive,
                       activeThumbColor: AppColors.openGreen,
                       activeTrackColor:
                           AppColors.openGreen.withValues(alpha: 0.4),
@@ -347,9 +353,11 @@ class DashboardStatusCard extends ConsumerWidget {
                           ),
                         ),
                         Text(
-                          truck.ordersAccepting
-                              ? 'Customers can place orders now'
-                              : 'Tap to start accepting orders',
+                          truck.autoHoursEnabled
+                              ? 'Turns off 15 min before you close'
+                              : truck.ordersAccepting
+                                  ? 'Customers can place orders now'
+                                  : 'Tap to start accepting orders',
                           style: AppTextStyles.caption,
                         ),
                       ],
@@ -360,8 +368,9 @@ class DashboardStatusCard extends ConsumerWidget {
                     toggled: truck.ordersAccepting,
                     child: Switch(
                       value: truck.ordersAccepting,
-                      onChanged: (v) =>
-                          _toggleOrdersAccepting(context, ref, v, stripeConnected),
+                      onChanged: truck.autoHoursEnabled
+                          ? null
+                          : (v) => _toggleOrdersAccepting(context, ref, v, stripeConnected),
                       activeThumbColor: AppColors.openGreen,
                       activeTrackColor:
                           AppColors.openGreen.withValues(alpha: 0.4),

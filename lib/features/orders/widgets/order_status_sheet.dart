@@ -135,6 +135,14 @@ class _OrderStatusSheetState extends ConsumerState<OrderStatusSheet> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(item.name, style: AppTextStyles.body),
+                                    if (item.removedModifiers.isNotEmpty || item.addedModifiers.isNotEmpty)
+                                      Text(
+                                        [
+                                          ...item.removedModifiers.map((m) => 'No $m'),
+                                          ...item.addedModifiers.map((m) => '+ ${m.name}'),
+                                        ].join(', '),
+                                        style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
+                                      ),
                                     if (item.specialRequest != null && item.specialRequest!.isNotEmpty)
                                       Text(
                                         'Note: ${item.specialRequest}',
@@ -178,7 +186,7 @@ class _OrderStatusSheetState extends ConsumerState<OrderStatusSheet> {
                       if (order.isPending) ...[
                         FilledButton(
                           onPressed: () => _ownerAction('accepted'),
-                          child: const Text('Accept Order'),
+                          child: const Text('Start Preparing'),
                         ),
                         const SizedBox(height: AppSpacing.sm),
                         OutlinedButton(
@@ -223,7 +231,7 @@ class _StatusChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final (label, color) = switch (status) {
       'pending' => ('Pending', Colors.orange),
-      'accepted' => ('Accepted', Colors.blue),
+      'accepted' => ('Preparing', Colors.blue),
       'ready' => ('Ready!', Colors.green),
       'completed' => ('Completed', AppColors.textHint),
       'declined' => ('Declined', Colors.red),

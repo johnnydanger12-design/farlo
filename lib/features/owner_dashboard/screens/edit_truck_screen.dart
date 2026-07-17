@@ -25,6 +25,9 @@ class EditTruckScreen extends ConsumerStatefulWidget {
   ConsumerState<EditTruckScreen> createState() => _EditTruckScreenState();
 }
 
+String _formatRate(double rate) =>
+    rate == rate.roundToDouble() ? rate.toStringAsFixed(0) : rate.toString();
+
 class _EditTruckScreenState extends ConsumerState<EditTruckScreen> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameCtrl;
@@ -36,11 +39,17 @@ class _EditTruckScreenState extends ConsumerState<EditTruckScreen> {
   late final TextEditingController _twitterCtrl;
   late final TextEditingController _youtubeCtrl;
   late final TextEditingController _websiteCtrl;
+  late final TextEditingController _taxRateCtrl;
+  late final TextEditingController _autoMarkReadyDelayCtrl;
+  late final TextEditingController _autoMarkCompleteDelayCtrl;
 
   late final TextEditingController _addressCtrl;
   late final TextEditingController _otherCuisineCtrl;
   int? _cancellationPolicyHours;
   bool _ordersEnabled = false;
+  bool _autoAcceptOrders = false;
+  bool _autoMarkReady = false;
+  bool _autoMarkComplete = false;
   String _businessType = 'mobile';
   double? _staticLat;
   double? _staticLng;
@@ -81,8 +90,20 @@ class _EditTruckScreenState extends ConsumerState<EditTruckScreen> {
     _twitterCtrl = TextEditingController();
     _youtubeCtrl = TextEditingController();
     _websiteCtrl = TextEditingController();
+    _taxRateCtrl = TextEditingController();
+    _autoMarkReadyDelayCtrl = TextEditingController();
+    _autoMarkCompleteDelayCtrl = TextEditingController();
+    // Rebuilds so the toggle's own subtitle reflects the delay live as it's
+    // typed, rather than only being visible in the text field below it.
+    _autoMarkReadyDelayCtrl.addListener(() => setState(() {}));
+    _autoMarkCompleteDelayCtrl.addListener(() => setState(() {}));
     _addressCtrl = TextEditingController();
     _addressCtrl.addListener(_onAddressTextChanged);
+  }
+
+  String _delaySubtitle(TextEditingController delayCtrl) {
+    final minutes = int.tryParse(delayCtrl.text.trim()) ?? 0;
+    return minutes > 0 ? 'After a $minutes minute delay' : 'Happens immediately';
   }
 
   void _onAddressTextChanged() {
@@ -102,6 +123,9 @@ class _EditTruckScreenState extends ConsumerState<EditTruckScreen> {
     _twitterCtrl.dispose();
     _youtubeCtrl.dispose();
     _websiteCtrl.dispose();
+    _taxRateCtrl.dispose();
+    _autoMarkReadyDelayCtrl.dispose();
+    _autoMarkCompleteDelayCtrl.dispose();
     _addressCtrl.removeListener(_onAddressTextChanged);
     _addressCtrl.dispose();
     _otherCuisineCtrl.dispose();
@@ -128,8 +152,14 @@ class _EditTruckScreenState extends ConsumerState<EditTruckScreen> {
     _twitterCtrl.text = truck.socialTwitter ?? '';
     _youtubeCtrl.text = truck.socialYoutube ?? '';
     _websiteCtrl.text = truck.websiteUrl ?? '';
+    _taxRateCtrl.text = truck.taxRatePercent == null ? '' : _formatRate(truck.taxRatePercent!);
     _cancellationPolicyHours = truck.cancellationPolicyHours;
     _ordersEnabled = truck.ordersEnabled;
+    _autoAcceptOrders = truck.autoAcceptOrders;
+    _autoMarkReady = truck.autoMarkReady;
+    _autoMarkReadyDelayCtrl.text = truck.autoMarkReadyDelayMinutes.toString();
+    _autoMarkComplete = truck.autoMarkComplete;
+    _autoMarkCompleteDelayCtrl.text = truck.autoMarkCompleteDelayMinutes.toString();
     _businessType = truck.businessType;
     _addressCtrl.text = truck.address ?? '';
     _staticLat = truck.latitude;
@@ -206,6 +236,12 @@ class _EditTruckScreenState extends ConsumerState<EditTruckScreen> {
         'website_url': _websiteCtrl.text.trim().isEmpty ? null : _websiteCtrl.text.trim(),
         'cancellation_policy_hours': _cancellationPolicyHours,
         'orders_enabled': _ordersEnabled,
+        'tax_rate_percent': _taxRateCtrl.text.trim().isEmpty ? null : double.tryParse(_taxRateCtrl.text.trim()),
+        'auto_accept_orders': _autoAcceptOrders,
+        'auto_mark_ready': _autoMarkReady,
+        'auto_mark_ready_delay_minutes': int.tryParse(_autoMarkReadyDelayCtrl.text.trim()) ?? 0,
+        'auto_mark_complete': _autoMarkComplete,
+        'auto_mark_complete_delay_minutes': int.tryParse(_autoMarkCompleteDelayCtrl.text.trim()) ?? 0,
         'business_type': _businessType,
         if (_businessType == 'fixed') ...{
           'address': _addressCtrl.text.trim().isEmpty ? null : _addressCtrl.text.trim(),
@@ -410,6 +446,85 @@ class _EditTruckScreenState extends ConsumerState<EditTruckScreen> {
                   onChanged: _toggleOrdersEnabled,
                   title: const Text('Accept orders'),
                   contentPadding: EdgeInsets.zero,
+                ),
+                const SizedBox(height: AppSpacing.lg),
+
+                // Order automation — independent toggles for each stage of
+                // pending -> Preparing -> ready -> completed, plus a master
+                // switch that's just a convenience for setting all three at
+                // once (an owner can still fine-tune afterward). For a
+                // Clover-integrated business, "accept" gates on a successful
+                // print rather than firing the instant the order is placed.
+                Text('Order Automation', style: AppTextStyles.heading3),
+                const SizedBox(height: 4),
+                Text(
+                  'Automatically move orders through your queue instead of tapping through each step yourself.',
+                  style: AppTextStyles.caption,
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                SwitchListTile(
+                  value: _autoAcceptOrders && _autoMarkReady && _autoMarkComplete,
+                  onChanged: (val) => setState(() {
+                    _autoAcceptOrders = val;
+                    _autoMarkReady = val;
+                    _autoMarkComplete = val;
+                  }),
+                  title: const Text('Automate my whole order flow'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+                SwitchListTile(
+                  value: _autoAcceptOrders,
+                  onChanged: (val) => setState(() => _autoAcceptOrders = val),
+                  title: const Text('Auto-accept new orders'),
+                  subtitle: const Text('Starts preparing automatically instead of tapping "Start Preparing"'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+                SwitchListTile(
+                  value: _autoMarkReady,
+                  onChanged: (val) => setState(() => _autoMarkReady = val),
+                  title: const Text('Auto-mark ready for pickup'),
+                  subtitle: _autoMarkReady ? Text(_delaySubtitle(_autoMarkReadyDelayCtrl)) : null,
+                  contentPadding: EdgeInsets.zero,
+                ),
+                if (_autoMarkReady)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                    child: AppTextField(
+                      controller: _autoMarkReadyDelayCtrl,
+                      label: 'Delay (minutes)',
+                      hint: '0 = immediately',
+                      keyboardType: TextInputType.number,
+                    ),
+                  ),
+                SwitchListTile(
+                  value: _autoMarkComplete,
+                  onChanged: (val) => setState(() => _autoMarkComplete = val),
+                  title: const Text('Auto-mark completed'),
+                  subtitle: _autoMarkComplete ? Text(_delaySubtitle(_autoMarkCompleteDelayCtrl)) : null,
+                  contentPadding: EdgeInsets.zero,
+                ),
+                if (_autoMarkComplete)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                    child: AppTextField(
+                      controller: _autoMarkCompleteDelayCtrl,
+                      label: 'Delay (minutes)',
+                      hint: '0 = immediately',
+                      keyboardType: TextInputType.number,
+                    ),
+                  ),
+                const SizedBox(height: AppSpacing.lg),
+
+                // Sales tax
+                Text('Sales Tax', style: AppTextStyles.heading3),
+                const SizedBox(height: 4),
+                Text('Your own local rate — added on top of item prices and charged to the customer at checkout. Leave blank for no tax.', style: AppTextStyles.caption),
+                const SizedBox(height: AppSpacing.sm),
+                AppTextField(
+                  controller: _taxRateCtrl,
+                  label: 'Tax rate (%)',
+                  hint: 'e.g. 8.5',
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 ),
                 const SizedBox(height: AppSpacing.xl),
 

@@ -21,6 +21,7 @@ abstract class OrdersDataSource {
     required List<CartItem> items,
     required String paymentIntentId,
     String? pickupNote,
+    required double taxPrice,
   });
 }
 
@@ -47,8 +48,12 @@ class SupabaseOrdersDataSource implements OrdersDataSource {
     required List<CartItem> items,
     required String paymentIntentId,
     String? pickupNote,
+    required double taxPrice,
   }) async {
-    final totalPrice = items.fold(0.0, (sum, i) => sum + i.lineTotal);
+    // total_price includes tax — matches the actual amount charged via Stripe
+    // (create-payment-intent charges subtotal + tax as one PaymentIntent), so
+    // this stays consistent with what the customer's card was really charged.
+    final totalPrice = items.fold(0.0, (sum, i) => sum + i.lineTotal) + taxPrice;
 
     final orderRow = await _supabase
         .from('orders')
@@ -56,6 +61,7 @@ class SupabaseOrdersDataSource implements OrdersDataSource {
           'truck_id': truckId,
           'consumer_id': consumerId,
           'total_price': totalPrice,
+          'tax_price': taxPrice,
           'stripe_payment_intent_id': paymentIntentId,
           if (pickupNote != null && pickupNote.isNotEmpty) 'pickup_note': pickupNote,
         })
@@ -75,6 +81,9 @@ class SupabaseOrdersDataSource implements OrdersDataSource {
                 'quantity': i.quantity,
                 if (i.specialRequest != null && i.specialRequest!.isNotEmpty)
                   'special_request': i.specialRequest,
+                if (i.removedModifiers.isNotEmpty) 'removed_modifiers': i.removedModifiers,
+                if (i.addedModifiers.isNotEmpty)
+                  'added_modifiers': i.addedModifiers.map((m) => m.toMap()).toList(),
               })
           .toList(),
     ).withNetworkTimeout;
