@@ -35,9 +35,24 @@ Deno.serve(async (req: Request) => {
   const runId = await startRun(supabase, 'agent-run-check', dryRun ? 'dry_run' : undefined);
 
   try {
+    // An agent can have one cron job (name matches exactly) or several (e.g.
+    // agent-aiden-inbox-morning/-afternoon) — a prefix match covers both. If an
+    // agent has zero *active* jobs (deliberately paused, like agent-piper since
+    // Johnny's wife took over marketing), it isn't stuck, it's intentionally
+    // off — skip it rather than alerting on a schedule nobody expects to run.
+    // Read fresh every run specifically so pausing/resuming any agent's cron
+    // never also requires a matching manual edit to this file.
+    const { data: activeJobNames, error: cronError } = await supabase.rpc('get_active_cron_job_names');
+    if (cronError) throw new Error(`get_active_cron_job_names failed: ${cronError.message}`);
+    const activeNames = (activeJobNames as string[] | null) ?? [];
+    const hasActiveJob = (agentName: string) =>
+      activeNames.some((n) => n === agentName || n.startsWith(`${agentName}-`));
+
     const stale: { agent_name: string; hoursSince: number; threshold: number }[] = [];
 
     for (const [agentName, thresholdHours] of Object.entries(EXPECTED_WINDOWS_HOURS)) {
+      if (!hasActiveJob(agentName)) continue;
+
       const { data: lastSuccess, error } = await supabase
         .from('agent_run_log')
         .select('finished_at')
