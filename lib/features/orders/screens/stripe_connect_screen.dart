@@ -135,6 +135,28 @@ class _StripeConnectScreenState extends ConsumerState<StripeConnectScreen>
                 'Your Stripe account is connected. Payments from orders and bookings deposit directly to your bank account.',
                 style: AppTextStyles.body,
               ),
+              const SizedBox(height: AppSpacing.md),
+              Container(
+                padding: const EdgeInsets.all(AppSpacing.md),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline,
+                        size: 18, color: Theme.of(context).colorScheme.primary),
+                    const SizedBox(width: AppSpacing.sm),
+                    Expanded(
+                      child: Text(
+                        'We recommend placing one small real test order before customers start ordering, to confirm payments and payouts are actually working end-to-end.',
+                        style: AppTextStyles.caption.copyWith(
+                            color: Theme.of(context).colorScheme.primary),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
               const SizedBox(height: AppSpacing.xl),
               OutlinedButton(
                 onPressed: _loading ? null : _connect,

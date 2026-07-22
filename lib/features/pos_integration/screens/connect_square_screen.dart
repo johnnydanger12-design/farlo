@@ -1,12 +1,12 @@
-// UNVERIFIED end-to-end: no real Square Application exists yet (Johnny needs
-// to create one in Square's Developer Dashboard first). Mirrors
-// stripe_connect_screen.dart's deep-link-listen + lifecycle-resume pattern —
-// Square's OAuth redirect lands on square-oauth-callback (plain HTTPS, no
-// custom scheme, same reason Stripe's return_url isn't one either), which
-// then 302s into the app via farlo://square-connect with a `status` param.
+// Mirrors stripe_connect_screen.dart's deep-link-listen + lifecycle-resume
+// pattern — Square's OAuth redirect lands on square-oauth-callback (plain
+// HTTPS, no custom scheme, same reason Stripe's return_url isn't one
+// either), which then 302s into the app via farlo://square-connect with a
+// `status` param.
 import 'dart:async';
 
 import 'package:app_links/app_links.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -115,23 +115,30 @@ class _ConnectSquareScreenState extends ConsumerState<ConnectSquareScreen> with 
             style: AppTextStyles.body,
           ),
           const SizedBox(height: AppSpacing.lg),
-          DropdownButtonFormField<String>(
-            initialValue: _environment,
-            decoration: InputDecoration(
-              labelText: 'Environment',
-              filled: true,
-              fillColor: Theme.of(context).colorScheme.surface,
-              contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.md),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          // Sandbox is a Square engineering-testing concept, meaningless to
+          // a real merchant — every real owner always wants Production, so
+          // this picker only exists in debug builds (our own testing),
+          // never in what ships to a real business.
+          if (kDebugMode) ...[
+            DropdownButtonFormField<String>(
+              initialValue: _environment,
+              decoration: InputDecoration(
+                labelText: 'Environment (debug only)',
+                filled: true,
+                fillColor: Theme.of(context).colorScheme.surface,
+                contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.md),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              items: const [
+                DropdownMenuItem(value: 'production', child: Text('Production')),
+                DropdownMenuItem(value: 'sandbox', child: Text('Sandbox')),
+              ],
+              onChanged: (val) {
+                if (val != null) setState(() => _environment = val);
+              },
             ),
-            items: const [
-              DropdownMenuItem(value: 'production', child: Text('Production')),
-              DropdownMenuItem(value: 'sandbox', child: Text('Sandbox')),
-            ],
-            onChanged: (val) {
-              if (val != null) setState(() => _environment = val);
-            },
-          ),
+            const SizedBox(height: AppSpacing.lg),
+          ],
           const SizedBox(height: AppSpacing.xl),
           AppButton(
             label: 'Connect with Square',

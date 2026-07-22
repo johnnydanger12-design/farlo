@@ -105,6 +105,28 @@ class _PosIntegrationScreenState extends ConsumerState<PosIntegrationScreen> {
             const SizedBox(height: AppSpacing.lg),
             if (integration != null) ...[
               _StatusCard(integration: integration),
+              if (integration.environment != 'sandbox') ...[
+                const SizedBox(height: AppSpacing.sm),
+                Container(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.info_outline, size: 18, color: Theme.of(context).colorScheme.primary),
+                      const SizedBox(width: AppSpacing.sm),
+                      Expanded(
+                        child: Text(
+                          'We recommend placing one small real test order to confirm it reaches your ${integration.providerLabel} account and prints correctly.',
+                          style: AppTextStyles.caption.copyWith(color: Theme.of(context).colorScheme.primary),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: AppSpacing.md),
               SwitchListTile(
                 value: integration.enabled,
@@ -152,20 +174,34 @@ class _StatusCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Sandbox is Square/Clover's own fake-testing environment — a real
+    // connection there never receives real orders. Flagging it here (rather
+    // than only in fine print elsewhere) avoids a business owner mistakenly
+    // believing they're live when they're not.
+    final isSandbox = integration.environment == 'sandbox';
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        color: Colors.green.withValues(alpha: 0.08),
+        color: (isSandbox ? Colors.orange : Colors.green).withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.green.shade300),
+        border: Border.all(color: isSandbox ? Colors.orange.shade300 : Colors.green.shade300),
       ),
       child: Row(
         children: [
-          const Icon(Icons.check_circle_outline, color: Colors.green),
+          Icon(
+            isSandbox ? Icons.warning_amber_outlined : Icons.check_circle_outline,
+            color: isSandbox ? Colors.orange : Colors.green,
+          ),
           const SizedBox(width: AppSpacing.sm),
-          Text(
-            '${integration.providerLabel} Connected',
-            style: AppTextStyles.label.copyWith(color: Colors.green.shade700),
+          Expanded(
+            child: Text(
+              isSandbox
+                  ? '${integration.providerLabel} Connected (Sandbox — test mode, not receiving real orders)'
+                  : '${integration.providerLabel} Connected',
+              style: AppTextStyles.label.copyWith(
+                color: isSandbox ? Colors.orange.shade700 : Colors.green.shade700,
+              ),
+            ),
           ),
         ],
       ),
