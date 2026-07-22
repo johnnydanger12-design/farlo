@@ -11,7 +11,11 @@ import { SocialLinks } from './components/SocialLinks';
 import { DownloadCta } from './components/DownloadCta';
 
 function getSlugFromPath(): string {
-  return window.location.pathname.replace(/^\/+|\/+$/g, '');
+  // Slugs are always generated lowercase (see the food_trucks slug trigger),
+  // but a shared/typed link can arrive in any casing (autocapitalize, someone
+  // typing the business's proper-cased name, etc.) — lowercase here so the
+  // exact-match query below isn't case-sensitive in practice.
+  return window.location.pathname.replace(/^\/+|\/+$/g, '').toLowerCase();
 }
 
 type State =
