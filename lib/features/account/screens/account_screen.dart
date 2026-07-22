@@ -84,6 +84,11 @@ class AccountScreen extends ConsumerWidget {
                   onTap: () => context.push('/owner-account/orders-payments'),
                 ),
                 SettingsTile(
+                  icon: Icons.point_of_sale_outlined,
+                  label: 'Point of Sale',
+                  onTap: () => context.push('/owner-account/pos-integration'),
+                ),
+                SettingsTile(
                   icon: Icons.event_outlined,
                   label: 'Private Events & Catering',
                   onTap: () => context.push('/owner-account/private-events'),

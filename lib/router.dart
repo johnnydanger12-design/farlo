@@ -28,6 +28,10 @@ import 'features/notifications/screens/notifications_screen.dart';
 import 'features/orders/screens/my_orders_screen.dart';
 import 'features/orders/screens/order_queue_screen.dart';
 import 'features/orders/screens/stripe_connect_screen.dart';
+import 'features/pos_integration/screens/pos_integration_screen.dart';
+import 'features/pos_integration/screens/connect_clover_screen.dart';
+import 'features/pos_integration/screens/connect_square_screen.dart';
+import 'features/pos_integration/screens/square_location_picker_screen.dart';
 import 'features/auth/screens/set_new_password_screen.dart';
 import 'features/employees/screens/calendar_screen.dart';
 import 'shells/consumer_shell.dart';
@@ -178,6 +182,24 @@ final routerProvider = Provider<GoRouter>((ref) {
                   path: 'stripe-connect',
                   builder: (c, s) => const StripeConnectScreen(),
                 ),
+                GoRoute(
+                  path: 'pos-integration',
+                  builder: (c, s) => const PosIntegrationScreen(),
+                  routes: [
+                    GoRoute(
+                      path: 'connect-clover',
+                      builder: (c, s) => const ConnectCloverScreen(),
+                    ),
+                    GoRoute(
+                      path: 'connect-square',
+                      builder: (c, s) => const ConnectSquareScreen(),
+                    ),
+                    GoRoute(
+                      path: 'square-location',
+                      builder: (c, s) => const SquareLocationPickerScreen(),
+                    ),
+                  ],
+                ),
               ],
             ),
           ]),
@@ -204,6 +226,15 @@ final routerProvider = Provider<GoRouter>((ref) {
                 GoRoute(path: 'subscription', builder: (c, s) => const SubscriptionScreen()),
                 GoRoute(path: 'employees', builder: (c, s) => const EmployeesScreen()),
                 GoRoute(path: 'faq', builder: (c, s) => const FaqScreen()),
+                GoRoute(
+                  path: 'pos-integration',
+                  builder: (c, s) => const PosIntegrationScreen(),
+                  routes: [
+                    GoRoute(path: 'connect-clover', builder: (c, s) => const ConnectCloverScreen()),
+                    GoRoute(path: 'connect-square', builder: (c, s) => const ConnectSquareScreen()),
+                    GoRoute(path: 'square-location', builder: (c, s) => const SquareLocationPickerScreen()),
+                  ],
+                ),
               ],
             ),
           ]),
