@@ -6,6 +6,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Find local food trucks and small businesses near you on Farlo." />
     <title>Farlo</title>
+
+    <!-- Default/fallback social preview tags — overwritten per-business by
+         functions/[[path]].ts before the crawler ever sees this HTML, since
+         Facebook/Twitter/etc. never execute the React app's JS. These stay
+         as the real fallback for the bare domain or any slug that doesn't
+         resolve to a real business. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Farlo" />
+    <meta property="og:title" content="Farlo" />
+    <meta property="og:description" content="Find local food trucks and small businesses near you on Farlo." />
+    <meta property="og:image" content="https://visit.farlo.app/farlo-logo.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Farlo" />
+    <meta name="twitter:description" content="Find local food trucks and small businesses near you on Farlo." />
+    <meta name="twitter:image" content="https://visit.farlo.app/farlo-logo.png" />
   </head>
   <body>
     <div id="root"></div>
