@@ -65,7 +65,16 @@ class _ConnectSquareScreenState extends ConsumerState<ConnectSquareScreen> with 
       case 'needs_location':
         if (mounted) context.push('/owner-account/pos-integration/square-location');
       default:
-        if (mounted) context.showError(message ?? 'Could not connect Square.');
+        // Square's raw error text can be long (a JSON error body) — give it
+        // a long duration and a manual close so there's actually time to
+        // read it, rather than the default 4s auto-dismiss.
+        if (mounted) {
+          context.showError(
+            message ?? 'Could not connect Square.',
+            duration: const Duration(seconds: 30),
+            showCloseIcon: true,
+          );
+        }
     }
   }
 

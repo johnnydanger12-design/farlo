@@ -115,7 +115,9 @@ class _PosIntegrationScreenState extends ConsumerState<PosIntegrationScreen> {
               ),
               const SizedBox(height: AppSpacing.lg),
               OutlinedButton(
-                onPressed: () => context.push('/owner-account/pos-integration/connect-clover'),
+                onPressed: () => context.push(
+                  '/owner-account/pos-integration/connect-${integration.provider}',
+                ),
                 child: Text('Reconnect ${integration.providerLabel}'),
               ),
             ] else ...[
@@ -124,7 +126,11 @@ class _PosIntegrationScreenState extends ConsumerState<PosIntegrationScreen> {
                 onPressed: () => context.push('/owner-account/pos-integration/connect-clover'),
               ),
               const SizedBox(height: AppSpacing.md),
-              const AppButton(label: 'Connect Square (Coming Soon)', onPressed: null),
+              AppButton(
+                label: 'Connect Square',
+                isOutlined: true,
+                onPressed: () => context.push('/owner-account/pos-integration/connect-square'),
+              ),
             ],
             const SizedBox(height: AppSpacing.xl),
             Center(

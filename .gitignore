@@ -1,6 +1,7 @@
 # Secrets — never commit
 .env.json
 .mcp.json
+.square-secrets.env
 
 # Session docs
 

@@ -4,13 +4,12 @@
 // external browser (same launchUrl(..., mode: externalApplication) pattern
 // stripe_connect_screen.dart already uses for Stripe Connect).
 //
-// UNVERIFIED end-to-end: no real Square Application exists yet. Blocked on
-// Johnny creating one in Square's Developer Dashboard (free, instant, no
-// approval wait for a private/unlisted integration) and setting
-// SQUARE_APPLICATION_ID + SQUARE_APPLICATION_SECRET + SQUARE_OAUTH_STATE_SECRET
-// as this function's secrets.
+// Square issues a separate Application ID/Secret pair per environment for the
+// same app — SQUARE_APPLICATION_ID/_SECRET (production) and
+// SQUARE_SANDBOX_APPLICATION_ID/_SECRET (sandbox), resolved via
+// getSquareAppCredentials(). Also needs SQUARE_OAUTH_STATE_SECRET set.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { signState, squareApiBaseUrl } from '../_shared/squareOauth.ts';
+import { getSquareAppCredentials, signState, squareApiBaseUrl } from '../_shared/squareOauth.ts';
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
@@ -35,9 +34,8 @@ Deno.serve(async (req: Request) => {
   const { data: { user }, error: authError } = await userClient.auth.getUser();
   if (authError || !user) return new Response('Unauthorized', { status: 401 });
 
-  const applicationId = Deno.env.get('SQUARE_APPLICATION_ID');
   const stateSecret = Deno.env.get('SQUARE_OAUTH_STATE_SECRET');
-  if (!applicationId || !stateSecret) {
+  if (!stateSecret) {
     return new Response(
       JSON.stringify({ error: 'Square is not yet configured. Contact support.' }),
       { status: 500, headers: { 'Content-Type': 'application/json' } },
@@ -52,6 +50,16 @@ Deno.serve(async (req: Request) => {
   }
   const environment = body.environment === 'sandbox' ? 'sandbox' : 'production';
 
+  // Square issues a separate Application ID/Secret pair per environment —
+  // resolve the one matching what the owner picked, not a single shared pair.
+  const credentials = getSquareAppCredentials(environment);
+  if (!credentials) {
+    return new Response(
+      JSON.stringify({ error: `Square ${environment} is not yet configured. Contact support.` }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } },
+    );
+  }
+
   const { data: truck, error: truckError } = await supabase
     .from('food_trucks')
     .select('id')
@@ -65,7 +73,7 @@ Deno.serve(async (req: Request) => {
   const callbackUrl = `${Deno.env.get('SUPABASE_URL')!}/functions/v1/square-oauth-callback`;
   const authorizeUrl =
     `${squareApiBaseUrl(environment)}/oauth2/authorize` +
-    `?client_id=${encodeURIComponent(applicationId)}` +
+    `?client_id=${encodeURIComponent(credentials.applicationId)}` +
     `&scope=${SQUARE_SCOPES}` +
     `&session=false` +
     `&state=${encodeURIComponent(state)}` +

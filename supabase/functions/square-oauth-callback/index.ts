@@ -7,11 +7,13 @@
 // back into the app via the farlo:// custom scheme — mirrors
 // stripe_connect_screen.dart's deep-link-listen + lifecycle-resume pattern.
 //
-// UNVERIFIED end-to-end: no real Square Application exists yet. Blocked on
-// Johnny creating one and setting SQUARE_APPLICATION_ID +
-// SQUARE_APPLICATION_SECRET + SQUARE_OAUTH_STATE_SECRET as this function's secrets.
+// Square issues a separate Application ID/Secret pair per environment for the
+// same app — SQUARE_APPLICATION_ID/_SECRET (production) and
+// SQUARE_SANDBOX_APPLICATION_ID/_SECRET (sandbox), resolved via
+// getSquareAppCredentials() using whichever environment `state` says this
+// flow started under. Also needs SQUARE_OAUTH_STATE_SECRET set.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { squareApiBaseUrl, verifyState } from '../_shared/squareOauth.ts';
+import { getSquareAppCredentials, squareApiBaseUrl, verifyState } from '../_shared/squareOauth.ts';
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
@@ -46,26 +48,37 @@ Deno.serve(async (req: Request) => {
   if (!verified) return redirect('error', 'This authorization link expired or is invalid. Please try again.');
   const { truckId, environment } = verified;
 
-  const applicationId = Deno.env.get('SQUARE_APPLICATION_ID');
-  const applicationSecret = Deno.env.get('SQUARE_APPLICATION_SECRET');
-  if (!applicationId || !applicationSecret) return redirect('error', 'Square is not yet configured.');
+  // Square issues a separate Application ID/Secret pair per environment —
+  // resolve the one matching whichever environment `state` says this flow
+  // started under, not a single shared pair.
+  const credentials = getSquareAppCredentials(environment);
+  if (!credentials) return redirect('error', `Square ${environment} is not yet configured.`);
 
   try {
+    // redirect_uri IS required by this endpoint in practice — confirmed live
+    // via Square's own error response ("missing required parameter
+    // 'redirect_uri'") after a fetched doc summary incorrectly said it
+    // wasn't part of the schema. Must exactly match the redirect_uri used in
+    // the original /oauth2/authorize call.
     const callbackUrl = `${Deno.env.get('SUPABASE_URL')!}/functions/v1/square-oauth-callback`;
     const tokenRes = await fetch(`${squareApiBaseUrl(environment)}/oauth2/token`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'Square-Version': '2026-07-15' },
       body: JSON.stringify({
-        client_id: applicationId,
-        client_secret: applicationSecret,
+        client_id: credentials.applicationId,
+        client_secret: credentials.applicationSecret,
         code,
         grant_type: 'authorization_code',
         redirect_uri: callbackUrl,
       }),
     });
     if (!tokenRes.ok) {
-      console.error(`Square token exchange failed (${tokenRes.status}): ${await tokenRes.text()}`);
-      return redirect('error', 'Could not complete Square authorization.');
+      const detail = await tokenRes.text();
+      console.error(`Square token exchange failed (${tokenRes.status}): ${detail}`);
+      // Surfaces Square's actual error text (truncated) instead of a generic
+      // message — a generic "could not complete" here cost real time to
+      // diagnose blind via server logs alone.
+      return redirect('error', `Square token exchange failed: ${detail.slice(0, 200)}`);
     }
     const token = await tokenRes.json();
     const merchantId = token.merchant_id as string;

@@ -47,3 +47,22 @@ export async function verifyState(
 export function squareApiBaseUrl(environment: string): string {
   return environment === 'sandbox' ? 'https://connect.squareupsandbox.com' : 'https://connect.squareup.com';
 }
+
+// Square issues a SEPARATE Application ID/Secret pair per environment for the
+// same app (confirmed via Square's own docs) — the production pair is
+// rejected outright by the sandbox authorize/token endpoints and vice versa.
+// Real bug found live: picking "Sandbox" in the Connect Square screen sent
+// the production Application ID to connect.squareupsandbox.com, which
+// doesn't recognize it, so the authorize page failed to load.
+export function getSquareAppCredentials(
+  environment: string,
+): { applicationId: string; applicationSecret: string } | null {
+  const applicationId = environment === 'sandbox'
+    ? Deno.env.get('SQUARE_SANDBOX_APPLICATION_ID')
+    : Deno.env.get('SQUARE_APPLICATION_ID');
+  const applicationSecret = environment === 'sandbox'
+    ? Deno.env.get('SQUARE_SANDBOX_APPLICATION_SECRET')
+    : Deno.env.get('SQUARE_APPLICATION_SECRET');
+  if (!applicationId || !applicationSecret) return null;
+  return { applicationId, applicationSecret };
+}
