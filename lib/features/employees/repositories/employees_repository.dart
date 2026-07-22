@@ -248,7 +248,7 @@ class EmployeesRepository {
         .eq('truck_id', truckId)
         .gte('scheduled_start', first.toIso8601String())
         .lt('scheduled_start', next.toIso8601String())
-        .order('scheduled_start')
+        .order('scheduled_start', ascending: true)
         .withNetworkTimeout;
     return (data as List)
         .map((e) => ScheduledShift.fromMap(e as Map<String, dynamic>))
@@ -271,7 +271,7 @@ class EmployeesRepository {
         .eq('truck_id', truckId)
         .gte('scheduled_start', first.toIso8601String())
         .lt('scheduled_start', next.toIso8601String())
-        .order('scheduled_start')
+        .order('scheduled_start', ascending: true)
         .withNetworkTimeout;
     return (data as List)
         .map((e) => ScheduledShift.fromMap(e as Map<String, dynamic>))

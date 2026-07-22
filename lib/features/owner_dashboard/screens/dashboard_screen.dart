@@ -15,7 +15,7 @@ import '../../account/providers/notification_prefs_provider.dart';
 import '../../food_trucks/providers/food_truck_provider.dart';
 import '../../../core/widgets/snackbar_extensions.dart';
 import '../providers/subscription_provider.dart';
-import '../widgets/dashboard_announcement_sheet.dart';
+import '../../employees/widgets/announce_sheet.dart';
 import '../widgets/dashboard_calendar_section.dart';
 import '../widgets/dashboard_getting_started_card.dart';
 import '../widgets/dashboard_orders_widget.dart';
@@ -255,12 +255,17 @@ class DashboardScreen extends ConsumerWidget {
 
   void _showAnnouncementSheet(
       BuildContext context, String truckId, String truckName) {
+    final today = DateTime.now();
+    final monday = DateTime(today.year, today.month, today.day - (today.weekday - 1));
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) =>
-          DashboardAnnouncementSheet(truckId: truckId, truckName: truckName),
+      builder: (_) => AnnounceSheet(
+        truckId: truckId,
+        truckName: truckName,
+        weekMonday: monday,
+      ),
     );
   }
 

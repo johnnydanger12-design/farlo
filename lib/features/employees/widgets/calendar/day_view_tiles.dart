@@ -36,11 +36,21 @@ class SectionLabel extends StatelessWidget {
 }
 
 class EventTile extends StatelessWidget {
-  const EventTile({super.key, required this.color, required this.time, required this.title, this.subtitle});
+  const EventTile({
+    super.key,
+    required this.color,
+    required this.time,
+    required this.title,
+    this.subtitle,
+    this.onDelete,
+    this.deleteTooltip = 'Delete',
+  });
   final Color color;
   final String time;
   final String title;
   final String? subtitle;
+  final VoidCallback? onDelete;
+  final String deleteTooltip;
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -64,6 +74,13 @@ class EventTile extends StatelessWidget {
                 ],
               ),
             ),
+            if (onDelete != null)
+              IconButton(
+                icon: const Icon(Icons.delete_outline, size: 20),
+                color: AppColors.textHint,
+                tooltip: deleteTooltip,
+                onPressed: onDelete,
+              ),
           ],
         ),
       );

@@ -15,6 +15,8 @@ import '../../reviews/models/review.dart';
 import '../../reviews/providers/reviews_provider.dart';
 import '../../reviews/widgets/review_card.dart';
 import '../../bookings/widgets/book_truck_sheet.dart';
+import '../../employees/models/weekly_special.dart';
+import '../../employees/providers/weekly_specials_provider.dart';
 import '../../orders/providers/orders_provider.dart';
 import '../../reviews/widgets/write_review_sheet.dart';
 import '../../../core/widgets/sign_in_prompt_sheet.dart';
@@ -38,25 +40,32 @@ class TruckProfileScreen extends ConsumerWidget {
     final asyncTruck = ref.watch(foodTruckProvider(truckId));
 
     return asyncTruck.when(
-      loading: () => const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      ),
+      loading: () =>
+          const Scaffold(body: Center(child: CircularProgressIndicator())),
       error: (e, _) => Scaffold(
         appBar: AppBar(backgroundColor: Colors.transparent),
-        body: ErrorView(message: e.toString(), onRetry: () => ref.invalidate(foodTruckProvider(truckId))),
+        body: ErrorView(
+          message: e.toString(),
+          onRetry: () => ref.invalidate(foodTruckProvider(truckId)),
+        ),
       ),
-      data: (truck) => _TruckProfileContent(truck: truck, scrollToReviews: scrollToReviews),
+      data: (truck) =>
+          _TruckProfileContent(truck: truck, scrollToReviews: scrollToReviews),
     );
   }
 }
 
 class _TruckProfileContent extends ConsumerStatefulWidget {
-  const _TruckProfileContent({required this.truck, this.scrollToReviews = false});
+  const _TruckProfileContent({
+    required this.truck,
+    this.scrollToReviews = false,
+  });
   final FoodTruck truck;
   final bool scrollToReviews;
 
   @override
-  ConsumerState<_TruckProfileContent> createState() => _TruckProfileContentState();
+  ConsumerState<_TruckProfileContent> createState() =>
+      _TruckProfileContentState();
 }
 
 class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
@@ -86,7 +95,9 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
             column: 'id',
             value: widget.truck.id,
           ),
-          callback: (_) { if (mounted) ref.invalidate(foodTruckProvider(widget.truck.id)); },
+          callback: (_) {
+            if (mounted) ref.invalidate(foodTruckProvider(widget.truck.id));
+          },
         )
         .subscribe();
     // Realtime: refresh when the owner changes menu item availability/order,
@@ -102,7 +113,9 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
             column: 'truck_id',
             value: widget.truck.id,
           ),
-          callback: (_) { if (mounted) ref.invalidate(foodTruckProvider(widget.truck.id)); },
+          callback: (_) {
+            if (mounted) ref.invalidate(foodTruckProvider(widget.truck.id));
+          },
         )
         .onPostgresChanges(
           event: PostgresChangeEvent.all,
@@ -113,7 +126,9 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
             column: 'truck_id',
             value: widget.truck.id,
           ),
-          callback: (_) { if (mounted) ref.invalidate(foodTruckProvider(widget.truck.id)); },
+          callback: (_) {
+            if (mounted) ref.invalidate(foodTruckProvider(widget.truck.id));
+          },
         )
         .subscribe();
   }
@@ -147,13 +162,17 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
 
     // Check that the truck owner has an active subscription before allowing
     // a booking request — bookings are a subscription-gated feature.
-    final hasSubscription = await Supabase.instance.client
-        .rpc('owner_has_active_subscription', params: {'p_owner_id': truck.ownerId});
+    final hasSubscription = await Supabase.instance.client.rpc(
+      'owner_has_active_subscription',
+      params: {'p_owner_id': truck.ownerId},
+    );
 
     if (!mounted) return;
 
     if (hasSubscription != true) {
-      context.showInfo('This business isn\'t currently accepting booking requests.');
+      context.showInfo(
+        'This business isn\'t currently accepting booking requests.',
+      );
       return;
     }
 
@@ -162,7 +181,11 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => BookTruckSheet(truckId: truck.id, truckName: truck.name, topPadding: topPadding),
+      builder: (_) => BookTruckSheet(
+        truckId: truck.id,
+        truckName: truck.name,
+        topPadding: topPadding,
+      ),
     );
     if (result == true && mounted) {
       context.showSuccess('Request sent! The owner will be in touch.');
@@ -177,7 +200,11 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (_) => WriteReviewSheet(truckId: widget.truck.id, truckOwnerId: widget.truck.ownerId, existing: existing),
+      builder: (_) => WriteReviewSheet(
+        truckId: widget.truck.id,
+        truckOwnerId: widget.truck.ownerId,
+        existing: existing,
+      ),
     );
     if (result == true) {
       ref.invalidate(truckReviewsBundleProvider(widget.truck.id));
@@ -200,7 +227,9 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
     );
     if (response == null || !mounted) return;
     try {
-      await ref.read(reviewsRepositoryProvider).respondToReview(review.id, response);
+      await ref
+          .read(reviewsRepositoryProvider)
+          .respondToReview(review.id, response);
     } finally {
       ref.invalidate(truckReviewsBundleProvider(widget.truck.id));
       ref.invalidate(foodTruckProvider(widget.truck.id));
@@ -231,264 +260,378 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
     final isAuthenticated = user != null;
     final isOwnerOfTruck = user?.id == truck.ownerId;
 
-    final canOrder = truck.isOpen && truck.ordersEnabled && truck.ordersAccepting;
+    final canOrder =
+        truck.isOpen && truck.ordersEnabled && truck.ordersAccepting;
+    final currentWeekSpecials =
+        ref.watch(truckCurrentWeekSpecialsProvider(truck.id)).asData?.value ??
+        [];
 
     return Scaffold(
       body: Stack(
         children: [
           CustomScrollView(
-        slivers: [
-          // ── Hero header ─────────────────────────────────────────────────
-          SliverAppBar(
-            expandedHeight: 220,
-            pinned: true,
-            backgroundColor: AppColors.secondary,
-            foregroundColor: Colors.white,
-            actions: isAuthenticated
-                ? [
-                    // Bell — only shown when following this truck
-                    if (ref.watch(favoritedTruckIdsProvider).asData?.value.contains(truck.id) ?? false)
-                      AnnouncementBellButton(truckId: truck.id),
-                    IconButton(
-                      tooltip: (ref.watch(favoritedTruckIdsProvider).asData?.value.contains(truck.id) ?? false)
-                          ? 'Remove from favorites'
-                          : 'Add to favorites',
-                      icon: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 200),
-                        child: Icon(
-                          (ref.watch(favoritedTruckIdsProvider).asData?.value.contains(truck.id) ?? false)
-                              ? Icons.favorite_rounded
-                              : Icons.favorite_border_rounded,
-                          key: ValueKey(ref.watch(favoritedTruckIdsProvider).asData?.value.contains(truck.id)),
-                          color: Colors.white,
+            slivers: [
+              // ── Hero header ─────────────────────────────────────────────────
+              SliverAppBar(
+                expandedHeight: 220,
+                pinned: true,
+                backgroundColor: AppColors.secondary,
+                foregroundColor: Colors.white,
+                actions: isAuthenticated
+                    ? [
+                        // Bell — only shown when following this truck
+                        if (ref
+                                .watch(favoritedTruckIdsProvider)
+                                .asData
+                                ?.value
+                                .contains(truck.id) ??
+                            false)
+                          AnnouncementBellButton(truckId: truck.id),
+                        IconButton(
+                          tooltip:
+                              (ref
+                                      .watch(favoritedTruckIdsProvider)
+                                      .asData
+                                      ?.value
+                                      .contains(truck.id) ??
+                                  false)
+                              ? 'Remove from favorites'
+                              : 'Add to favorites',
+                          icon: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 200),
+                            child: Icon(
+                              (ref
+                                          .watch(favoritedTruckIdsProvider)
+                                          .asData
+                                          ?.value
+                                          .contains(truck.id) ??
+                                      false)
+                                  ? Icons.favorite_rounded
+                                  : Icons.favorite_border_rounded,
+                              key: ValueKey(
+                                ref
+                                    .watch(favoritedTruckIdsProvider)
+                                    .asData
+                                    ?.value
+                                    .contains(truck.id),
+                              ),
+                              color: Colors.white,
+                            ),
+                          ),
+                          onPressed: () => ref
+                              .read(favoritedTruckIdsProvider.notifier)
+                              .toggle(truck.id),
                         ),
-                      ),
-                      onPressed: () => ref.read(favoritedTruckIdsProvider.notifier).toggle(truck.id),
-                    ),
-                  ]
-                : null,
-            flexibleSpace: FlexibleSpaceBar(
-              background: hasPhotos
-                  ? PhotoCarousel(
-                      urls: truck.photoUrls,
-                      controller: _pageController,
-                      currentIndex: _currentPhoto,
-                      onPageChanged: (i) => setState(() => _currentPhoto = i),
-                    )
-                  : LogoHero(logoUrl: truck.logoUrl),
-            ),
-          ),
+                      ]
+                    : null,
+                flexibleSpace: FlexibleSpaceBar(
+                  background: hasPhotos
+                      ? PhotoCarousel(
+                          urls: truck.photoUrls,
+                          controller: _pageController,
+                          currentIndex: _currentPhoto,
+                          onPageChanged: (i) =>
+                              setState(() => _currentPhoto = i),
+                        )
+                      : LogoHero(logoUrl: truck.logoUrl),
+                ),
+              ),
 
-          // ── Truck identity ───────────────────────────────────────────────
-          SliverToBoxAdapter(
-            child: Container(
-              color: Theme.of(context).colorScheme.surface,
-              padding: const EdgeInsets.all(AppSpacing.lg),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+              // ── Truck identity ───────────────────────────────────────────────
+              SliverToBoxAdapter(
+                child: Container(
+                  color: Theme.of(context).colorScheme.surface,
+                  padding: const EdgeInsets.all(AppSpacing.lg),
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(truck.name, style: AppTextStyles.heading2),
+                                const SizedBox(height: 4),
+                                Text(
+                                  truck.cuisineType,
+                                  style: AppTextStyles.bodySmall,
+                                ),
+                                const SizedBox(height: 4),
+                                FollowerCount(truckId: truck.id),
+                              ],
+                            ),
+                          ),
+                          OpenBadge(isOpen: truck.isOpen),
+                        ],
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      GestureDetector(
+                        onTap: _scrollToReviews,
+                        child: Row(
                           children: [
-                            Text(truck.name, style: AppTextStyles.heading2),
-                            const SizedBox(height: 4),
-                            Text(truck.cuisineType, style: AppTextStyles.bodySmall),
-                            const SizedBox(height: 4),
-                            FollowerCount(truckId: truck.id),
+                            StarRatingWidget(
+                              rating: truck.averageRating,
+                              size: 16,
+                              showValue: false,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              truck.reviewCount > 0
+                                  ? '${truck.averageRating.toStringAsFixed(1)} · ${truck.reviewCount} review${truck.reviewCount == 1 ? '' : 's'}'
+                                  : 'No reviews yet',
+                              style: AppTextStyles.caption,
+                            ),
                           ],
                         ),
                       ),
-                      OpenBadge(isOpen: truck.isOpen),
-                    ],
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  GestureDetector(
-                    onTap: _scrollToReviews,
-                    child: Row(
-                      children: [
-                        StarRatingWidget(rating: truck.averageRating, size: 16, showValue: false),
-                        const SizedBox(width: 6),
-                        Text(
-                          truck.reviewCount > 0
-                              ? '${truck.averageRating.toStringAsFixed(1)} · ${truck.reviewCount} review${truck.reviewCount == 1 ? '' : 's'}'
-                              : 'No reviews yet',
-                          style: AppTextStyles.caption,
+                      if (isAuthenticated && truck.privateEventsEnabled) ...[
+                        const SizedBox(height: AppSpacing.md),
+                        OutlinedButton.icon(
+                          onPressed: () => _openBookingSheet(),
+                          icon: const Icon(Icons.event_outlined, size: 18),
+                          label: const Text('Request Private Event'),
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size.fromHeight(44),
+                          ),
                         ),
                       ],
-                    ),
-                  ),
-                  if (isAuthenticated) ...[
-                    const SizedBox(height: AppSpacing.md),
-                    OutlinedButton.icon(
-                      onPressed: () => _openBookingSheet(),
-                      icon: const Icon(Icons.event_outlined, size: 18),
-                      label: const Text('Request Private Event'),
-                      style: OutlinedButton.styleFrom(
-                        minimumSize: const Size.fromHeight(44),
-                      ),
-                    ),
-                  ],
-                  if (truck.description != null && truck.description!.isNotEmpty) ...[
-                    const SizedBox(height: AppSpacing.md),
-                    const Divider(),
-                    const SizedBox(height: AppSpacing.md),
-                    Text(truck.description!, style: AppTextStyles.body),
-                  ],
-                ],
-              ),
-            ),
-          ),
-
-          // ── Hours ────────────────────────────────────────────────────────
-          if (truck.operatingHours.isNotEmpty && !truck.hoursHidden) ...[
-            const SectionSpacer(),
-            SliverToBoxAdapter(
-              child: Section(
-                title: 'Hours',
-                child: HoursTable(hours: truck.operatingHours),
-              ),
-            ),
-          ],
-
-          const SectionSpacer(),
-
-          // ── Order Now ────────────────────────────────────────────────────
-          // ── Menu ─────────────────────────────────────────────────────────
-          if (truck.menuItems.isNotEmpty) ...[
-            SliverToBoxAdapter(
-              child: Section(
-                title: 'Menu',
-                child: MenuGrid(items: truck.menuItems, canOrder: canOrder, categoryOrder: truck.orderedCategoryNames),
-              ),
-            ),
-            const SectionSpacer(),
-          ],
-
-          if (truck.menuItems.isEmpty && truck.menuPdfUrl == null && truck.menuImageUrl == null)
-            SliverToBoxAdapter(
-              child: Section(
-                title: 'Menu',
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
-                  child: Center(
-                    child: Text('Menu not available yet', style: AppTextStyles.bodySmall),
+                      if (truck.description != null &&
+                          truck.description!.isNotEmpty) ...[
+                        const SizedBox(height: AppSpacing.md),
+                        const Divider(),
+                        const SizedBox(height: AppSpacing.md),
+                        Text(truck.description!, style: AppTextStyles.body),
+                      ],
+                    ],
                   ),
                 ),
               ),
-            ),
 
-          // ── Social media ─────────────────────────────────────────────────
-          if (truck.socialInstagram != null ||
-              truck.socialTiktok != null ||
-              truck.socialFacebook != null ||
-              truck.socialTwitter != null ||
-              truck.socialYoutube != null ||
-              truck.websiteUrl != null) ...[
-            const SectionSpacer(),
-            SliverToBoxAdapter(
-              child: SocialSection(truck: truck),
-            ),
-          ],
+              // ── Hours ────────────────────────────────────────────────────────
+              if (truck.operatingHours.isNotEmpty && !truck.hoursHidden) ...[
+                const SectionSpacer(),
+                SliverToBoxAdapter(
+                  child: Section(
+                    title: 'Hours',
+                    child: HoursTable(hours: truck.operatingHours),
+                  ),
+                ),
+              ],
 
-          const SectionSpacer(),
+              const SectionSpacer(),
 
-          // ── Reviews ──────────────────────────────────────────────────────
-          SliverToBoxAdapter(
-            child: Container(
-              key: _reviewsKey,
-              color: Theme.of(context).colorScheme.surface,
-              padding: const EdgeInsets.all(AppSpacing.lg),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              // ── This Week's Specials ─────────────────────────────────────────
+              // Only the current calendar week's specials — computed from the
+              // real date server-side, so anything an owner entered ahead of
+              // time for a future week simply isn't in this result yet.
+              if (currentWeekSpecials.isNotEmpty) ...[
+                SliverToBoxAdapter(
+                  child: Section(
+                    title: "This Week's Specials",
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: collapseConsecutiveSpecials(currentWeekSpecials)
+                          .map((r) {
+                            final priceStr = r.price == null
+                                ? ''
+                                : '  —  \$${r.price! == r.price!.roundToDouble() ? r.price!.toStringAsFixed(0) : r.price!.toStringAsFixed(2)}';
+                            return Padding(
+                              padding: const EdgeInsets.only(
+                                bottom: AppSpacing.sm,
+                              ),
+                              child: Text(
+                                '${r.dayRangeLabel}: ${r.title}$priceStr',
+                                style: AppTextStyles.bodySmall,
+                              ),
+                            );
+                          })
+                          .toList(),
+                    ),
+                  ),
+                ),
+                const SectionSpacer(),
+              ],
+
+              // ── Order Now ────────────────────────────────────────────────────
+              // ── Menu ─────────────────────────────────────────────────────────
+              if (truck.menuItems.isNotEmpty) ...[
+                SliverToBoxAdapter(
+                  child: Section(
+                    title: 'Menu',
+                    child: MenuGrid(
+                      items: truck.menuItems,
+                      canOrder: canOrder,
+                      categoryOrder: truck.orderedCategoryNames,
+                    ),
+                  ),
+                ),
+                const SectionSpacer(),
+              ],
+
+              if (truck.menuItems.isEmpty &&
+                  truck.menuPdfUrl == null &&
+                  truck.menuImageUrl == null)
+                SliverToBoxAdapter(
+                  child: Section(
+                    title: 'Menu',
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: AppSpacing.lg,
+                      ),
+                      child: Center(
+                        child: Text(
+                          'Menu not available yet',
+                          style: AppTextStyles.bodySmall,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+              // ── Social media ─────────────────────────────────────────────────
+              if (truck.socialInstagram != null ||
+                  truck.socialTiktok != null ||
+                  truck.socialFacebook != null ||
+                  truck.socialTwitter != null ||
+                  truck.socialYoutube != null ||
+                  truck.websiteUrl != null) ...[
+                const SectionSpacer(),
+                SliverToBoxAdapter(child: SocialSection(truck: truck)),
+              ],
+
+              const SectionSpacer(),
+
+              // ── Reviews ──────────────────────────────────────────────────────
+              SliverToBoxAdapter(
+                child: Container(
+                  key: _reviewsKey,
+                  color: Theme.of(context).colorScheme.surface,
+                  padding: const EdgeInsets.all(AppSpacing.lg),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Reviews', style: AppTextStyles.heading3),
-                      asyncMyReview.when(
-                        data: (myReview) => myReview == null && !isOwnerOfTruck
-                            ? TextButton(
-                                onPressed: isAuthenticated
-                                    ? () => _openReviewSheet(null)
-                                    : () => _showLoginPrompt(context),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('Reviews', style: AppTextStyles.heading3),
+                          asyncMyReview.when(
+                            data: (myReview) =>
+                                myReview == null && !isOwnerOfTruck
+                                ? TextButton(
+                                    onPressed: isAuthenticated
+                                        ? () => _openReviewSheet(null)
+                                        : () => _showLoginPrompt(context),
+                                    child: Text(
+                                      'Write a Review',
+                                      style: TextStyle(
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.primary,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  )
+                                : const SizedBox.shrink(),
+                            loading: () => const SizedBox.shrink(),
+                            error: (_, _) => const SizedBox.shrink(),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      asyncReviews.when(
+                        loading: () =>
+                            const Center(child: CircularProgressIndicator()),
+                        error: (e, _) => Text(
+                          'Could not load reviews',
+                          style: AppTextStyles.bodySmall,
+                        ),
+                        data: (reviews) {
+                          if (reviews.isEmpty) {
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(
+                                vertical: AppSpacing.lg,
+                              ),
+                              child: Center(
                                 child: Text(
-                                  'Write a Review',
-                                  style: TextStyle(
-                                    color: Theme.of(context).colorScheme.primary,
-                                    fontWeight: FontWeight.w600,
-                                  ),
+                                  'No reviews yet — be the first!',
+                                  style: AppTextStyles.bodySmall,
                                 ),
-                              )
-                            : const SizedBox.shrink(),
-                        loading: () => const SizedBox.shrink(),
-                        error: (_, _) => const SizedBox.shrink(),
+                              ),
+                            );
+                          }
+                          final filtered = _filterRating == null
+                              ? reviews
+                              : reviews
+                                    .where((r) => r.rating == _filterRating)
+                                    .toList();
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              ReviewFilter(
+                                selected: _filterRating,
+                                onSelected: (v) =>
+                                    setState(() => _filterRating = v),
+                              ),
+                              const SizedBox(height: AppSpacing.md),
+                              if (filtered.isEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: AppSpacing.lg,
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      'No ${_filterRating!}-star reviews yet',
+                                      style: AppTextStyles.bodySmall,
+                                    ),
+                                  ),
+                                )
+                              else
+                                ...filtered.map((r) {
+                                  final isOwn = r.userId == user?.id;
+                                  return Padding(
+                                    padding: const EdgeInsets.only(
+                                      bottom: AppSpacing.sm,
+                                    ),
+                                    child: ReviewCard(
+                                      review: r,
+                                      isOwn: isOwn,
+                                      isOwnerOfTruck: isOwnerOfTruck,
+                                      onEdit: isOwn
+                                          ? () => _openReviewSheet(r)
+                                          : null,
+                                      onDelete: isOwn
+                                          ? () => _deleteReview(r.id)
+                                          : null,
+                                      onReply: isOwnerOfTruck
+                                          ? () => _replyToReview(r)
+                                          : null,
+                                      onEditReply: isOwnerOfTruck
+                                          ? () => _replyToReview(
+                                              r,
+                                              existing: r.ownerResponse,
+                                            )
+                                          : null,
+                                      onDeleteReply: isOwnerOfTruck
+                                          ? () => _deleteOwnerResponse(r)
+                                          : null,
+                                    ),
+                                  );
+                                }),
+                            ],
+                          );
+                        },
                       ),
                     ],
                   ),
-                  const SizedBox(height: AppSpacing.md),
-                  asyncReviews.when(
-                    loading: () => const Center(child: CircularProgressIndicator()),
-                    error: (e, _) => Text('Could not load reviews', style: AppTextStyles.bodySmall),
-                    data: (reviews) {
-                      if (reviews.isEmpty) {
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
-                          child: Center(
-                            child: Text('No reviews yet — be the first!', style: AppTextStyles.bodySmall),
-                          ),
-                        );
-                      }
-                      final filtered = _filterRating == null
-                          ? reviews
-                          : reviews.where((r) => r.rating == _filterRating).toList();
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          ReviewFilter(
-                            selected: _filterRating,
-                            onSelected: (v) => setState(() => _filterRating = v),
-                          ),
-                          const SizedBox(height: AppSpacing.md),
-                          if (filtered.isEmpty)
-                            Padding(
-                              padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
-                              child: Center(
-                                child: Text('No ${_filterRating!}-star reviews yet', style: AppTextStyles.bodySmall),
-                              ),
-                            )
-                          else
-                            ...filtered.map((r) {
-                              final isOwn = r.userId == user?.id;
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                                child: ReviewCard(
-                                  review: r,
-                                  isOwn: isOwn,
-                                  isOwnerOfTruck: isOwnerOfTruck,
-                                  onEdit: isOwn ? () => _openReviewSheet(r) : null,
-                                  onDelete: isOwn ? () => _deleteReview(r.id) : null,
-                                  onReply: isOwnerOfTruck ? () => _replyToReview(r) : null,
-                                  onEditReply: isOwnerOfTruck ? () => _replyToReview(r, existing: r.ownerResponse) : null,
-                                  onDeleteReply: isOwnerOfTruck ? () => _deleteOwnerResponse(r) : null,
-                                ),
-                              );
-                            }),
-                        ],
-                      );
-                    },
-                  ),
-                ],
+                ),
               ),
-            ),
-          ),
 
-          if (canOrder) const SliverToBoxAdapter(child: SizedBox(height: 88)),
-          const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.xl)),
-        ],
+              if (canOrder)
+                const SliverToBoxAdapter(child: SizedBox(height: 88)),
+              const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.xl)),
+            ],
           ),
           if (canOrder)
             Positioned(
@@ -510,4 +653,3 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
     );
   }
 }
-

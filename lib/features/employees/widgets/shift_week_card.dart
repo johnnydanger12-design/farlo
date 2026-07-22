@@ -11,7 +11,7 @@ import '../providers/shifts_provider.dart';
 import '../screens/calendar_screen.dart';
 import 'add_event_sheet.dart';
 import '../../bookings/widgets/book_truck_sheet.dart';
-import 'announce_week_sheet.dart';
+import 'announce_sheet.dart';
 import 'assign_shift_sheet.dart';
 import 'plan_location_sheet.dart';
 
@@ -153,7 +153,7 @@ class _ShiftWeekCardState extends ConsumerState<ShiftWeekCard> {
           context: context,
           isScrollControlled: true,
           backgroundColor: Colors.transparent,
-          builder: (_) => AnnounceWeekSheet(
+          builder: (_) => AnnounceSheet(
             truckId: widget.truckId,
             truckName: widget.truckName,
             weekMonday: monday,

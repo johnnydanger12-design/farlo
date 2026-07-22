@@ -7,6 +7,7 @@ class AppNotification {
     required this.read,
     required this.createdAt,
     this.relatedId,
+    this.imageUrl,
   });
 
   final String id;
@@ -15,6 +16,7 @@ class AppNotification {
   final String body;
   final bool read;
   final String? relatedId;
+  final String? imageUrl;
   final DateTime createdAt;
 
   factory AppNotification.fromMap(Map<String, dynamic> m) => AppNotification(
@@ -24,6 +26,7 @@ class AppNotification {
         body: m['body'] as String,
         read: m['read'] as bool,
         relatedId: m['related_id'] as String?,
+        imageUrl: m['image_url'] as String?,
         createdAt: DateTime.parse(m['created_at'] as String),
       );
 
@@ -34,6 +37,7 @@ class AppNotification {
         body: body,
         read: read ?? this.read,
         relatedId: relatedId,
+        imageUrl: imageUrl,
         createdAt: createdAt,
       );
 }

@@ -78,7 +78,11 @@ class LogoHero extends StatelessWidget {
             ? ClipRRect(
                 borderRadius: BorderRadius.circular(16),
                 child: CachedNetworkImage(
-                  imageUrl: transformedImageUrl(logoUrl!, width: 300, height: 300),
+                  imageUrl: transformedImageUrl(
+                    logoUrl!,
+                    width: 300,
+                    height: 300,
+                  ),
                   width: 100,
                   height: 100,
                   fit: BoxFit.cover,
@@ -96,7 +100,11 @@ class TruckIconPlaceholder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Icon(Icons.storefront_outlined, color: Colors.white54, size: 72);
+    return const Icon(
+      Icons.storefront_outlined,
+      color: Colors.white54,
+      size: 72,
+    );
   }
 }
 
@@ -115,7 +123,11 @@ class FollowerCount extends ConsumerWidget {
         return Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.favorite_border_rounded, size: 13, color: AppColors.textSecondary),
+            Icon(
+              Icons.favorite_border_rounded,
+              size: 13,
+              color: AppColors.textSecondary,
+            ),
             const SizedBox(width: 4),
             Text(label, style: AppTextStyles.caption),
           ],
@@ -150,7 +162,11 @@ class OpenBadge extends StatelessWidget {
           const SizedBox(width: 5),
           Text(
             isOpen ? 'Open' : 'Closed',
-            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color),
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: color,
+            ),
           ),
         ],
       ),
@@ -164,9 +180,16 @@ class HoursTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final todayIndex = DateTime.now().weekday % 7; // weekday: Mon=1…Sun=7 → Sun=0
+    final todayIndex =
+        DateTime.now().weekday % 7; // weekday: Mon=1…Sun=7 → Sun=0
+    // hours arrives sorted by dayOfWeek (0=Sunday…6=Saturday, this model's
+    // storage convention) — reorder to Monday-first/Sunday-last for display
+    // only, matching the "This Week's Specials" section right above it.
+    final displayHours = [
+      ...hours,
+    ]..sort((a, b) => ((a.dayOfWeek + 6) % 7).compareTo((b.dayOfWeek + 6) % 7));
     return Column(
-      children: hours.map((h) {
+      children: displayHours.map((h) {
         final isToday = h.dayOfWeek == todayIndex;
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 5),
@@ -178,7 +201,9 @@ class HoursTable extends StatelessWidget {
                   h.dayName,
                   style: AppTextStyles.bodySmall.copyWith(
                     fontWeight: isToday ? FontWeight.w700 : FontWeight.w400,
-                    color: isToday ? Theme.of(context).colorScheme.primary : null,
+                    color: isToday
+                        ? Theme.of(context).colorScheme.primary
+                        : null,
                   ),
                 ),
               ),
@@ -192,9 +217,14 @@ class HoursTable extends StatelessWidget {
               if (isToday) ...[
                 const SizedBox(width: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.primary.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(

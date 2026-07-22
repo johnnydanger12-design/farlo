@@ -14,7 +14,7 @@ import '../providers/planned_locations_provider.dart';
 import '../providers/shifts_provider.dart';
 import '../widgets/add_event_sheet.dart';
 import '../../bookings/widgets/book_truck_sheet.dart';
-import '../widgets/announce_week_sheet.dart';
+import '../widgets/announce_sheet.dart';
 import '../widgets/assign_shift_sheet.dart';
 import '../widgets/plan_location_sheet.dart';
 import '../widgets/calendar/calendar_shared.dart';
@@ -146,7 +146,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
           context: context,
           isScrollControlled: true,
           backgroundColor: Colors.transparent,
-          builder: (_) => AnnounceWeekSheet(
+          builder: (_) => AnnounceSheet(
             truckId: widget.truckId,
             truckName: widget.truckName,
             weekMonday: monday,
@@ -185,6 +185,72 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('Could not delete shift: $e')));
+      }
+    }
+  }
+
+  Future<void> _confirmDeleteLocation(PlannedLocation location) async {
+    final isLight = Theme.of(context).brightness == Brightness.light;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isLight ? Colors.white : null,
+        title: const Text('Delete Planned Location?', textAlign: TextAlign.center),
+        content: const Text(
+          'This will remove it from your calendar.',
+          textAlign: TextAlign.center,
+        ),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete', style: TextStyle(color: AppColors.error)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await ref.read(plannedLocationsRepositoryProvider).delete(location.id);
+      ref.invalidate(truckPlannedLocationsProvider((widget.truckId, _year, _month)));
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Could not delete: $e')));
+      }
+    }
+  }
+
+  Future<void> _confirmCancelBooking(BookingRequest booking) async {
+    final isLight = Theme.of(context).brightness == Brightness.light;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isLight ? Colors.white : null,
+        title: const Text('Cancel Booking?', textAlign: TextAlign.center),
+        content: const Text(
+          'This will cancel the request and notify the customer.',
+          textAlign: TextAlign.center,
+        ),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Keep')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Cancel Booking', style: TextStyle(color: AppColors.error)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await ref.read(bookingsRepositoryProvider).updateRequestStatus(booking.id, 'cancelled');
+      ref.invalidate(acceptedBookingsForMonthProvider((widget.truckId, _year, _month)));
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Could not cancel: $e')));
       }
     }
   }
@@ -679,6 +745,8 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                                     time: l.address ?? 'No address',
                                     title: l.title,
                                     subtitle: l.notes,
+                                    onDelete: widget.isOwner ? () => _confirmDeleteLocation(l) : null,
+                                    deleteTooltip: 'Delete planned location',
                                   )),
                             ],
                             if (dayBookings.isNotEmpty) ...[
@@ -688,6 +756,8 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                                     time: b.eventTime,
                                     title: b.contactName,
                                     subtitle: b.eventType,
+                                    onDelete: widget.isOwner ? () => _confirmCancelBooking(b) : null,
+                                    deleteTooltip: 'Cancel booking',
                                   )),
                             ],
                             if (dayScheduled.isNotEmpty) ...[

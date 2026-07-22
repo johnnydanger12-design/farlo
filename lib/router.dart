@@ -13,8 +13,11 @@ import 'features/account/screens/account_screen.dart';
 import 'features/map/screens/map_screen.dart';
 import 'features/favorites/screens/favorites_screen.dart';
 import 'features/owner_dashboard/screens/dashboard_screen.dart';
+import 'features/faq/screens/faq_screen.dart';
 import 'features/owner_dashboard/screens/edit_truck_screen.dart';
 import 'features/owner_dashboard/screens/manage_hours_screen.dart';
+import 'features/owner_dashboard/screens/orders_payments_screen.dart';
+import 'features/owner_dashboard/screens/private_events_screen.dart';
 import 'features/owner_dashboard/screens/manage_menu_screen.dart';
 import 'features/owner_dashboard/screens/subscription_screen.dart';
 import 'features/employees/screens/employees_screen.dart';
@@ -100,6 +103,7 @@ final routerProvider = Provider<GoRouter>((ref) {
                 GoRoute(path: 'my-requests', builder: (c, s) => const MyRequestsScreen()),
                 GoRoute(path: 'my-orders', builder: (c, s) => const MyOrdersScreen()),
                 GoRoute(path: 'settings', builder: (c, s) => const AccountSettingsScreen()),
+                GoRoute(path: 'faq', builder: (c, s) => const FaqScreen()),
               ],
             ),
           ]),
@@ -147,6 +151,14 @@ final routerProvider = Provider<GoRouter>((ref) {
                   builder: (c, s) => const ManageMenuScreen(),
                 ),
                 GoRoute(
+                  path: 'orders-payments',
+                  builder: (c, s) => const OrdersPaymentsScreen(),
+                ),
+                GoRoute(
+                  path: 'private-events',
+                  builder: (c, s) => const PrivateEventsScreen(),
+                ),
+                GoRoute(
                   path: 'subscription',
                   builder: (c, s) => const SubscriptionScreen(),
                 ),
@@ -187,8 +199,11 @@ final routerProvider = Provider<GoRouter>((ref) {
                 GoRoute(path: 'edit-truck', builder: (c, s) => const EditTruckScreen()),
                 GoRoute(path: 'manage-hours', builder: (c, s) => const ManageHoursScreen()),
                 GoRoute(path: 'manage-menu', builder: (c, s) => const ManageMenuScreen()),
+                GoRoute(path: 'orders-payments', builder: (c, s) => const OrdersPaymentsScreen()),
+                GoRoute(path: 'private-events', builder: (c, s) => const PrivateEventsScreen()),
                 GoRoute(path: 'subscription', builder: (c, s) => const SubscriptionScreen()),
                 GoRoute(path: 'employees', builder: (c, s) => const EmployeesScreen()),
+                GoRoute(path: 'faq', builder: (c, s) => const FaqScreen()),
               ],
             ),
           ]),

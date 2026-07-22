@@ -110,8 +110,9 @@ Deno.serve(async (req: Request) => {
   let truckId: string;
   let title: string;
   let message: string;
+  let imageUrl: string | null;
   try {
-    ({ truck_id: truckId, title, message } = await req.json());
+    ({ truck_id: truckId, title, message, image_url: imageUrl = null } = await req.json());
   } catch {
     return new Response('Bad request', { status: 400 });
   }
@@ -149,6 +150,8 @@ Deno.serve(async (req: Request) => {
   }
 
   // Fan-out to in-app inbox — title shows truck name so consumers know the sender.
+  // image_url is in-app only (see column comment) — deliberately not passed to
+  // the FCM payload below, which stays plain title+body text on every platform.
   await supabase.from('notifications').insert(
     followerIds.map((userId) => ({
       user_id: userId,
@@ -156,6 +159,7 @@ Deno.serve(async (req: Request) => {
       title: pushTitle,
       body: message,
       related_id: truckId,
+      image_url: imageUrl,
     })),
   );
 

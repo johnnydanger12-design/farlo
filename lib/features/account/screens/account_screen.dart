@@ -79,6 +79,16 @@ class AccountScreen extends ConsumerWidget {
                   onTap: () => context.push('/owner-account/manage-menu'),
                 ),
                 SettingsTile(
+                  icon: Icons.payments_outlined,
+                  label: 'Orders & Payments',
+                  onTap: () => context.push('/owner-account/orders-payments'),
+                ),
+                SettingsTile(
+                  icon: Icons.event_outlined,
+                  label: 'Private Events & Catering',
+                  onTap: () => context.push('/owner-account/private-events'),
+                ),
+                SettingsTile(
                   icon: Icons.people_outline,
                   label: 'Employees',
                   onTap: () => context.push('/owner-account/employees'),
@@ -108,6 +118,11 @@ class AccountScreen extends ConsumerWidget {
               ),
               const SizedBox(height: AppSpacing.lg),
               const SectionHeader('Support'),
+              SettingsTile(
+                icon: Icons.help_outline,
+                label: 'Help & FAQ',
+                onTap: () => context.push(user.isOwner ? '/owner-account/faq' : '/account/faq'),
+              ),
               SettingsTile(
                 icon: Icons.description_outlined,
                 label: 'Terms of Service',

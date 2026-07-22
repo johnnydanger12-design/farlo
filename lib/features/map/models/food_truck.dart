@@ -46,6 +46,7 @@ class FoodTruck {
     this.autoMarkReadyDelayMinutes = 0,
     this.autoMarkComplete = false,
     this.autoMarkCompleteDelayMinutes = 0,
+    this.privateEventsEnabled = true,
   });
 
   final String id;
@@ -85,6 +86,7 @@ class FoodTruck {
   final int autoMarkReadyDelayMinutes;
   final bool autoMarkComplete;
   final int autoMarkCompleteDelayMinutes;
+  final bool privateEventsEnabled;
 
   bool get isFixed => businessType == 'fixed';
   final double? latitude;
@@ -187,6 +189,7 @@ class FoodTruck {
       autoMarkReadyDelayMinutes: map['auto_mark_ready_delay_minutes'] as int? ?? 0,
       autoMarkComplete: map['auto_mark_complete'] as bool? ?? false,
       autoMarkCompleteDelayMinutes: map['auto_mark_complete_delay_minutes'] as int? ?? 0,
+      privateEventsEnabled: map['private_events_enabled'] as bool? ?? true,
     );
   }
 
@@ -220,6 +223,7 @@ class FoodTruck {
     int? autoMarkReadyDelayMinutes,
     bool? autoMarkComplete,
     int? autoMarkCompleteDelayMinutes,
+    bool? privateEventsEnabled,
   }) {
     return FoodTruck(
       id: id,
@@ -264,6 +268,7 @@ class FoodTruck {
       autoMarkReadyDelayMinutes: autoMarkReadyDelayMinutes ?? this.autoMarkReadyDelayMinutes,
       autoMarkComplete: autoMarkComplete ?? this.autoMarkComplete,
       autoMarkCompleteDelayMinutes: autoMarkCompleteDelayMinutes ?? this.autoMarkCompleteDelayMinutes,
+      privateEventsEnabled: privateEventsEnabled ?? this.privateEventsEnabled,
     );
   }
 }
