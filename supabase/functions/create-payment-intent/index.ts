@@ -1,5 +1,11 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { computeOrderAmountCents, MenuItemMismatchError, ModifierMismatchError } from './pricing.ts';
+import {
+  computeOrderAmountCents,
+  MenuItemMismatchError,
+  ModifierMismatchError,
+  RequiredGroupSelectionError,
+} from './pricing.ts';
+import { resolveTimezone, localNow, windowStatus } from '../_shared/timeWindows.ts';
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
@@ -57,7 +63,12 @@ Deno.serve(async (req: Request) => {
 
   let body: {
     truck_id: string;
-    items: { menu_item_id: string; quantity: number; added_modifier_ids?: string[] }[];
+    items: {
+      menu_item_id: string;
+      quantity: number;
+      added_modifier_ids?: string[];
+      selected_group_option_ids?: string[];
+    }[];
     idempotency_key?: string;
   };
   try {
@@ -89,7 +100,7 @@ Deno.serve(async (req: Request) => {
   const menuItemIds = [...new Set(items.map((i) => i.menu_item_id))];
   const { data: menuItems, error: menuErr } = await supabase
     .from('menu_items')
-    .select('id, price, truck_id')
+    .select('id, price, truck_id, category')
     .in('id', menuItemIds);
 
   if (menuErr || !menuItems || menuItems.length !== menuItemIds.length) {
@@ -99,12 +110,14 @@ Deno.serve(async (req: Request) => {
     );
   }
 
-  const modifierIds = [...new Set(items.flatMap((i) => i.added_modifier_ids ?? []))];
-  let modifiers: { id: string; menu_item_id: string; price_delta: number | string }[] = [];
+  const modifierIds = [
+    ...new Set(items.flatMap((i) => [...(i.added_modifier_ids ?? []), ...(i.selected_group_option_ids ?? [])])),
+  ];
+  let modifiers: { id: string; menu_item_id: string; price_delta: number | string; group_name: string | null }[] = [];
   if (modifierIds.length > 0) {
     const { data: modifierRows, error: modifierErr } = await supabase
       .from('menu_item_modifiers')
-      .select('id, menu_item_id, price_delta')
+      .select('id, menu_item_id, price_delta, group_name')
       .in('id', modifierIds);
     if (modifierErr || !modifierRows || modifierRows.length !== modifierIds.length) {
       return new Response(
@@ -119,7 +132,11 @@ Deno.serve(async (req: Request) => {
   try {
     amountCents = computeOrderAmountCents(items, menuItems, modifiers, truckId);
   } catch (e) {
-    if (e instanceof MenuItemMismatchError || e instanceof ModifierMismatchError) {
+    if (
+      e instanceof MenuItemMismatchError ||
+      e instanceof ModifierMismatchError ||
+      e instanceof RequiredGroupSelectionError
+    ) {
       return new Response(
         JSON.stringify({ error: e.message }),
         { status: 400, headers: { 'Content-Type': 'application/json' } },
@@ -130,10 +147,13 @@ Deno.serve(async (req: Request) => {
 
   // Look up the truck owner's Stripe account + their own tax rate — each
   // business sets their own rate (varies by city/county), not something we can
-  // read off Clover or any other external source of truth.
+  // read off Clover or any other external source of truth. timezone/lat/lng are
+  // for the category-purchase-window check below (same resolve-and-cache
+  // pattern as sync-truck-hours, since a truck might not have auto-hours on
+  // and therefore never had its timezone resolved yet).
   const { data: truck, error: truckErr } = await supabase
     .from('food_trucks')
-    .select('owner_id, tax_rate_percent')
+    .select('owner_id, tax_rate_percent, timezone, latitude, longitude')
     .eq('id', truckId)
     .single();
 
@@ -142,6 +162,45 @@ Deno.serve(async (req: Request) => {
       JSON.stringify({ error: 'truck_not_found' }),
       { status: 404, headers: { 'Content-Type': 'application/json' } },
     );
+  }
+
+  // Category purchase windows: a category with zero rows is unrestricted.
+  // Only for categories that DO have rows do we require one to be active
+  // right now, in the truck's own local time — never trust a client-side
+  // "it showed available" claim, since that check is easily bypassed.
+  const categories = [...new Set(menuItems.map((m) => m.category))];
+  const { data: windowRows } = await supabase
+    .from('category_purchase_windows')
+    .select('category_name, day_of_week, start_time, end_time')
+    .eq('truck_id', truckId)
+    .in('category_name', categories);
+
+  if (windowRows && windowRows.length > 0) {
+    let timezone = truck.timezone as string | null;
+    if (!timezone && truck.latitude != null && truck.longitude != null) {
+      timezone = await resolveTimezone(truck.latitude, truck.longitude);
+      if (timezone) {
+        await supabase.from('food_trucks').update({ timezone }).eq('id', truckId);
+      }
+    }
+    if (!timezone) {
+      return new Response(
+        JSON.stringify({ error: 'category_availability_unknown' }),
+        { status: 422, headers: { 'Content-Type': 'application/json' } },
+      );
+    }
+    const { minutesSinceMidnight: nowMinutes, dayOfWeek: todayDow } = localNow(new Date(), timezone);
+    const restrictedCategories = new Set(windowRows.map((w) => w.category_name));
+    for (const categoryName of restrictedCategories) {
+      const rowsForCategory = windowRows.filter((w) => w.category_name === categoryName && w.day_of_week === todayDow);
+      const isActive = rowsForCategory.some((w) => windowStatus(w.start_time, w.end_time, nowMinutes).isActive);
+      if (!isActive) {
+        return new Response(
+          JSON.stringify({ error: `category_not_available_now:${categoryName}` }),
+          { status: 422, headers: { 'Content-Type': 'application/json' } },
+        );
+      }
+    }
   }
 
   const taxRatePercent = Number(truck.tax_rate_percent) || 0;

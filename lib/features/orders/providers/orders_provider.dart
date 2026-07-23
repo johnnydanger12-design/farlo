@@ -1,11 +1,22 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../auth/providers/auth_provider.dart';
 import '../models/order.dart';
 import '../models/order_item.dart';
 import '../repositories/orders_repository.dart';
 
 final ordersRepositoryProvider = Provider<OrdersRepository>((ref) {
   return OrdersRepository(Supabase.instance.client);
+});
+
+// "Order Again" shelf on a truck's profile — this consumer's own recent
+// orders at this specific truck. Empty (not an error) when signed out, since
+// the shelf simply doesn't render rather than prompting sign-in.
+final recentOrdersAtTruckProvider =
+    FutureProvider.autoDispose.family<List<Order>, String>((ref, truckId) async {
+  final user = ref.watch(authProvider).asData?.value;
+  if (user == null) return [];
+  return ref.read(ordersRepositoryProvider).fetchRecentOrdersForConsumerAtTruck(user.id, truckId);
 });
 
 // ─── Owner: live order queue for a truck ─────────────────────────────────────

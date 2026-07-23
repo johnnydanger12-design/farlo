@@ -10,18 +10,21 @@ export interface OrderItemInput {
   menu_item_id: string;
   quantity: number;
   added_modifier_ids?: string[];
+  selected_group_option_ids?: string[];
 }
 
 export interface MenuItemRow {
   id: string;
   price: number | string;
   truck_id: string;
+  category: string;
 }
 
 export interface ModifierRow {
   id: string;
   menu_item_id: string;
   price_delta: number | string;
+  group_name: string | null;
 }
 
 export class MenuItemMismatchError extends Error {
@@ -35,6 +38,19 @@ export class ModifierMismatchError extends Error {
   constructor(modifierId: string, menuItemId: string) {
     super(`modifier ${modifierId} does not belong to menu item ${menuItemId}`);
     this.name = 'ModifierMismatchError';
+  }
+}
+
+// Thrown when a menu item has one or more required single-select groups
+// (modifier rows sharing a non-null group_name) and the client's
+// selected_group_option_ids doesn't contain exactly one valid id from every
+// such group — either missing entirely or two conflicting picks from the
+// same group, both of which would otherwise silently mis-price or
+// mis-fulfill the order.
+export class RequiredGroupSelectionError extends Error {
+  constructor(groupName: string, menuItemId: string) {
+    super(`exactly one option is required for group "${groupName}" on menu item ${menuItemId}`);
+    this.name = 'RequiredGroupSelectionError';
   }
 }
 
@@ -60,6 +76,26 @@ export function computeOrderAmountCents(
       }
       lineCents += Math.round(Number(modifier.price_delta) * 100);
     }
+
+    // Required single-select groups: every distinct group_name among this
+    // item's real modifiers must have exactly one match in
+    // selected_group_option_ids.
+    const itemModifiers = modifiers.filter((m) => m.menu_item_id === it.menu_item_id);
+    const groupNames = new Set(itemModifiers.filter((m) => m.group_name != null).map((m) => m.group_name!));
+    const selectedIds = it.selected_group_option_ids ?? [];
+    for (const groupName of groupNames) {
+      const groupModifierIds = new Set(itemModifiers.filter((m) => m.group_name === groupName).map((m) => m.id));
+      const matches = selectedIds.filter((id) => groupModifierIds.has(id));
+      if (matches.length !== 1) {
+        throw new RequiredGroupSelectionError(groupName, it.menu_item_id);
+      }
+      const chosen = modifierById.get(matches[0]);
+      if (!chosen || chosen.menu_item_id !== it.menu_item_id) {
+        throw new ModifierMismatchError(matches[0], it.menu_item_id);
+      }
+      lineCents += Math.round(Number(chosen.price_delta) * 100);
+    }
+
     amountCents += lineCents * it.quantity;
   }
   return amountCents;

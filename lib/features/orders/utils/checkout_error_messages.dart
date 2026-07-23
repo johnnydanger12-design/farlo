@@ -6,6 +6,16 @@
 // without mocking Stripe or Supabase.
 String friendlyCheckoutStartError(Object e) {
   final message = e.toString();
+  if (message.contains('category_not_available_now:')) {
+    final category = message.split('category_not_available_now:').last;
+    return '$category isn\'t available to order right now. Check back during its regular hours.';
+  }
+  if (message.contains('category_availability_unknown')) {
+    return 'Could not confirm this item is available right now. Please try again in a moment.';
+  }
+  if (message.contains('exactly one option is required for group')) {
+    return 'Please finish customizing your item — a required choice is missing.';
+  }
   if (message.contains('owner_stripe_not_connected')) {
     return "This business hasn't finished setting up payments yet. Please check back later.";
   }

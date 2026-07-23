@@ -217,3 +217,19 @@ class OwnerTruckNotifier extends AsyncNotifier<FoodTruck?> {
 
 final ownerTruckProvider =
     AsyncNotifierProvider<OwnerTruckNotifier, FoodTruck?>(OwnerTruckNotifier.new);
+
+// Category name -> currently purchasable right now (get-category-availability
+// edge function). A category missing from the returned map has no purchase
+// window at all and is always available whenever the truck is open — see
+// that function for the full computation, which reuses the exact same
+// truck-local-time window logic as sync-truck-hours and create-payment-intent
+// so the badge shown here can never disagree with what checkout will allow.
+final categoryAvailabilityProvider =
+    FutureProvider.autoDispose.family<Map<String, bool>, String>((ref, truckId) async {
+  final res = await Supabase.instance.client.functions.invoke(
+    'get-category-availability',
+    body: {'truck_id': truckId},
+  );
+  final data = res.data as Map<String, dynamic>? ?? {};
+  return data.map((key, value) => MapEntry(key, value as bool));
+});

@@ -3,17 +3,26 @@
 // read `amount_cents` directly from the client request body. Run with:
 //   deno test supabase/functions/create-payment-intent/pricing.test.ts
 import { assertEquals, assertThrows } from 'https://deno.land/std@0.224.0/assert/mod.ts';
-import { computeOrderAmountCents, MenuItemMismatchError, ModifierMismatchError } from './pricing.ts';
+import {
+  computeOrderAmountCents,
+  MenuItemMismatchError,
+  ModifierMismatchError,
+  RequiredGroupSelectionError,
+} from './pricing.ts';
 
 const menuItems = [
-  { id: 'taco', price: 4.5, truck_id: 'truck-1' },
-  { id: 'burrito', price: 9.99, truck_id: 'truck-1' },
-  { id: 'other-truck-item', price: 1, truck_id: 'truck-2' },
+  { id: 'taco', price: 4.5, truck_id: 'truck-1', category: 'Mains' },
+  { id: 'burrito', price: 9.99, truck_id: 'truck-1', category: 'Mains' },
+  { id: 'other-truck-item', price: 1, truck_id: 'truck-2', category: 'Mains' },
+  { id: 'sandwich', price: 7, truck_id: 'truck-1', category: 'Sandwiches' },
 ];
 
 const modifiers = [
-  { id: 'extra-cheese', menu_item_id: 'taco', price_delta: 1.5 },
-  { id: 'extra-bacon', menu_item_id: 'burrito', price_delta: 2 },
+  { id: 'extra-cheese', menu_item_id: 'taco', price_delta: 1.5, group_name: null },
+  { id: 'extra-bacon', menu_item_id: 'burrito', price_delta: 2, group_name: null },
+  // A required single-select group on `sandwich`: "Choice of Bread".
+  { id: 'bread-toast', menu_item_id: 'sandwich', price_delta: 0, group_name: 'Choice of Bread' },
+  { id: 'bread-biscuit', menu_item_id: 'sandwich', price_delta: 0, group_name: 'Choice of Bread' },
 ];
 
 Deno.test('computes the correct total from real menu prices, ignoring quantity multiplication rounding per item', () => {
@@ -112,4 +121,47 @@ Deno.test('throws if a modifier id does not exist at all', () => {
       ),
     ModifierMismatchError,
   );
+});
+
+Deno.test('accepts a valid single selection from a required group', () => {
+  const cents = computeOrderAmountCents(
+    [{ menu_item_id: 'sandwich', quantity: 1, selected_group_option_ids: ['bread-toast'] }],
+    menuItems,
+    modifiers,
+    'truck-1',
+  );
+  assertEquals(cents, 700); // $7.00, bread choices are both $0 here
+});
+
+Deno.test('throws if a required group has no selection at all', () => {
+  assertThrows(
+    () => computeOrderAmountCents([{ menu_item_id: 'sandwich', quantity: 1 }], menuItems, modifiers, 'truck-1'),
+    RequiredGroupSelectionError,
+  );
+});
+
+Deno.test('throws if a required group has two conflicting selections', () => {
+  assertThrows(
+    () =>
+      computeOrderAmountCents(
+        [{ menu_item_id: 'sandwich', quantity: 1, selected_group_option_ids: ['bread-toast', 'bread-biscuit'] }],
+        menuItems,
+        modifiers,
+        'truck-1',
+      ),
+    RequiredGroupSelectionError,
+  );
+});
+
+Deno.test('ignores a stray selected_group_option_id for an item with no required groups (not an error)', () => {
+  // taco has no group_name modifiers at all, so the group-check loop finds
+  // zero groups to validate — an unrelated id in selected_group_option_ids
+  // is simply never looked at, not a mismatch.
+  const cents = computeOrderAmountCents(
+    [{ menu_item_id: 'taco', quantity: 1, selected_group_option_ids: ['bread-toast'] }],
+    menuItems,
+    modifiers,
+    'truck-1',
+  );
+  assertEquals(cents, 450);
 });

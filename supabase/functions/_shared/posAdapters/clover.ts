@@ -106,10 +106,15 @@ async function addLineItems(externalOrderId: string, order: PosOrder, credential
   const headers = authHeaders(credentials);
 
   const items = order.order_items.map((i) => {
-    const addedTotal = (i.added_modifiers ?? []).reduce((sum, m) => sum + Number(m.price_delta), 0);
+    const addedTotal = (i.added_modifiers ?? []).reduce((sum, m) => sum + Number(m.price_delta), 0)
+      + (i.selected_options ?? []).reduce((sum, m) => sum + Number(m.price_delta), 0);
     const modifierParts = [
       ...(i.removed_modifiers ?? []).map((name) => `No ${name}`),
       ...(i.added_modifiers ?? []).map((m) => `+ ${m.name}`),
+      // Required single-select group choices (e.g. "Toast" for Choice of
+      // Bread) — just the chosen option's name, no "+"/"No" prefix, since
+      // it's a plain selection rather than an addition or removal.
+      ...(i.selected_options ?? []).map((m) => m.name),
     ];
     const name = modifierParts.length > 0
       ? `${i.menu_item_name} (${modifierParts.join(', ')})`

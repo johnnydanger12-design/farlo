@@ -18,6 +18,7 @@ import '../../../core/widgets/snackbar_extensions.dart';
 import '../../food_trucks/models/menu_item.dart';
 import '../../food_trucks/providers/food_truck_provider.dart';
 import '../repositories/menu_import_repository.dart';
+import '../widgets/purchase_windows_sheet.dart';
 import 'menu_import_review_screen.dart';
 
 class ManageMenuScreen extends ConsumerWidget {
@@ -140,6 +141,7 @@ class ManageMenuScreen extends ConsumerWidget {
                 final index = orderedCategories.indexOf(row);
                 return _CategoryHeader(
                   category: row,
+                  truckId: grouped[row]!.first.truckId,
                   count: grouped[row]!.length,
                   onMoveUp: index > 0 ? () => moveCategory(row, -1) : null,
                   onMoveDown: index < orderedCategories.length - 1 ? () => moveCategory(row, 1) : null,
@@ -386,12 +388,14 @@ class ManageMenuScreen extends ConsumerWidget {
 class _CategoryHeader extends StatelessWidget {
   const _CategoryHeader({
     required this.category,
+    required this.truckId,
     required this.count,
     required this.onMoveUp,
     required this.onMoveDown,
   });
 
   final String category;
+  final String truckId;
   final int count;
   final VoidCallback? onMoveUp;
   final VoidCallback? onMoveDown;
@@ -409,6 +413,19 @@ class _CategoryHeader extends StatelessWidget {
             style: AppTextStyles.caption,
           ),
           const Spacer(),
+          IconButton(
+            icon: const Icon(Icons.schedule_outlined, size: 20),
+            color: AppColors.textSecondary,
+            visualDensity: VisualDensity.compact,
+            tooltip: 'Purchase windows for $category',
+            onPressed: () => showTabAwareModalBottomSheet<void>(
+              context: context,
+              tabIndex: 3,
+              isScrollControlled: true,
+              backgroundColor: Colors.transparent,
+              builder: (_) => PurchaseWindowsSheet(truckId: truckId, categoryName: category),
+            ),
+          ),
           IconButton(
             icon: const Icon(Icons.keyboard_arrow_up, size: 20),
             color: AppColors.textSecondary,
@@ -558,10 +575,22 @@ class _MenuItemTile extends StatelessWidget {
 }
 
 class _ModifierEntry {
-  _ModifierEntry({required this.nameCtrl, required this.priceCtrl, required this.includedByDefault});
+  _ModifierEntry({
+    required this.nameCtrl,
+    required this.priceCtrl,
+    required this.includedByDefault,
+    this.groupName,
+  });
   final TextEditingController nameCtrl;
   final TextEditingController priceCtrl;
   bool includedByDefault;
+  // Required single-select groups (e.g. "Choice of Bread") aren't editable
+  // from this sheet yet — it only manages plain toggles. This is carried
+  // through unchanged on save purely so editing an item here doesn't
+  // silently wipe out grouping that was set up directly (see
+  // replaceMenuItemModifiers), rather than an intentional omission of a real
+  // editing feature.
+  final String? groupName;
 }
 
 class _MenuItemSheet extends StatefulWidget {
@@ -580,7 +609,7 @@ class _MenuItemSheet extends StatefulWidget {
   // Only provided when editing an existing item — a brand-new item has no id
   // yet for modifiers to attach to, so customization options are added after
   // the item is first saved and reopened for editing.
-  final Future<void> Function(List<({String name, double priceDelta, bool includedByDefault})> modifiers)? onSaveModifiers;
+  final Future<void> Function(List<({String name, double priceDelta, bool includedByDefault, String? groupName})> modifiers)? onSaveModifiers;
 
   @override
   State<_MenuItemSheet> createState() => _MenuItemSheetState();
@@ -626,6 +655,7 @@ class _MenuItemSheetState extends State<_MenuItemSheet> {
         nameCtrl: TextEditingController(text: m.name),
         priceCtrl: TextEditingController(text: m.priceDelta.toStringAsFixed(2)),
         includedByDefault: m.includedByDefault,
+        groupName: m.groupName,
       ));
     }
   }
@@ -688,6 +718,7 @@ class _MenuItemSheetState extends State<_MenuItemSheet> {
                     name: m.nameCtrl.text.trim(),
                     priceDelta: double.tryParse(m.priceCtrl.text.trim()) ?? 0,
                     includedByDefault: m.includedByDefault,
+                    groupName: m.groupName,
                   ))
               .toList(),
         );
@@ -871,7 +902,18 @@ class _MenuItemSheetState extends State<_MenuItemSheet> {
                 for (int i = 0; i < _modifiers.length; i++)
                   Padding(
                     padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                    child: Row(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (_modifiers[i].groupName != null)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 2),
+                            child: Text(
+                              'Part of required choice: ${_modifiers[i].groupName}',
+                              style: AppTextStyles.caption.copyWith(color: Theme.of(context).colorScheme.primary),
+                            ),
+                          ),
+                        Row(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         Expanded(
@@ -921,6 +963,8 @@ class _MenuItemSheetState extends State<_MenuItemSheet> {
                             _modifiers[i].priceCtrl.dispose();
                             _modifiers.removeAt(i);
                           }),
+                        ),
+                      ],
                         ),
                       ],
                     ),

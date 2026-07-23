@@ -44,6 +44,21 @@ class PlannedLocationsRepository {
     return (data as List).map((m) => PlannedLocation.fromMap(m)).toList();
   }
 
+  // A single day's rows — used to find whichever planned location is
+  // currently driving a mobile truck's live map pin (matched by the caller
+  // comparing lat/lng against the truck's current position), so a pin
+  // correction can be written back to the right row.
+  Future<List<PlannedLocation>> fetchForDate(String truckId, DateTime date) async {
+    final dateStr = date.toIso8601String().substring(0, 10);
+    final data = await _client
+        .from('planned_locations')
+        .select()
+        .eq('truck_id', truckId)
+        .eq('event_date', dateStr)
+        .withNetworkTimeout;
+    return (data as List).map((m) => PlannedLocation.fromMap(m)).toList();
+  }
+
   Future<PlannedLocation> create({
     required String truckId,
     required DateTime eventDate,

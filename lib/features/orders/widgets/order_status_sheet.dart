@@ -135,11 +135,14 @@ class _OrderStatusSheetState extends ConsumerState<OrderStatusSheet> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(item.name, style: AppTextStyles.body),
-                                    if (item.removedModifiers.isNotEmpty || item.addedModifiers.isNotEmpty)
+                                    if (item.removedModifiers.isNotEmpty ||
+                                        item.addedModifiers.isNotEmpty ||
+                                        item.selectedGroupOptions.isNotEmpty)
                                       Text(
                                         [
                                           ...item.removedModifiers.map((m) => 'No $m'),
                                           ...item.addedModifiers.map((m) => '+ ${m.name}'),
+                                          ...item.selectedGroupOptions.values.map((m) => m.name),
                                         ].join(', '),
                                         style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
                                       ),

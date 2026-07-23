@@ -260,32 +260,42 @@ class AuthNotifier extends AsyncNotifier<AppUser?> {
   // its last listener unmounts, not on sign-out. Explicitly invalidate every
   // provider that caches per-user or per-truck data so the next read is always
   // a fresh fetch under the new (or absent) auth identity.
+  //
+  // Uses ref.container.invalidate (not ref.invalidate) because several of
+  // these — myEmployeeTrucksProvider, favoritesListProvider,
+  // favoritedTruckIdsProvider, notificationsProvider, foodTruckProvider —
+  // themselves watch authProvider, making them dependents of this very
+  // notifier. Ref.invalidate refuses to invalidate your own dependents
+  // (throws CircularDependencyError, a real structural rule, not a false
+  // positive) since that's normally a sign of an actual cycle. Here it's a
+  // deliberate one-shot cache-clearing sweep, so we go through the
+  // container directly, which has no such restriction.
   void _invalidateUserScopedProviders() {
-    ref.invalidate(myEmployeeTrucksProvider);
-    ref.invalidate(employeeGoLiveProvider);
-    ref.invalidate(activeShiftProvider);
-    ref.invalidate(myShiftsProvider);
-    ref.invalidate(myScheduledShiftsProvider);
-    ref.invalidate(truckShiftsProvider);
-    ref.invalidate(truckScheduledShiftsProvider);
-    ref.invalidate(truckEmployeesProvider);
-    ref.invalidate(ownerTruckProvider);
-    ref.invalidate(foodTruckProvider);
-    ref.invalidate(pendingBookingCountProvider);
-    ref.invalidate(ownerBookingRequestsProvider);
-    ref.invalidate(myBookingRequestsProvider);
-    ref.invalidate(favoritesListProvider);
-    ref.invalidate(favoritedTruckIdsProvider);
-    ref.invalidate(notificationsProvider);
-    ref.invalidate(unreadNotificationsCountProvider);
-    ref.invalidate(notificationPrefsProvider);
+    ref.container.invalidate(myEmployeeTrucksProvider);
+    ref.container.invalidate(employeeGoLiveProvider);
+    ref.container.invalidate(activeShiftProvider);
+    ref.container.invalidate(myShiftsProvider);
+    ref.container.invalidate(myScheduledShiftsProvider);
+    ref.container.invalidate(truckShiftsProvider);
+    ref.container.invalidate(truckScheduledShiftsProvider);
+    ref.container.invalidate(truckEmployeesProvider);
+    ref.container.invalidate(ownerTruckProvider);
+    ref.container.invalidate(foodTruckProvider);
+    ref.container.invalidate(pendingBookingCountProvider);
+    ref.container.invalidate(ownerBookingRequestsProvider);
+    ref.container.invalidate(myBookingRequestsProvider);
+    ref.container.invalidate(favoritesListProvider);
+    ref.container.invalidate(favoritedTruckIdsProvider);
+    ref.container.invalidate(notificationsProvider);
+    ref.container.invalidate(unreadNotificationsCountProvider);
+    ref.container.invalidate(notificationPrefsProvider);
     // activeTrucksProvider is a realtime stream that only re-fetches on its
     // own initiative (on first listen, or when *any* truck row changes
     // anywhere) — without invalidating it here, a truck only visible under
     // the previous session's RLS context (e.g. the owner viewing their own
     // not-yet-public truck) keeps showing on the map after sign-out until an
     // unrelated truck update happens to trigger a fresh fetch.
-    ref.invalidate(activeTrucksProvider);
+    ref.container.invalidate(activeTrucksProvider);
   }
 
   Future<void> refreshUser() async {

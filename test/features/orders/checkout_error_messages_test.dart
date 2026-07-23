@@ -41,5 +41,23 @@ void main() {
       expect(msg, contains('Could not start checkout'));
       expect(msg, isNot(contains('payment may have gone through')));
     });
+
+    test('maps category_not_available_now to a message naming the actual category', () {
+      final msg = friendlyCheckoutStartError(Exception('category_not_available_now:Blue Plate Special'));
+      expect(msg, contains('Blue Plate Special'));
+      expect(msg, contains("isn't available to order right now"));
+    });
+
+    test('maps category_availability_unknown to a try-again message', () {
+      final msg = friendlyCheckoutStartError(Exception('category_availability_unknown'));
+      expect(msg, contains('try again'));
+    });
+
+    test('maps a missing required-group selection to a finish-customizing message', () {
+      final msg = friendlyCheckoutStartError(
+        Exception('exactly one option is required for group "Choice of Bread" on menu item abc123'),
+      );
+      expect(msg, contains('finish customizing'));
+    });
   });
 }

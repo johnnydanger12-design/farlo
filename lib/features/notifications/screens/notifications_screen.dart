@@ -152,6 +152,7 @@ class NotificationsScreen extends ConsumerWidget {
         }
       case 'order_placed':
       case 'order_cancelled':
+      case 'clover_print_failed':
         context.go('/dashboard/orders');
       case 'order_accepted':
       case 'order_ready':
@@ -286,6 +287,7 @@ class _NotificationTile extends StatelessWidget {
       'order_ready' => Icons.storefront_outlined,
       'order_declined' => Icons.cancel_outlined,
       'order_cancelled' => Icons.remove_shopping_cart_outlined,
+      'clover_print_failed' => Icons.print_disabled_outlined,
       _ => Icons.notifications_outlined,
     };
   }

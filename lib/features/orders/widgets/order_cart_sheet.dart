@@ -352,11 +352,14 @@ class _CartItemRow extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(cartItem.name, style: AppTextStyles.bodySmall),
-                if (cartItem.removedModifiers.isNotEmpty || cartItem.addedModifiers.isNotEmpty)
+                if (cartItem.removedModifiers.isNotEmpty ||
+                    cartItem.addedModifiers.isNotEmpty ||
+                    cartItem.selectedGroupOptions.isNotEmpty)
                   Text(
                     [
                       ...cartItem.removedModifiers.map((m) => 'No $m'),
                       ...cartItem.addedModifiers.map((m) => '+ ${m.name}'),
+                      ...cartItem.selectedGroupOptions.values.map((m) => m.name),
                     ].join(', '),
                     style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
                   ),

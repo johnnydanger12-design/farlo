@@ -21,6 +21,7 @@ import '../../employees/providers/weekly_specials_provider.dart';
 import '../../orders/providers/orders_provider.dart';
 import '../../reviews/widgets/write_review_sheet.dart';
 import '../../../core/widgets/sign_in_prompt_sheet.dart';
+import '../widgets/order_again_section.dart';
 import '../widgets/truck_display_widgets.dart';
 import '../widgets/truck_menu_widgets.dart';
 import '../widgets/truck_review_widgets.dart';
@@ -266,9 +267,13 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
 
     final canOrder =
         truck.isOpen && truck.ordersEnabled && truck.ordersAccepting;
+    final categoryAvailability =
+        ref.watch(categoryAvailabilityProvider(truck.id)).asData?.value ?? const {};
     final currentWeekSpecials =
         ref.watch(truckCurrentWeekSpecialsProvider(truck.id)).asData?.value ??
         [];
+    final recentOrders =
+        ref.watch(recentOrdersAtTruckProvider(truck.id)).asData?.value ?? const [];
 
     return Scaffold(
       body: Stack(
@@ -463,7 +468,22 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
                 const SectionSpacer(),
               ],
 
-              // ── Order Now ────────────────────────────────────────────────────
+              // ── Order Again ──────────────────────────────────────────────────
+              // Only when there's actually something to reorder, and the truck
+              // can currently take orders at all (recentOrders itself is always
+              // [] when signed out, and canOrder also covers "closed/not
+              // accepting" so the shelf never invites a reorder into a checkout
+              // that would just fail).
+              if (canOrder && recentOrders.isNotEmpty) ...[
+                SliverToBoxAdapter(
+                  child: Section(
+                    title: 'Order Again',
+                    child: OrderAgainSection(orders: recentOrders, currentMenuItems: truck.menuItems),
+                  ),
+                ),
+                const SectionSpacer(),
+              ],
+
               // ── Menu ─────────────────────────────────────────────────────────
               if (truck.menuItems.isNotEmpty) ...[
                 SliverToBoxAdapter(
@@ -473,6 +493,7 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
                       items: truck.menuItems,
                       canOrder: canOrder,
                       categoryOrder: truck.orderedCategoryNames,
+                      categoryAvailability: categoryAvailability,
                     ),
                   ),
                 ),

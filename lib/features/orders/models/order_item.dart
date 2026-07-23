@@ -28,6 +28,7 @@ class OrderItem {
     this.specialRequest,
     this.removedModifiers = const [],
     this.addedModifiers = const [],
+    this.selectedGroupOptions = const {},
   });
 
   final String id;
@@ -39,6 +40,10 @@ class OrderItem {
   final String? specialRequest;
   final List<String> removedModifiers;
   final List<SelectedModifier> addedModifiers;
+  // Group name -> the chosen option for that required single-select group
+  // (e.g. "Choice of Bread" -> Toast). Same id/name/priceDelta snapshot
+  // rationale as addedModifiers.
+  final Map<String, SelectedModifier> selectedGroupOptions;
 
   factory OrderItem.fromMap(Map<String, dynamic> map) {
     return OrderItem(
@@ -54,11 +59,18 @@ class OrderItem {
               ?.map((e) => SelectedModifier.fromMap(e as Map<String, dynamic>))
               .toList() ??
           const [],
+      selectedGroupOptions: {
+        for (final e in (map['selected_options'] as List? ?? const []))
+          (e as Map<String, dynamic>)['group_name'] as String: SelectedModifier.fromMap(e),
+      },
     );
   }
 
   double get lineTotal =>
-      (price + addedModifiers.fold(0.0, (sum, m) => sum + m.priceDelta)) * quantity;
+      (price +
+          addedModifiers.fold(0.0, (sum, m) => sum + m.priceDelta) +
+          selectedGroupOptions.values.fold(0.0, (sum, m) => sum + m.priceDelta)) *
+      quantity;
 
   OrderItem copyWith({int? quantity, String? specialRequest}) {
     return OrderItem(
@@ -71,6 +83,7 @@ class OrderItem {
       specialRequest: specialRequest ?? this.specialRequest,
       removedModifiers: removedModifiers,
       addedModifiers: addedModifiers,
+      selectedGroupOptions: selectedGroupOptions,
     );
   }
 }
@@ -85,6 +98,7 @@ class CartItem {
     this.specialRequest,
     this.removedModifiers = const [],
     this.addedModifiers = const [],
+    this.selectedGroupOptions = const {},
   });
 
   final String menuItemId;
@@ -94,20 +108,30 @@ class CartItem {
   final String? specialRequest;
   final List<String> removedModifiers;
   final List<SelectedModifier> addedModifiers;
+  // Group name -> chosen option, one entry per required single-select group
+  // on this menu item (e.g. "Choice of Bread" -> Toast).
+  final Map<String, SelectedModifier> selectedGroupOptions;
 
   double get lineTotal =>
-      (price + addedModifiers.fold(0.0, (sum, m) => sum + m.priceDelta)) * quantity;
+      (price +
+          addedModifiers.fold(0.0, (sum, m) => sum + m.priceDelta) +
+          selectedGroupOptions.values.fold(0.0, (sum, m) => sum + m.priceDelta)) *
+      quantity;
 
   // Distinguishes different customizations of the same menu item as separate
-  // cart lines (e.g. "no mustard" vs. "everything") — without this, the cart
-  // (keyed by menuItemId alone) would collapse them into one line and lose
-  // one customization entirely. Falls back to plain menuItemId when there's
-  // no customization at all, so uncustomized items behave exactly as before.
+  // cart lines (e.g. "no mustard" vs. "everything", or "Toast" vs. "Biscuit")
+  // — without this, the cart (keyed by menuItemId alone) would collapse them
+  // into one line and lose one customization entirely. Falls back to plain
+  // menuItemId when there's no customization at all, so uncustomized items
+  // behave exactly as before.
   String get cartKey {
-    if (removedModifiers.isEmpty && addedModifiers.isEmpty) return menuItemId;
+    if (removedModifiers.isEmpty && addedModifiers.isEmpty && selectedGroupOptions.isEmpty) {
+      return menuItemId;
+    }
     final removed = [...removedModifiers]..sort();
     final added = [...addedModifiers.map((m) => m.name)]..sort();
-    return '$menuItemId::${removed.join(',')}::${added.join(',')}';
+    final groups = [...selectedGroupOptions.entries.map((e) => '${e.key}=${e.value.name}')]..sort();
+    return '$menuItemId::${removed.join(',')}::${added.join(',')}::${groups.join(',')}';
   }
 
   CartItem copyWith({int? quantity, String? specialRequest}) {
@@ -119,6 +143,7 @@ class CartItem {
       specialRequest: specialRequest ?? this.specialRequest,
       removedModifiers: removedModifiers,
       addedModifiers: addedModifiers,
+      selectedGroupOptions: selectedGroupOptions,
     );
   }
 }

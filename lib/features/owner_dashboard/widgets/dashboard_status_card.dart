@@ -7,12 +7,15 @@ import 'package:latlong2/latlong.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../core/widgets/snackbar_extensions.dart';
 import '../../../core/widgets/truck_map_pin.dart';
 import '../../../services/storage_service.dart';
+import '../../employees/providers/planned_locations_provider.dart';
 import '../../food_trucks/providers/food_truck_provider.dart';
 import '../../food_trucks/screens/truck_profile_screen.dart';
 import '../../map/models/food_truck.dart';
 import '../providers/dashboard_providers.dart';
+import 'adjust_location_pin_screen.dart';
 
 class DashboardStatusCard extends ConsumerWidget {
   const DashboardStatusCard({
@@ -38,6 +41,87 @@ class DashboardStatusCard extends ConsumerWidget {
     if (diff.inHours < 1) return 'Location updated ${diff.inMinutes}m ago';
     if (diff.inHours < 24) return 'Updated ${diff.inHours}h ago';
     return 'Updated ${diff.inDays}d ago';
+  }
+
+  // Fixed businesses: their lat/lng is their one permanent position, so the
+  // correction just goes straight onto food_trucks. Mobile businesses only
+  // get this while auto_hours_enabled, because that's the one case where a
+  // planned_locations row (not live GPS) is what's actually driving the pin
+  // — sync-truck-hours copies that row's lat/lng onto food_trucks every
+  // minute, so a raw device-GPS truck would just have any correction
+  // overwritten by the next tracking tick. Finds the active row by matching
+  // today's rows against the truck's current position (what the cron just
+  // copied over), since there's no other link from "current pin" back to
+  // "which row put it there" client-side.
+  bool _canAdjustPin(FoodTruck truck) =>
+      truck.isOpen &&
+      truck.latitude != null &&
+      truck.longitude != null &&
+      (truck.isFixed || truck.autoHoursEnabled);
+
+  Future<void> _adjustPin(BuildContext context, WidgetRef ref, FoodTruck truck) async {
+    String? plannedLocationId;
+    String? plannedTitle;
+    String? plannedAddress;
+    String? plannedNotes;
+    String? plannedStart;
+    String? plannedEnd;
+
+    if (!truck.isFixed) {
+      final todaysRows = await ref
+          .read(plannedLocationsRepositoryProvider)
+          .fetchForDate(truck.id, DateTime.now());
+      final activeRow = todaysRows.where((r) {
+        if (r.latitude == null || r.longitude == null) return false;
+        return (r.latitude! - truck.latitude!).abs() < 0.0001 &&
+            (r.longitude! - truck.longitude!).abs() < 0.0001;
+      }).firstOrNull;
+      if (activeRow == null) {
+        if (context.mounted) {
+          context.showInfo(
+            "Couldn't find today's scheduled location to adjust — edit it from the Calendar instead.",
+          );
+        }
+        return;
+      }
+      plannedLocationId = activeRow.id;
+      plannedTitle = activeRow.title;
+      plannedAddress = activeRow.address;
+      plannedNotes = activeRow.notes;
+      plannedStart = activeRow.startTime;
+      plannedEnd = activeRow.endTime;
+    }
+
+    if (!context.mounted) return;
+    final result = await Navigator.push<LatLng>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AdjustLocationPinScreen(
+          initialLat: truck.latitude!,
+          initialLng: truck.longitude!,
+          subtitle: truck.address ?? 'Fine-tune your pin',
+        ),
+      ),
+    );
+    if (result == null) return;
+
+    if (plannedLocationId != null) {
+      await ref.read(plannedLocationsRepositoryProvider).update(
+            id: plannedLocationId,
+            title: plannedTitle!,
+            address: plannedAddress,
+            latitude: result.latitude,
+            longitude: result.longitude,
+            notes: plannedNotes,
+            startTime: plannedStart,
+            endTime: plannedEnd,
+          );
+    }
+    await ref.read(ownerTruckProvider.notifier).updateProfile({
+      'latitude': result.latitude,
+      'longitude': result.longitude,
+    });
+    if (context.mounted) context.showSuccess('Pin location updated');
   }
 
   Future<void> _confirmStopAutomation(BuildContext context) async {
@@ -212,36 +296,64 @@ class DashboardStatusCard extends ConsumerWidget {
                 child: SizedBox(
                   height: 160,
                   child: truck.latitude != null && truck.longitude != null
-                      ? FlutterMap(
-                          options: MapOptions(
-                            initialCenter:
-                                LatLng(truck.latitude!, truck.longitude!),
-                            initialZoom: 16,
-                            interactionOptions: const InteractionOptions(
-                                flags: InteractiveFlag.none),
-                          ),
+                      ? Stack(
                           children: [
-                            TileLayer(
-                              urlTemplate:
-                                  Theme.of(context).brightness == Brightness.dark
-                                      ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'
-                                      : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                              subdomains: const ['a', 'b', 'c', 'd'],
-                              userAgentPackageName: 'com.farlo.app',
-                            ),
-                            MarkerLayer(
-                              markers: [
-                                Marker(
-                                  point: LatLng(truck.latitude!, truck.longitude!),
-                                  width: 44,
-                                  height: 44,
-                                  child: TruckMapPin(
-                                    isOpen: truck.isOpen,
-                                    logoUrl: truck.logoUrl,
-                                  ),
+                            FlutterMap(
+                              options: MapOptions(
+                                initialCenter:
+                                    LatLng(truck.latitude!, truck.longitude!),
+                                initialZoom: 16,
+                                interactionOptions: const InteractionOptions(
+                                    flags: InteractiveFlag.none),
+                              ),
+                              children: [
+                                TileLayer(
+                                  urlTemplate:
+                                      Theme.of(context).brightness == Brightness.dark
+                                          ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'
+                                          : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                                  subdomains: const ['a', 'b', 'c', 'd'],
+                                  userAgentPackageName: 'com.farlo.app',
+                                ),
+                                MarkerLayer(
+                                  markers: [
+                                    Marker(
+                                      point: LatLng(truck.latitude!, truck.longitude!),
+                                      width: 44,
+                                      height: 44,
+                                      child: TruckMapPin(
+                                        isOpen: truck.isOpen,
+                                        logoUrl: truck.logoUrl,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ],
                             ),
+                            if (_canAdjustPin(truck))
+                              Positioned(
+                                right: 8,
+                                bottom: 8,
+                                child: Material(
+                                  color: Theme.of(context).colorScheme.surface,
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(8),
+                                    onTap: () => _adjustPin(context, ref, truck),
+                                    child: const Padding(
+                                      padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(Icons.edit_location_alt_outlined, size: 16),
+                                          SizedBox(width: 4),
+                                          Text('Adjust pin', style: AppTextStyles.caption),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
                           ],
                         )
                       : const ColoredBox(

@@ -55,7 +55,13 @@ Future<bool> addItemOrCustomize(BuildContext context, WidgetRef ref, MenuItem it
 }
 
 class MenuGrid extends StatefulWidget {
-  const MenuGrid({super.key, required this.items, required this.canOrder, this.categoryOrder = const []});
+  const MenuGrid({
+    super.key,
+    required this.items,
+    required this.canOrder,
+    this.categoryOrder = const [],
+    this.categoryAvailability = const {},
+  });
   final List<MenuItem> items;
   final bool canOrder;
   // Owner-defined category order (FoodTruck.orderedCategoryNames) — shares
@@ -63,6 +69,11 @@ class MenuGrid extends StatefulWidget {
   // never disagree on category order. Falls back to first-appearance order
   // (via LinkedHashMap insertion order) for any category not included here.
   final List<String> categoryOrder;
+  // Category name -> currently purchasable right now, from
+  // get-category-availability. A category missing from this map has no
+  // purchase-window restriction at all and is always available whenever the
+  // truck itself is open — this map only ever contains restricted categories.
+  final Map<String, bool> categoryAvailability;
 
   @override
   State<MenuGrid> createState() => _MenuGridState();
@@ -125,8 +136,19 @@ class _MenuGridState extends State<MenuGrid> {
                             childAspectRatio: 0.78,
                           ),
                           itemCount: entry.value.length,
-                          itemBuilder: (_, i) =>
-                              MenuItemCard(item: entry.value[i], canOrder: widget.canOrder),
+                          itemBuilder: (_, i) {
+                            final item = entry.value[i];
+                            final categoryAvailable = widget.categoryAvailability[item.category] ?? true;
+                            return MenuItemCard(
+                              item: item,
+                              canOrder: widget.canOrder && categoryAvailable,
+                              // Distinguishes "this category isn't in its purchase
+                              // window right now" from "the whole truck is closed" —
+                              // only true when the truck itself would otherwise allow
+                              // ordering.
+                              unavailableNow: widget.canOrder && !categoryAvailable,
+                            );
+                          },
                         ),
                       ],
                     )
@@ -187,9 +209,13 @@ class CategoryHeader extends StatelessWidget {
 }
 
 class MenuItemCard extends ConsumerWidget {
-  const MenuItemCard({super.key, required this.item, required this.canOrder});
+  const MenuItemCard({super.key, required this.item, required this.canOrder, this.unavailableNow = false});
   final MenuItem item;
   final bool canOrder;
+  // True when this item's category has a purchase window that isn't active
+  // right now (the truck is otherwise open) — shown as a small badge instead
+  // of the Add button, distinct from the truck simply being closed.
+  final bool unavailableNow;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -245,6 +271,13 @@ class MenuItemCard extends ConsumerWidget {
                         AddButton(item: item, qty: qty),
                     ],
                   ),
+                  if (unavailableNow) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      'Not available now',
+                      style: AppTextStyles.caption.copyWith(color: AppColors.textHint),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -450,12 +483,28 @@ class CustomizeItemSheet extends StatefulWidget {
 class _CustomizeItemSheetState extends State<CustomizeItemSheet> {
   final Set<String> _removedNames = {};
   final Set<String> _addedIds = {};
+  // Group name -> selected modifier id. Pre-filled with each group's
+  // included_by_default option so the sheet always starts in a valid,
+  // submittable state — the customer only has to touch a group if they want
+  // something other than the default.
+  late final Map<String, String> _groupSelections = {
+    for (final entry in widget.item.groupedModifiers.entries)
+      entry.key: entry.value.firstWhere(
+        (m) => m.includedByDefault,
+        orElse: () => entry.value.first,
+      ).id,
+  };
 
   double get _total {
     final addedTotal = widget.item.paidAddOns
         .where((m) => _addedIds.contains(m.id))
         .fold(0.0, (sum, m) => sum + m.priceDelta);
-    return widget.item.price + addedTotal;
+    final groupTotal = widget.item.groupedModifiers.entries.fold(0.0, (sum, entry) {
+      final selectedId = _groupSelections[entry.key];
+      final selected = entry.value.where((m) => m.id == selectedId).firstOrNull;
+      return sum + (selected?.priceDelta ?? 0);
+    });
+    return widget.item.price + addedTotal + groupTotal;
   }
 
   @override
@@ -466,7 +515,13 @@ class _CustomizeItemSheetState extends State<CustomizeItemSheet> {
         color: isLight ? Colors.white : Theme.of(context).colorScheme.surface,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      child: SafeArea(
+      // A plain Container's DecoratedBox sits between the sheet's ListTiles
+      // (radio groups, removable/add-on checkboxes) and the route's Material
+      // ancestor, hiding their tap ink splash. Material(transparency) here
+      // gives them a paint surface without changing the sheet's own look.
+      child: Material(
+        type: MaterialType.transparency,
+        child: SafeArea(
         top: false,
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.lg),
@@ -483,6 +538,26 @@ class _CustomizeItemSheetState extends State<CustomizeItemSheet> {
                   ),
                 ],
               ),
+              for (final group in widget.item.groupedModifiers.entries) ...[
+                const SizedBox(height: AppSpacing.lg),
+                Text(group.key, style: AppTextStyles.label),
+                RadioGroup<String>(
+                  groupValue: _groupSelections[group.key],
+                  onChanged: (id) => setState(() => _groupSelections[group.key] = id!),
+                  child: Column(
+                    children: [
+                      for (final modifier in group.value)
+                        RadioListTile<String>(
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(modifier.priceDelta > 0
+                              ? '${modifier.name} (+\$${modifier.priceDelta.toStringAsFixed(2)})'
+                              : modifier.name),
+                          value: modifier.id,
+                        ),
+                    ],
+                  ),
+                ),
+              ],
               if (widget.item.removableDefaults.isNotEmpty) ...[
                 const SizedBox(height: AppSpacing.lg),
                 Text('Comes with', style: AppTextStyles.label),
@@ -529,6 +604,13 @@ class _CustomizeItemSheetState extends State<CustomizeItemSheet> {
                         .where((m) => _addedIds.contains(m.id))
                         .map((m) => SelectedModifier(id: m.id, name: m.name, priceDelta: m.priceDelta))
                         .toList();
+                    final selectedGroupOptions = <String, SelectedModifier>{
+                      for (final entry in widget.item.groupedModifiers.entries)
+                        entry.key: (() {
+                          final m = entry.value.firstWhere((m) => m.id == _groupSelections[entry.key]);
+                          return SelectedModifier(id: m.id, name: m.name, priceDelta: m.priceDelta);
+                        })(),
+                    };
                     Navigator.pop(
                       context,
                       CartItem(
@@ -538,6 +620,7 @@ class _CustomizeItemSheetState extends State<CustomizeItemSheet> {
                         quantity: 1,
                         removedModifiers: _removedNames.toList(),
                         addedModifiers: addedModifiers,
+                        selectedGroupOptions: selectedGroupOptions,
                       ),
                     );
                   },
@@ -547,6 +630,7 @@ class _CustomizeItemSheetState extends State<CustomizeItemSheet> {
             ],
           ),
         ),
+      ),
       ),
     );
   }

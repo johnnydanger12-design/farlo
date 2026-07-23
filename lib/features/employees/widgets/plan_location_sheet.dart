@@ -34,6 +34,8 @@ class _PlanLocationSheetState extends ConsumerState<PlanLocationSheet> {
   late DateTime _date;
   double? _lat;
   double? _lng;
+  String? _startTime;
+  String? _endTime;
   bool _saving = false;
 
   bool get _isEditing => widget.existing != null;
@@ -49,9 +51,39 @@ class _PlanLocationSheetState extends ConsumerState<PlanLocationSheet> {
       _notesCtrl.text = existing.notes ?? '';
       _lat = existing.latitude;
       _lng = existing.longitude;
+      _startTime = existing.startTime;
+      _endTime = existing.endTime;
     } else {
       _date = widget.initialDate;
     }
+  }
+
+  String _displayTime(String storedHHMM) {
+    final parts = storedHHMM.split(':');
+    final hour = int.parse(parts[0]);
+    final minute = parts[1];
+    final period = hour < 12 ? 'AM' : 'PM';
+    final displayHour = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
+    return '$displayHour:$minute $period';
+  }
+
+  Future<void> _pickTime(bool isStart) async {
+    final current = isStart ? _startTime : _endTime;
+    TimeOfDay initial = const TimeOfDay(hour: 9, minute: 0);
+    if (current != null) {
+      final parts = current.split(':');
+      initial = TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1]));
+    }
+    final picked = await showTimePicker(context: context, initialTime: initial);
+    if (picked == null) return;
+    final stored = '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
+    setState(() {
+      if (isStart) {
+        _startTime = stored;
+      } else {
+        _endTime = stored;
+      }
+    });
   }
 
   @override
@@ -68,9 +100,6 @@ class _PlanLocationSheetState extends ConsumerState<PlanLocationSheet> {
     try {
       final existing = widget.existing;
       if (existing != null) {
-        // Preserve start/end time untouched — this sheet doesn't collect
-        // them (that's the Announce sheet's job), so a plain edit here must
-        // never silently wipe times that are already driving auto-hours.
         await ref.read(plannedLocationsRepositoryProvider).update(
               id: existing.id,
               title: _titleCtrl.text,
@@ -78,8 +107,8 @@ class _PlanLocationSheetState extends ConsumerState<PlanLocationSheet> {
               latitude: _lat,
               longitude: _lng,
               notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
-              startTime: existing.startTime,
-              endTime: existing.endTime,
+              startTime: _startTime,
+              endTime: _endTime,
             );
       } else {
         await ref.read(plannedLocationsRepositoryProvider).create(
@@ -90,6 +119,8 @@ class _PlanLocationSheetState extends ConsumerState<PlanLocationSheet> {
               latitude: _lat,
               longitude: _lng,
               notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
+              startTime: _startTime,
+              endTime: _endTime,
             );
       }
       // Invalidate so calendars refresh
@@ -182,6 +213,38 @@ class _PlanLocationSheetState extends ConsumerState<PlanLocationSheet> {
                   controller: _addressCtrl,
                   label: 'Location / address (optional)',
                   onCoordinatesSelected: (lat, lng) { _lat = lat; _lng = lng; },
+                ),
+                const SizedBox(height: AppSpacing.md),
+                Text('Time (optional)', style: AppTextStyles.label),
+                const SizedBox(height: AppSpacing.sm),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => _pickTime(true),
+                        child: Text(_startTime == null ? 'Start time' : _displayTime(_startTime!)),
+                      ),
+                    ),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 8),
+                      child: Text('–'),
+                    ),
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => _pickTime(false),
+                        child: Text(_endTime == null ? 'End time' : _displayTime(_endTime!)),
+                      ),
+                    ),
+                    if (_startTime != null || _endTime != null)
+                      IconButton(
+                        icon: const Icon(Icons.close, size: 18),
+                        tooltip: 'Clear time',
+                        onPressed: () => setState(() {
+                          _startTime = null;
+                          _endTime = null;
+                        }),
+                      ),
+                  ],
                 ),
                 const SizedBox(height: AppSpacing.md),
                 TextFormField(

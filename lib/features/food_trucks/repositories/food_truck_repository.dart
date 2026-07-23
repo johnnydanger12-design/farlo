@@ -2,6 +2,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../map/models/food_truck.dart';
 import '../../../core/constants/supabase_constants.dart';
 import '../../../core/extensions/future_timeout.dart';
+import '../models/category_purchase_window.dart';
 
 class FoodTruckRepository {
   FoodTruckRepository(this._supabase);
@@ -127,7 +128,7 @@ class FoodTruckRepository {
   // replace-on-save convention used for operating hours/category order.
   Future<void> replaceMenuItemModifiers(
     String menuItemId,
-    List<({String name, double priceDelta, bool includedByDefault})> modifiers,
+    List<({String name, double priceDelta, bool includedByDefault, String? groupName})> modifiers,
   ) async {
     await _supabase
         .from('menu_item_modifiers')
@@ -142,6 +143,7 @@ class FoodTruckRepository {
           'name': modifiers[i].name,
           'price_delta': modifiers[i].priceDelta,
           'included_by_default': modifiers[i].includedByDefault,
+          'group_name': modifiers[i].groupName,
           'sort_order': i,
         },
     ]).withNetworkTimeout;
@@ -149,6 +151,63 @@ class FoodTruckRepository {
 
   Future<void> updateMenuItem(String itemId, Map<String, dynamic> fields) async {
     await _supabase.from(SupabaseConstants.menuItemsTable).update(fields).eq('id', itemId).withNetworkTimeout;
+  }
+
+  // Purchase windows restrict when a category can be *bought*, not whether
+  // it's shown — a category with zero rows here has no restriction at all.
+  // Independent-row CRUD (like planned_locations), not a batch replace like
+  // operating hours, since a category can have several distinct windows
+  // (e.g. Blue Plate Special: 11am-2pm and 5pm-9pm on the same day).
+  Future<List<CategoryPurchaseWindow>> fetchCategoryWindows(String truckId, String categoryName) async {
+    final data = await _supabase
+        .from('category_purchase_windows')
+        .select()
+        .eq('truck_id', truckId)
+        .eq('category_name', categoryName)
+        .order('day_of_week', ascending: true)
+        .withNetworkTimeout;
+    return (data as List).map((e) => CategoryPurchaseWindow.fromMap(e as Map<String, dynamic>)).toList();
+  }
+
+  // One window as the owner conceives it (a set of days + one start/end
+  // time) expands into one DB row per day — the owner enters "Mon-Fri" once
+  // rather than five identical rows themselves.
+  Future<void> createCategoryWindow({
+    required String truckId,
+    required String categoryName,
+    required List<int> daysOfWeek,
+    required String startTime,
+    required String endTime,
+  }) async {
+    await _supabase.from('category_purchase_windows').insert([
+      for (final day in daysOfWeek)
+        {
+          'truck_id': truckId,
+          'category_name': categoryName,
+          'day_of_week': day,
+          'start_time': startTime,
+          'end_time': endTime,
+        },
+    ]).withNetworkTimeout;
+  }
+
+  // Deletes every row for this category matching the same start/end time —
+  // i.e. removes the whole owner-facing "window" (all its expanded
+  // per-day rows) in one action, not just a single day.
+  Future<void> deleteCategoryWindowGroup({
+    required String truckId,
+    required String categoryName,
+    required String startTime,
+    required String endTime,
+  }) async {
+    await _supabase
+        .from('category_purchase_windows')
+        .delete()
+        .eq('truck_id', truckId)
+        .eq('category_name', categoryName)
+        .eq('start_time', startTime)
+        .eq('end_time', endTime)
+        .withNetworkTimeout;
   }
 
   Future<void> deleteMenuItem(String itemId) async {

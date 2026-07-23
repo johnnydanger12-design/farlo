@@ -28,9 +28,21 @@ class MenuItem {
   String get priceDisplay => '\$${price.toStringAsFixed(2)}';
 
   List<MenuItemModifier> get removableDefaults =>
-      modifiers.where((m) => m.includedByDefault).toList();
+      modifiers.where((m) => m.groupName == null && m.includedByDefault).toList();
   List<MenuItemModifier> get paidAddOns =>
-      modifiers.where((m) => !m.includedByDefault).toList();
+      modifiers.where((m) => m.groupName == null && !m.includedByDefault).toList();
+
+  // Required single-select groups (e.g. "Choice of Bread") in the order their
+  // first-seen option appears, each option list already in sortOrder (since
+  // MenuItem.fromMap sorts `modifiers` by sortOrder before this ever runs).
+  Map<String, List<MenuItemModifier>> get groupedModifiers {
+    final result = <String, List<MenuItemModifier>>{};
+    for (final m in modifiers) {
+      if (m.groupName == null) continue;
+      result.putIfAbsent(m.groupName!, () => []).add(m);
+    }
+    return result;
+  }
 
   factory MenuItem.fromMap(Map<String, dynamic> map) {
     List<MenuItemModifier> modifiers = [];

@@ -84,6 +84,10 @@ class SupabaseOrdersDataSource implements OrdersDataSource {
                 if (i.removedModifiers.isNotEmpty) 'removed_modifiers': i.removedModifiers,
                 if (i.addedModifiers.isNotEmpty)
                   'added_modifiers': i.addedModifiers.map((m) => m.toMap()).toList(),
+                if (i.selectedGroupOptions.isNotEmpty)
+                  'selected_options': i.selectedGroupOptions.entries
+                      .map((e) => {'group_name': e.key, ...e.value.toMap()})
+                      .toList(),
               })
           .toList(),
     ).withNetworkTimeout;

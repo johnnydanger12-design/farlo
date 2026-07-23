@@ -21,6 +21,7 @@ export interface PosOrderItem {
   quantity: number;
   removed_modifiers: string[] | null;
   added_modifiers: { name: string; price_delta: number }[] | null;
+  selected_options: { group_name: string; name: string; price_delta: number }[] | null;
 }
 
 export interface PosOrder {

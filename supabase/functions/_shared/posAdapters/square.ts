@@ -27,10 +27,12 @@ async function createOrder(order: PosOrder, credentials: PosCredentials, _custom
   const headers = authHeaders(credentials);
 
   const lineItems = order.order_items.map((i) => {
-    const addedTotal = (i.added_modifiers ?? []).reduce((sum, m) => sum + Number(m.price_delta), 0);
+    const addedTotal = (i.added_modifiers ?? []).reduce((sum, m) => sum + Number(m.price_delta), 0)
+      + (i.selected_options ?? []).reduce((sum, m) => sum + Number(m.price_delta), 0);
     const modifierParts = [
       ...(i.removed_modifiers ?? []).map((name) => `No ${name}`),
       ...(i.added_modifiers ?? []).map((m) => `+ ${m.name}`),
+      ...(i.selected_options ?? []).map((m) => m.name),
     ];
     const name = modifierParts.length > 0
       ? `${i.menu_item_name} (${modifierParts.join(', ')})`

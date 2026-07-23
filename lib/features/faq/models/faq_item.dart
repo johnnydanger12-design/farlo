@@ -6,6 +6,7 @@ class FaqItem {
     required this.answer,
     required this.sortOrder,
     required this.categorySortOrder,
+    required this.audience,
   });
 
   final String id;
@@ -14,6 +15,8 @@ class FaqItem {
   final String answer;
   final int sortOrder;
   final int categorySortOrder;
+  // 'owner' | 'consumer' | 'both' — which role sees this question.
+  final String audience;
 
   factory FaqItem.fromMap(Map<String, dynamic> map) {
     return FaqItem(
@@ -23,6 +26,7 @@ class FaqItem {
       answer: map['answer'] as String,
       sortOrder: map['sort_order'] as int? ?? 0,
       categorySortOrder: map['category_sort_order'] as int? ?? 0,
+      audience: map['audience'] as String? ?? 'both',
     );
   }
 }

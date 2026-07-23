@@ -57,6 +57,8 @@ class OrdersRepository {
                   'quantity': i.quantity,
                   if (i.addedModifiers.isNotEmpty)
                     'added_modifier_ids': i.addedModifiers.map((m) => m.id).toList(),
+                  if (i.selectedGroupOptions.isNotEmpty)
+                    'selected_group_option_ids': i.selectedGroupOptions.values.map((m) => m.id).toList(),
                 })
             .toList(),
         'idempotency_key': idempotencyKey,
@@ -108,6 +110,30 @@ class OrdersRepository {
         .eq('consumer_id', userId)
         .order('created_at', ascending: false)
         .limit(_orderPageSize)
+        .withNetworkTimeout;
+    return (rows as List)
+        .map((r) => Order.fromMap(r as Map<String, dynamic>))
+        .toList();
+  }
+
+  // "Order Again" shelf on a truck's profile — this consumer's own recent
+  // orders at THIS truck specifically, not their whole history. Excludes
+  // cancelled/declined since those were never actually fulfilled and aren't
+  // meaningful "order this again" candidates.
+  Future<List<Order>> fetchRecentOrdersForConsumerAtTruck(
+    String userId,
+    String truckId, {
+    int limit = 5,
+  }) async {
+    final rows = await _supabase
+        .from('orders')
+        .select('*, order_items(*), food_trucks(name)')
+        .eq('consumer_id', userId)
+        .eq('truck_id', truckId)
+        .neq('status', 'cancelled')
+        .neq('status', 'declined')
+        .order('created_at', ascending: false)
+        .limit(limit)
         .withNetworkTimeout;
     return (rows as List)
         .map((r) => Order.fromMap(r as Map<String, dynamic>))
