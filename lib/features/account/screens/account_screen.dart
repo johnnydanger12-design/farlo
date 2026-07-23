@@ -7,7 +7,9 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/constants/app_spacing.dart';
+import '../../../core/providers/tab_reselect_provider.dart';
 import '../../../core/widgets/snackbar_extensions.dart';
+import '../../../core/widgets/tab_aware_bottom_sheet.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../providers/transfer_provider.dart';
 import '../widgets/account_dialogs.dart';
@@ -25,6 +27,12 @@ class AccountScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    ref.listen<TabReselectEvent?>(tabReselectProvider, (prev, next) {
+      if (next != null && next.index == 3 && (ModalRoute.of(context)?.isCurrent ?? false)) {
+        ref.invalidate(authProvider);
+        ref.invalidate(incomingTransferProvider);
+      }
+    });
     final userAsync = ref.watch(authProvider);
 
     return Scaffold(
@@ -186,8 +194,9 @@ class AccountScreen extends ConsumerWidget {
         settings.authorizationStatus == AuthorizationStatus.authorized ||
         settings.authorizationStatus == AuthorizationStatus.provisional;
     if (!context.mounted) return;
-    showModalBottomSheet<void>(
+    showTabAwareModalBottomSheet<void>(
       context: context,
+      tabIndex: 3,
       isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: Colors.transparent,
@@ -197,8 +206,9 @@ class AccountScreen extends ConsumerWidget {
   }
 
   Future<void> _showChangeNameDialog(BuildContext context, WidgetRef ref, String currentName) async {
-    await showModalBottomSheet<void>(
+    await showTabAwareModalBottomSheet<void>(
       context: context,
+      tabIndex: 3,
       isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: Colors.transparent,
@@ -218,8 +228,9 @@ class AccountScreen extends ConsumerWidget {
     final newCtrl = TextEditingController();
     final confirmCtrl = TextEditingController();
 
-    await showModalBottomSheet<void>(
+    await showTabAwareModalBottomSheet<void>(
       context: context,
+      tabIndex: 3,
       isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: Colors.transparent,
@@ -319,8 +330,9 @@ class AccountScreen extends ConsumerWidget {
   }
 
   Future<void> _signOut(BuildContext context, WidgetRef ref) async {
-    final confirmed = await showModalBottomSheet<bool>(
+    final confirmed = await showTabAwareModalBottomSheet<bool>(
       context: context,
+      tabIndex: 3,
       isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: Colors.transparent,
@@ -415,8 +427,9 @@ class AccountSettingsScreen extends ConsumerWidget {
             SettingsTile(
               icon: Icons.storefront_outlined,
               label: 'Start a Business',
-              onTap: () => showModalBottomSheet<void>(
+              onTap: () => showTabAwareModalBottomSheet<void>(
                 context: context,
+                tabIndex: 3,
                 isScrollControlled: true,
                 backgroundColor: Colors.transparent,
                 builder: (_) => UpgradeToOwnerSheet(ref: ref),
@@ -428,8 +441,9 @@ class AccountSettingsScreen extends ConsumerWidget {
           SettingsTile(
             icon: Icons.download_outlined,
             label: 'Download My Data',
-            onTap: () => showModalBottomSheet<void>(
+            onTap: () => showTabAwareModalBottomSheet<void>(
               context: context,
+              tabIndex: 3,
               isScrollControlled: true,
               useSafeArea: true,
               backgroundColor: Colors.transparent,
@@ -450,8 +464,9 @@ class AccountSettingsScreen extends ConsumerWidget {
   }
 
   void _showTransferSheet(BuildContext context) {
-    showModalBottomSheet<void>(
+    showTabAwareModalBottomSheet<void>(
       context: context,
+      tabIndex: 3,
       isScrollControlled: true,
       useSafeArea: true,
       builder: (_) => const TransferTruckSheet(),
@@ -473,8 +488,9 @@ class AccountSettingsScreen extends ConsumerWidget {
   }
 
   void _showDeleteAccountDialog(BuildContext context, WidgetRef ref) {
-    showModalBottomSheet<void>(
+    showTabAwareModalBottomSheet<void>(
       context: context,
+      tabIndex: 3,
       isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: Colors.transparent,

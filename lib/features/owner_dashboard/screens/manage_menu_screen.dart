@@ -12,6 +12,7 @@ import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/constants/supabase_constants.dart';
 import '../../../core/widgets/app_button.dart';
+import '../../../core/widgets/tab_aware_bottom_sheet.dart';
 import '../../../services/storage_service.dart';
 import '../../../core/widgets/snackbar_extensions.dart';
 import '../../food_trucks/models/menu_item.dart';
@@ -170,8 +171,9 @@ class ManageMenuScreen extends ConsumerWidget {
   }
 
   void _showAddSheet(BuildContext context, WidgetRef ref, String truckId, int nextSort) {
-    showModalBottomSheet(
+    showTabAwareModalBottomSheet(
       context: context,
+      tabIndex: 3,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _MenuItemSheet(
@@ -195,8 +197,9 @@ class ManageMenuScreen extends ConsumerWidget {
   }
 
   void _showEditSheet(BuildContext context, WidgetRef ref, MenuItem item) {
-    showModalBottomSheet(
+    showTabAwareModalBottomSheet(
       context: context,
+      tabIndex: 3,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _MenuItemSheet(
@@ -223,8 +226,9 @@ class ManageMenuScreen extends ConsumerWidget {
   }
 
   void _showImportOptions(BuildContext context, WidgetRef ref, String truckId) {
-    showModalBottomSheet(
+    showTabAwareModalBottomSheet(
       context: context,
+      tabIndex: 3,
       backgroundColor: Colors.transparent,
       builder: (sheetContext) => Container(
         decoration: BoxDecoration(

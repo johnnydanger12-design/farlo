@@ -8,6 +8,7 @@ import '../../bookings/providers/bookings_provider.dart';
 import '../models/scheduled_shift.dart';
 import '../providers/planned_locations_provider.dart';
 import '../providers/shifts_provider.dart';
+import '../../../core/widgets/tab_aware_bottom_sheet.dart';
 import '../screens/calendar_screen.dart';
 import 'add_event_sheet.dart';
 import '../../bookings/widgets/book_truck_sheet.dart';
@@ -106,8 +107,9 @@ class _ShiftWeekCardState extends ConsumerState<ShiftWeekCard> {
   }
 
   Future<void> _showAddEvent(DateTime date) async {
-    final type = await showModalBottomSheet<AddEventType>(
+    final type = await showTabAwareModalBottomSheet<AddEventType>(
       context: context,
+      tabIndex: 0,
       backgroundColor: Colors.transparent,
       builder: (_) => AddEventSheet(isOwner: widget.isOwner),
     );
@@ -117,8 +119,9 @@ class _ShiftWeekCardState extends ConsumerState<ShiftWeekCard> {
 
     switch (type) {
       case AddEventType.shift:
-        await showModalBottomSheet<void>(
+        await showTabAwareModalBottomSheet<void>(
           context: context,
+          tabIndex: 0,
           isScrollControlled: true,
           backgroundColor: Colors.transparent,
           builder: (_) => AssignShiftSheet(truckId: widget.truckId, initialDate: date),
@@ -126,8 +129,9 @@ class _ShiftWeekCardState extends ConsumerState<ShiftWeekCard> {
         if (!mounted) return;
         ref.invalidate(truckScheduledShiftsProvider((widget.truckId, y, m)));
       case AddEventType.location:
-        await showModalBottomSheet<bool>(
+        await showTabAwareModalBottomSheet<bool>(
           context: context,
+          tabIndex: 0,
           isScrollControlled: true,
           backgroundColor: Colors.transparent,
           builder: (_) => PlanLocationSheet(truckId: widget.truckId, initialDate: date),
@@ -135,8 +139,9 @@ class _ShiftWeekCardState extends ConsumerState<ShiftWeekCard> {
         if (!mounted) return;
         ref.invalidate(truckPlannedLocationsProvider((widget.truckId, y, m)));
       case AddEventType.booking:
-        await showModalBottomSheet<bool>(
+        await showTabAwareModalBottomSheet<bool>(
           context: context,
+          tabIndex: 0,
           isScrollControlled: true,
           backgroundColor: Colors.transparent,
           builder: (_) => ManualBookingSheet(
@@ -149,8 +154,9 @@ class _ShiftWeekCardState extends ConsumerState<ShiftWeekCard> {
             (widget.truckId, date.year, date.month)));
       case AddEventType.announceWeek:
         final monday = DateTime(date.year, date.month, date.day - (date.weekday - 1));
-        await showModalBottomSheet<bool>(
+        await showTabAwareModalBottomSheet<bool>(
           context: context,
+          tabIndex: 0,
           isScrollControlled: true,
           backgroundColor: Colors.transparent,
           builder: (_) => AnnounceSheet(

@@ -40,6 +40,34 @@ class DashboardStatusCard extends ConsumerWidget {
     return 'Updated ${diff.inDays}d ago';
   }
 
+  Future<void> _confirmStopAutomation(BuildContext context) async {
+    final isLight = Theme.of(context).brightness == Brightness.light;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: isLight ? Colors.white : null,
+        title: const Text('Go Offline Now?', textAlign: TextAlign.center),
+        content: const Text(
+          'This closes your business and stops sharing your location immediately. It also turns off "Open/close automatically" — turn it back on from Hours & Automation whenever you\'re ready.',
+          textAlign: TextAlign.center,
+        ),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Go Offline',
+                style: TextStyle(color: AppColors.error)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) onGoLive(false);
+  }
+
   Future<void> _toggleOrdersAccepting(
     BuildContext context,
     WidgetRef ref,
@@ -315,11 +343,19 @@ class DashboardStatusCard extends ConsumerWidget {
                     toggled: truck.isOpen,
                     child: Switch(
                       value: truck.isOpen,
-                      // null onChanged disables the switch — auto_hours_enabled
-                      // means sync-truck-hours (cron) is the only thing that
-                      // should flip is_open, not a manual tap that it would
-                      // just overwrite again within a few minutes anyway.
-                      onChanged: truck.autoHoursEnabled ? null : onGoLive,
+                      // While auto_hours_enabled, sync-truck-hours (cron) is
+                      // normally the only thing that flips is_open — a manual
+                      // tap to open early would just get overwritten within a
+                      // few minutes. But manually going OFFLINE must always
+                      // work (e.g. a real emergency, needing to immediately
+                      // stop broadcasting location) — the switch only
+                      // disables the "turn on early" direction, never "turn
+                      // off now".
+                      onChanged: (!truck.autoHoursEnabled || truck.isOpen)
+                          ? (val) => (!val && truck.autoHoursEnabled)
+                              ? _confirmStopAutomation(context)
+                              : onGoLive(val)
+                          : null,
                       activeThumbColor: AppColors.openGreen,
                       activeTrackColor:
                           AppColors.openGreen.withValues(alpha: 0.4),

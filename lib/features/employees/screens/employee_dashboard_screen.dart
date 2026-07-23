@@ -54,6 +54,7 @@ class _EmployeeDashboardScreenState extends ConsumerState<EmployeeDashboardScree
   Timer? _ticker;
   bool _clockingIn = false;
   bool _clockingOut = false;
+  bool _goingLive = false;
 
   @override
   void initState() {
@@ -125,86 +126,14 @@ class _EmployeeDashboardScreenState extends ConsumerState<EmployeeDashboardScree
 
     setState(() => _clockingIn = true);
     try {
-      final truck =
-          ref.read(employeeGoLiveProvider(widget.truckId)).asData?.value;
-      final isOwnerLive = truck != null &&
-          truck.isOpen &&
-          truck.openedByUserId != null &&
-          truck.openedByUserId !=
-              Supabase.instance.client.auth.currentUser?.id;
-
-      String? address;
-
-      if (!isOwnerLive) {
-        final notifier =
-            ref.read(employeeGoLiveProvider(widget.truckId).notifier);
-
-        if (truck?.isFixed ?? false) {
-          // Fixed business — no GPS needed, just mark as open.
-          await notifier.setOpenStatus(true);
-          if (mounted) {
-            context.showSuccess(
-              'You\'re open — customers can find you now!',
-              backgroundColor: AppColors.openGreen,
-              duration: const Duration(seconds: 3),
-            );
-          }
-        } else {
-          // Mobile business — get location first.
-          // Shows background-location disclosure on Android (required by Play policy).
-          final locationGranted = await requestLocationForGoLive(context);
-          if (!mounted) return;
-          if (!locationGranted) return;
-
-          context.showInfo('Getting your location…');
-
-          final pos = await Geolocator.getCurrentPosition(
-            locationSettings:
-                const LocationSettings(accuracy: LocationAccuracy.high),
-          );
-          if (!mounted) return;
-
-          try {
-            final marks =
-                await placemarkFromCoordinates(pos.latitude, pos.longitude);
-            if (marks.isNotEmpty) {
-              final p = marks.first;
-              final street = [
-                if (p.subThoroughfare?.isNotEmpty ?? false) p.subThoroughfare!,
-                if (p.thoroughfare?.isNotEmpty ?? false) p.thoroughfare!,
-              ].join(' ');
-              final city = p.locality ?? '';
-              if (street.isNotEmpty && city.isNotEmpty) {
-                address = '$street, $city';
-              } else if (city.isNotEmpty) {
-                address = city;
-              } else if (street.isNotEmpty) {
-                address = street;
-              }
-            }
-          } catch (_) {}
-
-          await notifier.updateLocation(pos.latitude, pos.longitude,
-              address: address);
-          await notifier.setOpenStatus(true);
-          LocationTrackingService.instance
-              .start(onLocation: notifier.updateLocation);
-
-          if (mounted) {
-            ScaffoldMessenger.of(context).hideCurrentSnackBar();
-            context.showSuccess(
-              'You\'re open — customers can find you now!',
-              backgroundColor: AppColors.openGreen,
-              duration: const Duration(seconds: 3),
-            );
-          }
-        }
-      }
-
-      // Record shift start
+      // Clocking in only starts the paid shift record — it deliberately does
+      // NOT open the business or start broadcasting location. An employee
+      // might clock in the moment they pick up the truck but not be set up
+      // at their location yet; going live is now its own separate action
+      // (see _handleGoLive) so they control exactly when that happens.
       await ref
           .read(activeShiftProvider(widget.truckId).notifier)
-          .clockIn(locationAddress: address);
+          .clockIn();
       // Reload calendar month
       final now = DateTime.now();
       ref.invalidate(myShiftsProvider((widget.truckId, now.year, now.month)));
@@ -219,6 +148,99 @@ class _EmployeeDashboardScreenState extends ConsumerState<EmployeeDashboardScree
     }
   }
 
+  Future<void> _handleGoLive(bool goLive) async {
+    if (_goingLive) return;
+    setState(() => _goingLive = true);
+    try {
+      final notifier = ref.read(employeeGoLiveProvider(widget.truckId).notifier);
+      if (!goLive) {
+        await notifier.setOpenStatus(false);
+        LocationTrackingService.instance.stop();
+        return;
+      }
+
+      final truck = ref.read(employeeGoLiveProvider(widget.truckId)).asData?.value;
+      // Auto-hours (sync-truck-hours cron) is already driving this truck's
+      // open/close — a manual Go Live shouldn't force it open early, since
+      // the cron would just close it again within a minute if it's outside
+      // an announced window.
+      if (truck?.autoHoursEnabled ?? false) {
+        if (mounted) {
+          context.showInfo(
+            'Automatic hours is on — the business opens based on your announced schedule.',
+          );
+        }
+        return;
+      }
+
+      if (truck?.isFixed ?? false) {
+        // Fixed business — no GPS needed, just mark as open.
+        await notifier.setOpenStatus(true);
+        if (mounted) {
+          context.showSuccess(
+            'You\'re open — customers can find you now!',
+            backgroundColor: AppColors.openGreen,
+            duration: const Duration(seconds: 3),
+          );
+        }
+        return;
+      }
+
+      // Mobile business — get location first.
+      // Shows background-location disclosure on Android (required by Play policy).
+      final locationGranted = await requestLocationForGoLive(context);
+      if (!mounted) return;
+      if (!locationGranted) return;
+
+      context.showInfo('Getting your location…');
+
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+      );
+      if (!mounted) return;
+
+      String? address;
+      try {
+        final marks = await placemarkFromCoordinates(pos.latitude, pos.longitude);
+        if (marks.isNotEmpty) {
+          final p = marks.first;
+          final street = [
+            if (p.subThoroughfare?.isNotEmpty ?? false) p.subThoroughfare!,
+            if (p.thoroughfare?.isNotEmpty ?? false) p.thoroughfare!,
+          ].join(' ');
+          final city = p.locality ?? '';
+          if (street.isNotEmpty && city.isNotEmpty) {
+            address = '$street, $city';
+          } else if (city.isNotEmpty) {
+            address = city;
+          } else if (street.isNotEmpty) {
+            address = street;
+          }
+        }
+      } catch (_) {}
+
+      await notifier.updateLocation(pos.latitude, pos.longitude, address: address);
+      await notifier.setOpenStatus(true);
+      LocationTrackingService.instance.start(onLocation: notifier.updateLocation);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        context.showSuccess(
+          'You\'re open — customers can find you now!',
+          backgroundColor: AppColors.openGreen,
+          duration: const Duration(seconds: 3),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        context.showError('Could not update status: ${sanitizeErrorMessage(e)}');
+      }
+    } finally {
+      if (mounted) setState(() => _goingLive = false);
+    }
+  }
+
   Future<void> _handleClockOut() async {
     if (_clockingOut) return;
 
@@ -229,6 +251,11 @@ class _EmployeeDashboardScreenState extends ConsumerState<EmployeeDashboardScree
         truck.openedByUserId != null &&
         truck.openedByUserId !=
             Supabase.instance.client.auth.currentUser?.id;
+    // Now that going live is a separate action from clocking in, a shift can
+    // end without ever having gone live at all — nothing to close in that case.
+    final isTruckLive = truck?.isOpen ?? false;
+
+    final autoHoursActive = truck?.autoHoursEnabled ?? false;
 
     final confirmed = await showDialog<bool>(
       context: context,
@@ -236,7 +263,11 @@ class _EmployeeDashboardScreenState extends ConsumerState<EmployeeDashboardScree
         title: const Text('Clock Out?'),
         content: Text(isOwnerLive
             ? 'End your shift? The business will stay open on the owner\'s device.'
-            : 'End your shift and close the business?'),
+            : !isTruckLive
+                ? 'End your shift?'
+                : autoHoursActive
+                    ? 'End your shift and close the business? This also turns off "Open/close automatically" — the owner can turn it back on from Hours & Automation.'
+                    : 'End your shift and close the business?'),
         actionsAlignment: MainAxisAlignment.center,
         actions: [
           TextButton(
@@ -255,8 +286,10 @@ class _EmployeeDashboardScreenState extends ConsumerState<EmployeeDashboardScree
 
     setState(() => _clockingOut = true);
     try {
-      if (!isOwnerLive) {
-        // Mode B: employee was broadcasting — take truck offline
+      if (isTruckLive && !isOwnerLive) {
+        // Employee was broadcasting — take truck offline. Skipped entirely
+        // if the truck was never live this shift (nothing to close), so
+        // clocking out doesn't needlessly disable auto-hours automation.
         await ref
             .read(employeeGoLiveProvider(widget.truckId).notifier)
             .setOpenStatus(false);
@@ -321,8 +354,10 @@ class _EmployeeDashboardScreenState extends ConsumerState<EmployeeDashboardScree
               isOwnerLive: isOwnerLive,
               activeShift: activeShift,
               isLoading: _clockingIn || _clockingOut || asyncTruck.isLoading,
+              isGoingLive: _goingLive,
               onClockIn: _handleClockIn,
               onClockOut: _handleClockOut,
+              onGoLive: _handleGoLive,
             ),
             if (isClockedIn && isTruckLive) ...[
               const SizedBox(height: AppSpacing.md),
@@ -348,8 +383,10 @@ class _StatusCard extends StatelessWidget {
     required this.isOwnerLive,
     required this.activeShift,
     required this.isLoading,
+    required this.isGoingLive,
     required this.onClockIn,
     required this.onClockOut,
+    required this.onGoLive,
   });
 
   final dynamic truck; // FoodTruck?
@@ -359,8 +396,10 @@ class _StatusCard extends StatelessWidget {
   final bool isOwnerLive;
   final EmployeeShift? activeShift;
   final bool isLoading;
+  final bool isGoingLive;
   final VoidCallback onClockIn;
   final VoidCallback onClockOut;
+  final void Function(bool) onGoLive;
 
   String _elapsedLabel() {
     if (activeShift == null) return '';
@@ -470,11 +509,13 @@ class _StatusCard extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            isClockedIn
-                                ? (isOwnerLive
+                            !isClockedIn
+                                ? 'Not Clocked In'
+                                : isOwnerLive
                                     ? 'Owner is Open'
-                                    : 'You\'re Clocked In')
-                                : 'Not Clocked In',
+                                    : isTruckLive
+                                        ? 'You\'re Live'
+                                        : 'Clocked In — Not Live',
                             style: AppTextStyles.label.copyWith(
                               color: isClockedIn
                                   ? AppColors.openGreen
@@ -484,11 +525,13 @@ class _StatusCard extends StatelessWidget {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            isClockedIn
-                                ? (isOwnerLive
+                            !isClockedIn
+                                ? 'Clock in to start your shift'
+                                : isOwnerLive
                                     ? 'Location broadcasting from owner\'s device'
-                                    : 'You\'re open — customers can see you')
-                                : 'Clock in to start your shift',
+                                    : isTruckLive
+                                        ? 'You\'re open — customers can see you'
+                                        : 'Go live once you\'re set up at your location',
                             style: AppTextStyles.caption,
                           ),
                           if (isClockedIn && activeShift != null) ...[
@@ -525,6 +568,45 @@ class _StatusCard extends StatelessWidget {
                               child: const Text('Clock In'),
                             ),
                 ),
+                // Going live is its own action, separate from clocking in —
+                // an employee may be on shift (driving, setting up) well
+                // before they're actually ready to open and broadcast.
+                if (isClockedIn && !isOwnerLive) ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  SizedBox(
+                    width: double.infinity,
+                    child: isGoingLive
+                        ? const Center(
+                            child: SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(strokeWidth: 2)))
+                        : isTruckLive
+                            ? OutlinedButton(
+                                onPressed: () => onGoLive(false),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: AppColors.error,
+                                  side: const BorderSide(color: AppColors.error),
+                                ),
+                                child: const Text('Go Offline'),
+                              )
+                            : FilledButton(
+                                onPressed: (truck?.autoHoursEnabled ?? false)
+                                    ? null
+                                    : () => onGoLive(true),
+                                style: FilledButton.styleFrom(
+                                    backgroundColor: AppColors.openGreen),
+                                child: const Text('Go Live'),
+                              ),
+                  ),
+                  if (!isTruckLive && (truck?.autoHoursEnabled ?? false)) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      'Automatic hours is on — opens based on the announced schedule',
+                      style: AppTextStyles.caption.copyWith(color: AppColors.textHint),
+                    ),
+                  ],
+                ],
               ],
             ),
           ),

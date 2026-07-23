@@ -42,6 +42,7 @@ class EventTile extends StatelessWidget {
     required this.time,
     required this.title,
     this.subtitle,
+    this.onTap,
     this.onDelete,
     this.deleteTooltip = 'Delete',
   });
@@ -49,11 +50,14 @@ class EventTile extends StatelessWidget {
   final String time;
   final String title;
   final String? subtitle;
+  final VoidCallback? onTap;
   final VoidCallback? onDelete;
   final String deleteTooltip;
 
   @override
-  Widget build(BuildContext context) => Padding(
+  Widget build(BuildContext context) => InkWell(
+        onTap: onTap,
+        child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -74,6 +78,11 @@ class EventTile extends StatelessWidget {
                 ],
               ),
             ),
+            if (onTap != null)
+              const Padding(
+                padding: EdgeInsets.only(right: 4),
+                child: Icon(Icons.edit_outlined, size: 18, color: AppColors.textHint),
+              ),
             if (onDelete != null)
               IconButton(
                 icon: const Icon(Icons.delete_outline, size: 20),
@@ -83,6 +92,7 @@ class EventTile extends StatelessWidget {
               ),
           ],
         ),
+      ),
       );
 }
 

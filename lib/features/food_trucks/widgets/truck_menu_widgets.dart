@@ -5,6 +5,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/widgets/sign_in_prompt_sheet.dart';
+import '../../../core/widgets/tab_aware_bottom_sheet.dart';
 import '../../../services/storage_service.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../map/models/food_truck.dart';
@@ -17,8 +18,9 @@ import '../models/menu_item.dart';
 
 bool tryAddToCart(BuildContext context, WidgetRef ref, CartItem item) {
   if (ref.read(authProvider).asData?.value == null) {
-    showModalBottomSheet<void>(
+    showTabAwareModalBottomSheet<void>(
       context: context,
+      tabIndex: 0,
       backgroundColor: Colors.transparent,
       builder: (_) => const SignInPromptSheet(),
     );
@@ -41,8 +43,9 @@ Future<bool> addItemOrCustomize(BuildContext context, WidgetRef ref, MenuItem it
       quantity: 1,
     ));
   }
-  final cartItem = await showModalBottomSheet<CartItem>(
+  final cartItem = await showTabAwareModalBottomSheet<CartItem>(
     context: context,
+    tabIndex: 0,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
     builder: (_) => CustomizeItemSheet(item: item),
@@ -194,8 +197,9 @@ class MenuItemCard extends ConsumerWidget {
     final qty = canOrder ? ref.read(cartProvider.notifier).quantityForMenuItem(item.id) : 0;
 
     return GestureDetector(
-      onTap: () => showModalBottomSheet(
+      onTap: () => showTabAwareModalBottomSheet(
         context: context,
+        tabIndex: 0,
         isScrollControlled: true,
         backgroundColor: Colors.transparent,
         builder: (_) => ItemDetailSheet(item: item, canOrder: canOrder),
@@ -396,8 +400,9 @@ class FloatingCartBar extends ConsumerWidget {
         padding: const EdgeInsets.fromLTRB(AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.md),
         child: FilledButton(
           onPressed: () {
-            showModalBottomSheet(
+            showTabAwareModalBottomSheet(
               context: context,
+              tabIndex: 0,
               isScrollControlled: true,
               backgroundColor: Colors.transparent,
               builder: (_) => OrderCartSheet(truck: truck),

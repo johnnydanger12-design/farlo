@@ -5,6 +5,8 @@ import '../../../core/constants/app_colors.dart';
 import '../../notifications/providers/notifications_provider.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../core/providers/tab_reselect_provider.dart';
+import '../../../core/widgets/tab_aware_bottom_sheet.dart';
 import '../../food_trucks/providers/food_truck_provider.dart';
 import '../models/booking_request.dart';
 import '../providers/bookings_provider.dart';
@@ -27,6 +29,11 @@ class BookingRequestsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    ref.listen<TabReselectEvent?>(tabReselectProvider, (prev, next) {
+      if (next != null && next.index == 1 && (ModalRoute.of(context)?.isCurrent ?? false)) {
+        ref.invalidate(ownerBookingRequestsProvider);
+      }
+    });
     final asyncTruck = ref.watch(ownerTruckProvider);
 
     final truck = asyncTruck.asData?.value;
@@ -42,8 +49,9 @@ class BookingRequestsScreen extends ConsumerWidget {
               tooltip: 'Add manual booking',
               onPressed: () {
                 final topPadding = MediaQuery.of(context).viewPadding.top;
-                showModalBottomSheet(
+                showTabAwareModalBottomSheet(
                   context: context,
+                  tabIndex: 1,
                   isScrollControlled: true,
                   backgroundColor: Colors.transparent,
                   builder: (_) => ManualBookingSheet(

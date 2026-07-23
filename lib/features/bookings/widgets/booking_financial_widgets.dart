@@ -8,6 +8,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/widgets/snackbar_extensions.dart';
+import '../../../core/widgets/tab_aware_bottom_sheet.dart';
 import '../models/booking_deposit.dart';
 import '../models/booking_quote.dart';
 import '../models/booking_request.dart';
@@ -63,8 +64,9 @@ class _OwnerFinancialSectionState extends ConsumerState<OwnerFinancialSection> {
   }
 
   Future<void> _openEstimateSheet() async {
-    await showModalBottomSheet<bool>(
+    await showTabAwareModalBottomSheet<bool>(
       context: context,
+      tabIndex: 1,
       isScrollControlled: true,
       backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
@@ -74,8 +76,9 @@ class _OwnerFinancialSectionState extends ConsumerState<OwnerFinancialSection> {
   }
 
   Future<void> _openDepositSheet() async {
-    await showModalBottomSheet<bool>(
+    await showTabAwareModalBottomSheet<bool>(
       context: context,
+      tabIndex: 1,
       isScrollControlled: true,
       backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
@@ -85,8 +88,9 @@ class _OwnerFinancialSectionState extends ConsumerState<OwnerFinancialSection> {
   }
 
   Future<void> _openInvoiceSheet(BookingQuote? estimate, BookingDeposit? deposit) async {
-    await showModalBottomSheet<bool>(
+    await showTabAwareModalBottomSheet<bool>(
       context: context,
+      tabIndex: 1,
       isScrollControlled: true,
       backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),

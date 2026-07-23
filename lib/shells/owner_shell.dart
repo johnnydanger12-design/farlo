@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../core/constants/app_theme.dart';
+import '../core/providers/tab_reselect_provider.dart';
 import '../features/bookings/providers/bookings_provider.dart';
 import '../features/food_trucks/providers/food_truck_provider.dart';
 import '../features/notifications/providers/notifications_provider.dart';
@@ -11,6 +12,13 @@ class OwnerShell extends ConsumerWidget {
   const OwnerShell({super.key, required this.shell});
 
   final StatefulNavigationShell shell;
+
+  void _onTabTapped(WidgetRef ref, int index) {
+    if (index == shell.currentIndex) {
+      ref.read(tabReselectProvider.notifier).fire(index);
+    }
+    shell.goBranch(index, initialLocation: index == shell.currentIndex);
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -26,10 +34,7 @@ class OwnerShell extends ConsumerWidget {
         body: shell,
         bottomNavigationBar: NavigationBar(
           selectedIndex: shell.currentIndex,
-          onDestinationSelected: (index) => shell.goBranch(
-            index,
-            initialLocation: index == shell.currentIndex,
-          ),
+          onDestinationSelected: (index) => _onTabTapped(ref, index),
           destinations: [
             const NavigationDestination(
               icon: Icon(Icons.dashboard_outlined),

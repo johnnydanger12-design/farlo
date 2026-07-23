@@ -6,6 +6,7 @@ import '../../../core/constants/app_text_styles.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/snackbar_extensions.dart';
 import '../../bookings/widgets/places_autocomplete_field.dart';
+import '../models/planned_location.dart';
 import '../providers/planned_locations_provider.dart';
 
 class PlanLocationSheet extends ConsumerStatefulWidget {
@@ -13,10 +14,13 @@ class PlanLocationSheet extends ConsumerStatefulWidget {
     super.key,
     required this.truckId,
     required this.initialDate,
+    this.existing,
   });
 
   final String truckId;
   final DateTime initialDate;
+  // When set, the sheet edits this row instead of creating a new one.
+  final PlannedLocation? existing;
 
   @override
   ConsumerState<PlanLocationSheet> createState() => _PlanLocationSheetState();
@@ -32,10 +36,22 @@ class _PlanLocationSheetState extends ConsumerState<PlanLocationSheet> {
   double? _lng;
   bool _saving = false;
 
+  bool get _isEditing => widget.existing != null;
+
   @override
   void initState() {
     super.initState();
-    _date = widget.initialDate;
+    final existing = widget.existing;
+    if (existing != null) {
+      _date = existing.eventDate;
+      _titleCtrl.text = existing.title;
+      _addressCtrl.text = existing.address ?? '';
+      _notesCtrl.text = existing.notes ?? '';
+      _lat = existing.latitude;
+      _lng = existing.longitude;
+    } else {
+      _date = widget.initialDate;
+    }
   }
 
   @override
@@ -50,15 +66,32 @@ class _PlanLocationSheetState extends ConsumerState<PlanLocationSheet> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _saving = true);
     try {
-      await ref.read(plannedLocationsRepositoryProvider).create(
-            truckId: widget.truckId,
-            eventDate: _date,
-            title: _titleCtrl.text,
-            address: _addressCtrl.text.trim().isEmpty ? null : _addressCtrl.text.trim(),
-            latitude: _lat,
-            longitude: _lng,
-            notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
-          );
+      final existing = widget.existing;
+      if (existing != null) {
+        // Preserve start/end time untouched — this sheet doesn't collect
+        // them (that's the Announce sheet's job), so a plain edit here must
+        // never silently wipe times that are already driving auto-hours.
+        await ref.read(plannedLocationsRepositoryProvider).update(
+              id: existing.id,
+              title: _titleCtrl.text,
+              address: _addressCtrl.text.trim().isEmpty ? null : _addressCtrl.text.trim(),
+              latitude: _lat,
+              longitude: _lng,
+              notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
+              startTime: existing.startTime,
+              endTime: existing.endTime,
+            );
+      } else {
+        await ref.read(plannedLocationsRepositoryProvider).create(
+              truckId: widget.truckId,
+              eventDate: _date,
+              title: _titleCtrl.text,
+              address: _addressCtrl.text.trim().isEmpty ? null : _addressCtrl.text.trim(),
+              latitude: _lat,
+              longitude: _lng,
+              notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
+            );
+      }
       // Invalidate so calendars refresh
       ref.invalidate(truckPlannedLocationsProvider((widget.truckId, _date.year, _date.month)));
       if (mounted) Navigator.pop(context, true);
@@ -103,7 +136,7 @@ class _PlanLocationSheetState extends ConsumerState<PlanLocationSheet> {
             ),
             Row(
               children: [
-                Text('Plan a Location', style: AppTextStyles.heading3),
+                Text(_isEditing ? 'Edit Location' : 'Plan a Location', style: AppTextStyles.heading3),
                 const Spacer(),
                 IconButton(
                   icon: const Icon(Icons.close),
@@ -117,13 +150,22 @@ class _PlanLocationSheetState extends ConsumerState<PlanLocationSheet> {
             Flexible(child: SingleChildScrollView(child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                CalendarDatePicker(
-                  initialDate: _date,
-                  firstDate: DateTime.now().subtract(const Duration(days: 30)),
-                  lastDate: DateTime.now().add(const Duration(days: 365)),
-                  onDateChanged: (d) => setState(() => _date = d),
-                ),
-                const Divider(height: 1),
+                if (_isEditing) ...[
+                  // The date isn't editable here — moving a location to a
+                  // different day isn't supported by the update path, and
+                  // silently ignoring a changed date would be worse than not
+                  // offering it. Delete and re-add to move a location.
+                  Text(_formattedDate(_date), style: AppTextStyles.label),
+                  const SizedBox(height: AppSpacing.md),
+                ] else ...[
+                  CalendarDatePicker(
+                    initialDate: _date,
+                    firstDate: DateTime.now().subtract(const Duration(days: 30)),
+                    lastDate: DateTime.now().add(const Duration(days: 365)),
+                    onDateChanged: (d) => setState(() => _date = d),
+                  ),
+                  const Divider(height: 1),
+                ],
                 const SizedBox(height: AppSpacing.md),
                 TextFormField(
                   controller: _titleCtrl,
@@ -156,7 +198,7 @@ class _PlanLocationSheetState extends ConsumerState<PlanLocationSheet> {
             ),),),
             const SizedBox(height: AppSpacing.md),
             AppButton(
-              label: 'Save Location',
+              label: _isEditing ? 'Save Changes' : 'Save Location',
               onPressed: _save,
               isLoading: _saving,
               backgroundColor: AppColors.primary,
@@ -167,4 +209,9 @@ class _PlanLocationSheetState extends ConsumerState<PlanLocationSheet> {
     );
   }
 
+  static const _months = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December',
+  ];
+  String _formattedDate(DateTime d) => '${_months[d.month - 1]} ${d.day}, ${d.year}';
 }

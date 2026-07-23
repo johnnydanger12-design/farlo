@@ -158,7 +158,7 @@ class SearchResults extends StatelessWidget {
                                   Text(truck.cuisineType, style: AppTextStyles.caption),
                                   if (userPos != null) ...[
                                     const SizedBox(width: 6),
-                                    _DistanceChip(
+                                    DistanceChip(
                                       meters: Geolocator.distanceBetween(
                                         userPos!.latitude, userPos!.longitude,
                                         truck.latitude!, truck.longitude!,
@@ -198,8 +198,8 @@ class SearchResults extends StatelessWidget {
   }
 }
 
-class _DistanceChip extends StatelessWidget {
-  const _DistanceChip({required this.meters});
+class DistanceChip extends StatelessWidget {
+  const DistanceChip({super.key, required this.meters});
 
   final double meters;
 

@@ -9,6 +9,7 @@ import '../../../core/constants/app_text_styles.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../models/booking_request.dart';
 import '../../../core/widgets/snackbar_extensions.dart';
+import '../../../core/widgets/tab_aware_bottom_sheet.dart';
 import '../providers/bookings_provider.dart';
 import 'places_autocomplete_field.dart';
 
@@ -85,8 +86,9 @@ class _BookTruckSheetState extends ConsumerState<BookTruckSheet> {
 
   Future<void> _pickSchedule() async {
     final minDate = DateTime.now().add(const Duration(days: 7));
-    final result = await showModalBottomSheet<_ScheduleResult>(
+    final result = await showTabAwareModalBottomSheet<_ScheduleResult>(
       context: context,
+      tabIndex: 0,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _SchedulePickerSheet(

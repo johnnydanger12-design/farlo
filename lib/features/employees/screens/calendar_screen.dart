@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/push_notification_service.dart';
+import '../../../core/widgets/tab_aware_bottom_sheet.dart';
 import '../../bookings/models/booking_request.dart';
 import '../../bookings/providers/bookings_provider.dart';
 import '../models/employee_shift.dart';
@@ -102,8 +103,9 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
       });
 
   Future<void> _showAddEvent(DateTime date) async {
-    final type = await showModalBottomSheet<AddEventType>(
+    final type = await showTabAwareModalBottomSheet<AddEventType>(
       context: context,
+      tabIndex: 0,
       backgroundColor: Colors.transparent,
       builder: (_) => AddEventSheet(isOwner: widget.isOwner),
     );
@@ -111,8 +113,9 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
 
     switch (type) {
       case AddEventType.shift:
-        await showModalBottomSheet<void>(
+        await showTabAwareModalBottomSheet<void>(
           context: context,
+          tabIndex: 0,
           isScrollControlled: true,
           backgroundColor: Colors.transparent,
           builder: (_) => AssignShiftSheet(truckId: widget.truckId, initialDate: date),
@@ -120,8 +123,9 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
         if (!mounted) return;
         ref.invalidate(truckScheduledShiftsProvider((widget.truckId, _year, _month)));
       case AddEventType.location:
-        await showModalBottomSheet<bool>(
+        await showTabAwareModalBottomSheet<bool>(
           context: context,
+          tabIndex: 0,
           isScrollControlled: true,
           backgroundColor: Colors.transparent,
           builder: (_) => PlanLocationSheet(truckId: widget.truckId, initialDate: date),
@@ -129,8 +133,9 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
         if (!mounted) return;
         ref.invalidate(truckPlannedLocationsProvider((widget.truckId, _year, _month)));
       case AddEventType.booking:
-        await showModalBottomSheet<bool>(
+        await showTabAwareModalBottomSheet<bool>(
           context: context,
+          tabIndex: 0,
           isScrollControlled: true,
           backgroundColor: Colors.transparent,
           builder: (_) => ManualBookingSheet(
@@ -142,8 +147,9 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
         ref.invalidate(acceptedBookingsForMonthProvider((widget.truckId, _year, _month)));
       case AddEventType.announceWeek:
         final monday = DateTime(date.year, date.month, date.day - (date.weekday - 1));
-        await showModalBottomSheet<bool>(
+        await showTabAwareModalBottomSheet<bool>(
           context: context,
+          tabIndex: 0,
           isScrollControlled: true,
           backgroundColor: Colors.transparent,
           builder: (_) => AnnounceSheet(
@@ -155,6 +161,21 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     }
   }
 
+  Future<void> _editLocation(PlannedLocation location) async {
+    await showTabAwareModalBottomSheet<bool>(
+      context: context,
+      tabIndex: 0,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => PlanLocationSheet(
+        truckId: widget.truckId,
+        initialDate: location.eventDate,
+        existing: location,
+      ),
+    );
+    if (!mounted) return;
+    ref.invalidate(truckPlannedLocationsProvider((widget.truckId, _year, _month)));
+  }
 
   Future<void> _confirmDeleteScheduled(ScheduledShift shift) async {
     final isLight = Theme.of(context).brightness == Brightness.light;
@@ -745,6 +766,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                                     time: l.address ?? 'No address',
                                     title: l.title,
                                     subtitle: l.notes,
+                                    onTap: widget.isOwner ? () => _editLocation(l) : null,
                                     onDelete: widget.isOwner ? () => _confirmDeleteLocation(l) : null,
                                     deleteTooltip: 'Delete planned location',
                                   )),

@@ -8,9 +8,11 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../core/providers/tab_reselect_provider.dart';
 import '../../../core/location_tracking_service.dart';
 import '../../../core/push_notification_service.dart';
 import '../../../core/widgets/background_location_disclosure.dart';
+import '../../../core/widgets/tab_aware_bottom_sheet.dart';
 import '../../account/providers/notification_prefs_provider.dart';
 import '../../food_trucks/providers/food_truck_provider.dart';
 import '../../../core/widgets/snackbar_extensions.dart';
@@ -36,6 +38,11 @@ class DashboardScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    ref.listen<TabReselectEvent?>(tabReselectProvider, (prev, next) {
+      if (next != null && next.index == 0 && (ModalRoute.of(context)?.isCurrent ?? false)) {
+        ref.read(ownerTruckProvider.notifier).refresh();
+      }
+    });
     final asyncTruck = ref.watch(ownerTruckProvider);
     final currentUserId =
         Supabase.instance.client.auth.currentUser?.id ?? '';
@@ -257,8 +264,9 @@ class DashboardScreen extends ConsumerWidget {
       BuildContext context, String truckId, String truckName) {
     final today = DateTime.now();
     final monday = DateTime(today.year, today.month, today.day - (today.weekday - 1));
-    showModalBottomSheet<void>(
+    showTabAwareModalBottomSheet<void>(
       context: context,
+      tabIndex: 0,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => AnnounceSheet(

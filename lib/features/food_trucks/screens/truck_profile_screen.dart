@@ -7,6 +7,7 @@ import '../../../core/constants/app_text_styles.dart';
 import '../../../core/widgets/star_rating_widget.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/snackbar_extensions.dart';
+import '../../../core/widgets/tab_aware_bottom_sheet.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../map/models/food_truck.dart';
 import '../../favorites/providers/favorites_provider.dart';
@@ -177,8 +178,9 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
     }
 
     final topPadding = MediaQuery.of(context).viewPadding.top;
-    final result = await showModalBottomSheet<bool>(
+    final result = await showTabAwareModalBottomSheet<bool>(
       context: context,
+      tabIndex: 0,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => BookTruckSheet(
@@ -193,8 +195,9 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
   }
 
   Future<void> _openReviewSheet(Review? existing) async {
-    final result = await showModalBottomSheet<bool>(
+    final result = await showTabAwareModalBottomSheet<bool>(
       context: context,
+      tabIndex: 0,
       isScrollControlled: true,
       backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
@@ -219,8 +222,9 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
   }
 
   Future<void> _replyToReview(Review review, {String? existing}) async {
-    final response = await showModalBottomSheet<String>(
+    final response = await showTabAwareModalBottomSheet<String>(
       context: context,
+      tabIndex: 0,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => OwnerReplySheet(existingResponse: existing),
@@ -410,7 +414,12 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
               ),
 
               // ── Hours ────────────────────────────────────────────────────────
-              if (truck.operatingHours.isNotEmpty && !truck.hoursHidden) ...[
+              // Mobile businesses don't keep a recurring weekly schedule (their
+              // real schedule is whatever they announce week-to-week via
+              // planned_locations), so a leftover operating_hours row — from
+              // before switching to mobile, or just never cleared — would show
+              // a stale, misleading schedule here if we didn't gate on isFixed.
+              if (truck.isFixed && truck.operatingHours.isNotEmpty && !truck.hoursHidden) ...[
                 const SectionSpacer(),
                 SliverToBoxAdapter(
                   child: Section(
@@ -646,8 +655,9 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
   }
 
   void _showLoginPrompt(BuildContext context) {
-    showModalBottomSheet<void>(
+    showTabAwareModalBottomSheet<void>(
       context: context,
+      tabIndex: 0,
       backgroundColor: Colors.transparent,
       builder: (_) => const SignInPromptSheet(),
     );

@@ -35,6 +35,13 @@ class FoodTruckRepository {
         .withNetworkTimeout;
   }
 
+  // This is the only path that ever manually flips is_open — the
+  // sync-truck-hours cron writes directly via its own Supabase client, never
+  // through this method. So closing here is always a human (owner or
+  // employee) action, and it must stick: also turn off auto_hours_enabled so
+  // the cron doesn't silently reopen (and re-broadcast location for) a truck
+  // someone just closed, e.g. for an emergency. Automation stays off until
+  // manually re-enabled from Hours & Automation.
   Future<void> updateOpenStatus(String id, {required bool isOpen, String? userId}) async {
     await _supabase
         .from(SupabaseConstants.foodTrucksTable)
@@ -43,6 +50,7 @@ class FoodTruckRepository {
           'session_started_at': isOpen ? DateTime.now().toUtc().toIso8601String() : null,
           'opened_by_user_id': isOpen ? userId : null,
           if (isOpen) 'has_ever_opened': true,
+          if (!isOpen) 'auto_hours_enabled': false,
         })
         .eq('id', id)
         .withNetworkTimeout;

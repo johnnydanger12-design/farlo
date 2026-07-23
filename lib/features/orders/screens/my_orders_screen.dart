@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../core/widgets/tab_aware_bottom_sheet.dart';
 import '../models/order.dart';
 import '../providers/orders_provider.dart';
 import '../widgets/order_status_sheet.dart';
@@ -63,8 +64,9 @@ class _MyOrdersScreenState extends ConsumerState<MyOrdersScreen> with WidgetsBin
   }
 
   void _openSheet(Order order) async {
-    final result = await showModalBottomSheet<bool>(
+    final result = await showTabAwareModalBottomSheet<bool>(
       context: context,
+      tabIndex: 2,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => OrderStatusSheet(order: order, isOwner: false),

@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../core/providers/tab_reselect_provider.dart';
+import '../../../core/widgets/tab_aware_bottom_sheet.dart';
 import '../../account/widgets/data_export_sheet.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../bookings/screens/booking_chat_screen.dart';
@@ -18,6 +20,11 @@ class NotificationsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    ref.listen<TabReselectEvent?>(tabReselectProvider, (prev, next) {
+      if (next != null && next.index == 2 && (ModalRoute.of(context)?.isCurrent ?? false)) {
+        ref.invalidate(notificationsProvider);
+      }
+    });
     final notifsAsync = ref.watch(notificationsProvider);
     final user = ref.watch(authProvider).asData?.value;
     final hasUnread = notifsAsync.asData?.value.any((n) => !n.read) ?? false;
@@ -74,13 +81,11 @@ class NotificationsScreen extends ConsumerWidget {
                   color: Colors.red,
                   child: const Icon(Icons.delete_outline, color: Colors.white),
                 ),
-                onDismissed: (_) {
-                  ref.read(notificationsRepositoryProvider).deleteNotification(n.id);
-                },
+                onDismissed: (_) => _delete(ref, n.id),
                 child: _NotificationTile(
                   notification: n,
                   onTap: () => _handleTap(context, ref, n, user?.isOwner ?? false),
-                  onDelete: () => ref.read(notificationsRepositoryProvider).deleteNotification(n.id),
+                  onDelete: () => _delete(ref, n.id),
                 ),
               );
             },
@@ -88,6 +93,15 @@ class NotificationsScreen extends ConsumerWidget {
         },
       ),
     );
+  }
+
+  // Doesn't solely rely on the realtime subscription to reflect a delete —
+  // even after fixing notifications' replica identity so the delete event
+  // itself now reaches this filtered channel, that's still a network
+  // round-trip; invalidating here gives instant feedback regardless.
+  Future<void> _delete(WidgetRef ref, String notificationId) async {
+    await ref.read(notificationsRepositoryProvider).deleteNotification(notificationId);
+    ref.invalidate(notificationsProvider);
   }
 
   Future<void> _handleTap(
@@ -178,16 +192,18 @@ class NotificationsScreen extends ConsumerWidget {
       case 'open_check':
         context.go(isOwner ? '/dashboard' : '/map');
       case 'data_export_ready':
-        showModalBottomSheet<void>(
+        showTabAwareModalBottomSheet<void>(
           context: context,
+          tabIndex: 2,
           isScrollControlled: true,
           useSafeArea: true,
           backgroundColor: Colors.transparent,
           builder: (_) => const DataExportSheet(),
         );
       case 'announcement':
-        showModalBottomSheet<void>(
+        showTabAwareModalBottomSheet<void>(
           context: context,
+          tabIndex: 2,
           isScrollControlled: true,
           useSafeArea: true,
           backgroundColor: Colors.transparent,

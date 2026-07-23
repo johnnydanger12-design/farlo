@@ -1,8 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../repositories/favorites_repository.dart';
 import '../models/favorite_entry.dart';
 import '../../auth/providers/auth_provider.dart';
+import '../../map/models/food_truck.dart';
+import '../../map/providers/map_provider.dart';
 
 final favoritesRepositoryProvider = Provider<FavoritesRepository>((ref) {
   return FavoritesRepository(Supabase.instance.client);
@@ -78,4 +81,32 @@ final favoritedTruckIdsProvider =
 final truckFollowerCountProvider =
     FutureProvider.autoDispose.family<int, String>((ref, truckId) {
   return ref.read(favoritesRepositoryProvider).fetchFollowerCount(truckId);
+});
+
+// "Recommended Near You" — active, subscribed businesses regardless of
+// open/closed status, sorted by distance when location is available.
+// Complements the map (which only ever shows currently-open businesses) so a
+// business that's simply closed right now isn't invisible everywhere in the
+// app. Excludes anything already followed — that's what the Following
+// section right above it is for.
+const _nearbyRecommendedLimit = 20;
+
+final nearbyRecommendedProvider = FutureProvider.autoDispose<List<FoodTruck>>((ref) async {
+  final position = ref.watch(userLocationProvider).asData?.value;
+  final favoritedIds = ref.watch(favoritedTruckIdsProvider).asData?.value ?? {};
+
+  final trucks = await ref.read(mapRepositoryProvider).fetchNearbyActive();
+  final candidates = trucks.where((t) => !favoritedIds.contains(t.id)).toList();
+
+  if (position != null) {
+    candidates.sort((a, b) {
+      final distanceA = Geolocator.distanceBetween(
+          position.latitude, position.longitude, a.latitude!, a.longitude!);
+      final distanceB = Geolocator.distanceBetween(
+          position.latitude, position.longitude, b.latitude!, b.longitude!);
+      return distanceA.compareTo(distanceB);
+    });
+  }
+
+  return candidates.take(_nearbyRecommendedLimit).toList();
 });

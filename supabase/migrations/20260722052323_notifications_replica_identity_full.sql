@@ -1,0 +1,11 @@
+-- Real bug found live: deleting a notification (swipe or the X button) never
+-- updated the unread badge count, and tapping X appeared to do nothing at
+-- all. Root cause: this table's default replica identity only includes the
+-- primary key in a DELETE's old-row payload, but the notifications realtime
+-- subscription filters on user_id — a column not present in that payload —
+-- so Postgres can never evaluate the filter and the delete event is silently
+-- dropped for this filtered channel. UPDATE ("mark as read") worked fine
+-- since the new row (with user_id) is always available regardless of
+-- replica identity. FULL includes the entire old row on delete, so the
+-- filter can match.
+alter table public.notifications replica identity full;

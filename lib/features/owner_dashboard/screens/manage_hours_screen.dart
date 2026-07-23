@@ -26,6 +26,35 @@ class _ManageHoursScreenState extends ConsumerState<ManageHoursScreen> {
     await ref.read(ownerTruckProvider.notifier).refresh();
   }
 
+  Future<void> _toggleMobileAutoHours(String truckId, bool value) async {
+    if (!value) {
+      await _toggleAutoHours(truckId, false);
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Turn On Automatic Hours?'),
+        content: const Text(
+          'Your open/close times and map location will come from the address you enter for each day when you announce your weekly schedule — not from your phone\'s live location. '
+          'A day left without an address won\'t open automatically, even if you set start/end times for it, since customers wouldn\'t be able to find you.',
+        ),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Turn On'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) await _toggleAutoHours(truckId, true);
+  }
+
   Future<void> _toggleHoursHidden(String truckId, bool hidden) async {
     await ref.read(foodTruckRepositoryProvider).updateProfile(truckId, {'hours_hidden': hidden});
     await ref.read(ownerTruckProvider.notifier).refresh();
@@ -83,9 +112,10 @@ class _ManageHoursScreenState extends ConsumerState<ManageHoursScreen> {
       error: (e, _) => Scaffold(body: Center(child: Text('Error: $e'))),
       data: (truck) {
         if (truck != null) _init(truck.operatingHours);
+        final isMobile = truck != null && !truck.isFixed;
         return Scaffold(
           appBar: AppBar(
-            title: const Text('Operating Hours'),
+            title: Text(isMobile ? 'Hours & Automation' : 'Operating Hours'),
             elevation: 0,
             surfaceTintColor: Colors.transparent,
             leading: IconButton(
@@ -93,53 +123,135 @@ class _ManageHoursScreenState extends ConsumerState<ManageHoursScreen> {
               tooltip: 'Back',
               onPressed: () => context.canPop() ? context.pop() : context.go('/dashboard'),
             ),
-            actions: [
-              TextButton(
-                onPressed: _saving ? null : _save,
-                child: _saving
-                    ? SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Theme.of(context).colorScheme.primary),
-                      )
-                    : Text('Save', style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w600)),
-              ),
-            ],
+            actions: isMobile
+                ? null
+                : [
+                    TextButton(
+                      onPressed: _saving ? null : _save,
+                      child: _saving
+                          ? SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Theme.of(context).colorScheme.primary),
+                            )
+                          : Text('Save', style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w600)),
+                    ),
+                  ],
           ),
-          body: ListView(
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            children: [
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Open/close automatically'),
-                subtitle: const Text(
-                  'Uses these hours to open and close your business, and turns off online ordering 15 minutes before close — no need to tap Go Live/Go Offline yourself.',
+          body: isMobile
+              ? ListView(
+                  padding: const EdgeInsets.all(AppSpacing.lg),
+                  children: [
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Open/close automatically'),
+                      subtitle: const Text(
+                        'Uses the start/end times you set when announcing this week\'s locations to open and close your business, and turns off online ordering 15 minutes before each spot ends — no need to tap Go Live/Go Offline yourself.',
+                      ),
+                      value: truck.autoHoursEnabled,
+                      onChanged: (val) => _toggleMobileAutoHours(truck.id, val),
+                      activeThumbColor: AppColors.openGreen,
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    Container(
+                      padding: const EdgeInsets.all(AppSpacing.md),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.info_outline, size: 18, color: Theme.of(context).colorScheme.primary),
+                          const SizedBox(width: AppSpacing.sm),
+                          Expanded(
+                            child: Text(
+                              'A day you don\'t announce a location for — or announce one without a start/end time or an address — will show as closed, since customers wouldn\'t be able to find you otherwise. Set your locations, times, and addresses from the Announce button on your dashboard.',
+                              style: AppTextStyles.caption.copyWith(color: Theme.of(context).colorScheme.primary),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (truck.autoHoursEnabled) ...[
+                      const SizedBox(height: AppSpacing.sm),
+                      Container(
+                        padding: const EdgeInsets.all(AppSpacing.md),
+                        decoration: BoxDecoration(
+                          color: AppColors.error.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.warning_amber_rounded, size: 18, color: AppColors.error),
+                            const SizedBox(width: AppSpacing.sm),
+                            Expanded(
+                              child: Text(
+                                'Need to stop broadcasting your location right now (e.g. an emergency)? The Go Live switch on your dashboard always works to go offline immediately, even with this on — doing so also turns this toggle off until you turn it back on here.',
+                                style: AppTextStyles.caption.copyWith(color: AppColors.error),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                )
+              : ListView(
+                  padding: const EdgeInsets.all(AppSpacing.lg),
+                  children: [
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Open/close automatically'),
+                      subtitle: const Text(
+                        'Uses these hours to open and close your business, and turns off online ordering 15 minutes before close — no need to tap Go Live/Go Offline yourself.',
+                      ),
+                      value: truck?.autoHoursEnabled ?? false,
+                      onChanged: truck == null ? null : (val) => _toggleAutoHours(truck.id, val),
+                      activeThumbColor: AppColors.openGreen,
+                    ),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Show hours to customers'),
+                      subtitle: const Text(
+                        'Turn off if you\'d rather not display a fixed schedule on your public profile — these hours can still drive automatic open/close above either way.',
+                      ),
+                      value: !(truck?.hoursHidden ?? false),
+                      onChanged: truck == null ? null : (val) => _toggleHoursHidden(truck.id, !val),
+                      activeThumbColor: AppColors.openGreen,
+                    ),
+                    if (truck?.autoHoursEnabled ?? false) ...[
+                      const SizedBox(height: AppSpacing.sm),
+                      Container(
+                        padding: const EdgeInsets.all(AppSpacing.md),
+                        decoration: BoxDecoration(
+                          color: AppColors.error.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.warning_amber_rounded, size: 18, color: AppColors.error),
+                            const SizedBox(width: AppSpacing.sm),
+                            Expanded(
+                              child: Text(
+                                'Need to close right now for some reason? The Go Live switch on your dashboard always works to go offline immediately, even with this on — doing so also turns this toggle off until you turn it back on here.',
+                                style: AppTextStyles.caption.copyWith(color: AppColors.error),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    const Divider(height: 32),
+                    ...List.generate(7, (day) {
+                      final row = _DayRow(
+                        day: day,
+                        entry: _entries[day] ?? _HourEntry(isClosed: false, openTime: '09:00', closeTime: '17:00'),
+                        onChanged: (e) => setState(() => _entries[day] = e),
+                      );
+                      return day == 0 ? row : Column(children: [const Divider(height: 1), row]);
+                    }),
+                  ],
                 ),
-                value: truck?.autoHoursEnabled ?? false,
-                onChanged: truck == null ? null : (val) => _toggleAutoHours(truck.id, val),
-                activeThumbColor: AppColors.openGreen,
-              ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Show hours to customers'),
-                subtitle: const Text(
-                  'Turn off if you\'d rather not display a fixed schedule on your public profile — these hours can still drive automatic open/close above either way.',
-                ),
-                value: !(truck?.hoursHidden ?? false),
-                onChanged: truck == null ? null : (val) => _toggleHoursHidden(truck.id, !val),
-                activeThumbColor: AppColors.openGreen,
-              ),
-              const Divider(height: 32),
-              ...List.generate(7, (day) {
-                final row = _DayRow(
-                  day: day,
-                  entry: _entries[day] ?? _HourEntry(isClosed: false, openTime: '09:00', closeTime: '17:00'),
-                  onChanged: (e) => setState(() => _entries[day] = e),
-                );
-                return day == 0 ? row : Column(children: [const Divider(height: 1), row]);
-              }),
-            ],
-          ),
         );
       },
     );

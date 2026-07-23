@@ -7,6 +7,7 @@ import '../../../core/constants/app_text_styles.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/providers/theme_provider.dart';
 import '../../../core/widgets/snackbar_extensions.dart';
+import '../../../core/widgets/tab_aware_bottom_sheet.dart';
 import '../../auth/providers/auth_provider.dart';
 import 'account_shared.dart';
 
@@ -217,8 +218,9 @@ class AppearanceTile extends ConsumerWidget {
   }
 
   void _showPicker(BuildContext context, WidgetRef ref, ThemeMode current) {
-    showModalBottomSheet<void>(
+    showTabAwareModalBottomSheet<void>(
       context: context,
+      tabIndex: 3,
       isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: Colors.transparent,

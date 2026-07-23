@@ -7,6 +7,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../../core/providers/tab_reselect_provider.dart';
+import '../../../core/widgets/tab_aware_bottom_sheet.dart';
 import '../../employees/providers/employees_provider.dart';
 import '../../employees/widgets/employee_go_live_card.dart';
 import '../../favorites/providers/favorites_provider.dart';
@@ -209,8 +211,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       LatLng(truck.latitude!, truck.longitude!),
       _mapController.camera.zoom,
     );
-    showModalBottomSheet<void>(
+    showTabAwareModalBottomSheet<void>(
       context: context,
+      tabIndex: 0,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => TruckBottomSheet(truck: truck),
@@ -396,6 +399,13 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<TabReselectEvent?>(tabReselectProvider, (prev, next) {
+      if (next != null && next.index == 0 && (ModalRoute.of(context)?.isCurrent ?? false)) {
+        ref.invalidate(activeTrucksProvider);
+        ref.invalidate(favoritedTruckIdsProvider);
+        ref.invalidate(myEmployeeTrucksProvider);
+      }
+    });
     final trucksAsync = ref.watch(activeTrucksProvider);
     final locationAsync = ref.watch(userLocationProvider);
     // Pre-load so the heart state is ready before any bottom sheet opens.

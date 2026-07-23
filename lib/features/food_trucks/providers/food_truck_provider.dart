@@ -163,6 +163,11 @@ class OwnerTruckNotifier extends AsyncNotifier<FoodTruck?> {
       isOpen: isOpen,
       sessionStartedAt: isOpen ? DateTime.now() : null,
       openedByUserId: isOpen ? userId : null,
+      // Closing always disables auto-hours server-side (see
+      // FoodTruckRepository.updateOpenStatus) so cron can't reopen a truck
+      // someone just manually closed — mirror that locally so the switch
+      // reflects it immediately instead of waiting on a realtime refetch.
+      autoHoursEnabled: isOpen ? null : false,
     ));
     try {
       await ref

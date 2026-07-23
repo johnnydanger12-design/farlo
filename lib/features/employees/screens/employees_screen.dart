@@ -11,6 +11,7 @@ import '../../owner_dashboard/providers/subscription_provider.dart';
 import '../models/truck_employee.dart';
 import '../providers/employees_provider.dart';
 import '../../../core/widgets/snackbar_extensions.dart';
+import '../../../core/widgets/tab_aware_bottom_sheet.dart';
 
 class EmployeesScreen extends ConsumerWidget {
   const EmployeesScreen({super.key});
@@ -155,8 +156,9 @@ class _EmployeesListState extends ConsumerState<_EmployeesList> {
       return;
     }
     final ctrl = TextEditingController();
-    showModalBottomSheet<void>(
+    showTabAwareModalBottomSheet<void>(
       context: context,
+      tabIndex: 3,
       isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: Colors.transparent,

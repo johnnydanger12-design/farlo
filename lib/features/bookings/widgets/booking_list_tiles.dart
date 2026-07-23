@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../core/widgets/tab_aware_bottom_sheet.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../models/booking_request.dart';
 import '../providers/bookings_provider.dart';
@@ -50,8 +51,9 @@ class PendingTile extends ConsumerWidget {
     final msgCount = ref.watch(bookingMessageCountProvider((request.id, userId))).asData?.value ?? 0;
     return GestureDetector(
       onTap: () async {
-        await showModalBottomSheet(
+        await showTabAwareModalBottomSheet(
           context: context,
+          tabIndex: 1,
           isScrollControlled: true,
           backgroundColor: Colors.transparent,
           builder: (_) => RequestDetailSheet(request: request),
@@ -129,8 +131,9 @@ class UpcomingCard extends ConsumerWidget {
 
     return GestureDetector(
       onTap: () async {
-        await showModalBottomSheet(
+        await showTabAwareModalBottomSheet(
           context: context,
+          tabIndex: 1,
           isScrollControlled: true,
           backgroundColor: Colors.transparent,
           builder: (_) => RequestDetailSheet(request: request),
@@ -289,8 +292,9 @@ class CompactTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () => showModalBottomSheet(
+      onTap: () => showTabAwareModalBottomSheet(
         context: context,
+        tabIndex: 1,
         isScrollControlled: true,
         backgroundColor: Colors.transparent,
         builder: (_) => RequestDetailSheet(request: request),

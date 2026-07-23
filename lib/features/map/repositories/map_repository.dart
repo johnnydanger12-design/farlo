@@ -25,6 +25,20 @@ class MapRepository {
     return (data as List).map((e) => FoodTruck.fromMap(e as Map<String, dynamic>)).toList();
   }
 
+  // Same as fetchActiveTrucks() minus the is_open filter — used for
+  // "Recommended Near You" style discovery, where a business that's active
+  // and subscribed but simply closed right now should still be discoverable,
+  // not invisible everywhere in the app the way it is on the map itself.
+  Future<List<FoodTruck>> fetchNearbyActive() async {
+    final data = await _supabase
+        .from(SupabaseConstants.foodTrucksTable)
+        .select()
+        .not('latitude', 'is', null)
+        .not('longitude', 'is', null)
+        .withNetworkTimeout;
+    return (data as List).map((e) => FoodTruck.fromMap(e as Map<String, dynamic>)).toList();
+  }
+
   Stream<List<FoodTruck>> streamActiveTrucks() {
     StreamController<List<FoodTruck>>? controller;
     RealtimeChannel? channel;
