@@ -29,6 +29,10 @@ export const onRequest: PagesFunction = async (context) => {
   const response = await context.next();
 
   const url = new URL(context.request.url);
+  // /order/<id> is the receipt-email "View Your Order" handoff page (see
+  // OpenOrder.tsx) — not a business slug, and doesn't need OG-tag rewriting
+  // (it's never meant to be shared/previewed on social media).
+  if (/^\/order\//.test(url.pathname)) return response;
   const slug = url.pathname.replace(/^\/+|\/+$/g, '').toLowerCase();
   if (!slug) return response;
 

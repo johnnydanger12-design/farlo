@@ -9,6 +9,12 @@ import { HoursTable } from './components/HoursTable';
 import { MenuSection } from './components/MenuSection';
 import { SocialLinks } from './components/SocialLinks';
 import { DownloadCta } from './components/DownloadCta';
+import { OpenOrder } from './components/OpenOrder';
+
+function getOrderIdFromPath(): string | null {
+  const match = /^\/order\/([^/]+)\/?$/.exec(window.location.pathname);
+  return match ? decodeURIComponent(match[1]) : null;
+}
 
 function getSlugFromPath(): string {
   // Slugs are always generated lowercase (see the food_trucks slug trigger),
@@ -24,9 +30,11 @@ type State =
   | { status: 'found'; truck: FoodTruck };
 
 export default function App() {
+  const orderId = getOrderIdFromPath();
   const [state, setState] = useState<State>({ status: 'loading' });
 
   useEffect(() => {
+    if (orderId) return;
     const slug = getSlugFromPath();
     if (!slug) {
       setState({ status: 'not-found' });
@@ -52,8 +60,9 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [orderId]);
 
+  if (orderId) return <OpenOrder orderId={orderId} />;
   if (state.status === 'loading') return <Loading />;
   if (state.status === 'not-found') return <NotFound />;
 
