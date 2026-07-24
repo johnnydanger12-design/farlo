@@ -94,7 +94,12 @@ export default function App() {
         )}
       </div>
 
-      <HoursTable hours={truck.operating_hours} />
+      {/* Mirrors truck_profile_screen.dart's gate: mobile trucks' operating_hours
+          rows are stale leftovers (mobile hours come from planned_locations,
+          not this table), and hours_hidden is an explicit owner opt-out. */}
+      {truck.business_type === 'fixed' && !truck.hours_hidden && (
+        <HoursTable hours={truck.operating_hours} />
+      )}
       <MenuSection items={truck.menu_items} menuImageUrl={truck.menu_image_url} menuPdfUrl={truck.menu_pdf_url} />
       <SocialLinks truck={truck} />
 

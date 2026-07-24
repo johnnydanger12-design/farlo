@@ -134,8 +134,10 @@ class _OrderCartSheetState extends ConsumerState<OrderCartSheet> {
               ? ThemeMode.dark
               : ThemeMode.light,
           // Apple Pay merchant ID registered 2026-07-23 (Stripe.merchantIdentifier
-          // set once in main.dart). No Google Pay merchant setup yet.
+          // set once in main.dart). Google Pay added 2026-07-24 — no separate
+          // merchant registration needed, Stripe's PaymentSheet handles it.
           applePay: const PaymentSheetApplePay(merchantCountryCode: 'US'),
+          googlePay: const PaymentSheetGooglePay(merchantCountryCode: 'US'),
         ),
       );
       await Stripe.instance.presentPaymentSheet();

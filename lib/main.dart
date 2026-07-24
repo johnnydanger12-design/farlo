@@ -27,11 +27,14 @@ Future<void> main() async {
     Stripe.publishableKey = _stripePublishableKey;
     // Registered 2026-07-23: Apple Developer merchant ID + Stripe iOS
     // certificate, Xcode Apple Pay capability (Runner.entitlements'
-    // com.apple.developer.in-app-payments). Android has no Google Pay
-    // merchant setup yet, so this is iOS-only for now.
+    // com.apple.developer.in-app-payments).
     if (Platform.isIOS) {
       Stripe.merchantIdentifier = 'merchant.com.farlo.app';
     }
+    // Google Pay (2026-07-24): unlike Apple Pay, Stripe's own PaymentSheet
+    // integration doesn't need a separate Google Pay Business Console
+    // merchant registration — no equivalent of merchantIdentifier to set
+    // here, just the per-checkout PaymentSheetGooglePay param.
     await Stripe.instance.applySettings();
   }
 

@@ -682,8 +682,10 @@ class _ConsumerFinancialSectionState extends ConsumerState<_ConsumerFinancialSec
           paymentIntentClientSecret: result['client_secret'] as String,
           merchantDisplayName: 'Farlo',
           // Apple Pay merchant ID registered 2026-07-23 (Stripe.merchantIdentifier
-          // set once in main.dart). No Google Pay merchant setup yet.
+          // set once in main.dart). Google Pay added 2026-07-24 — no separate
+          // merchant registration needed, Stripe's PaymentSheet handles it.
           applePay: const PaymentSheetApplePay(merchantCountryCode: 'US'),
+          googlePay: const PaymentSheetGooglePay(merchantCountryCode: 'US'),
         ),
       );
       await Stripe.instance.presentPaymentSheet();

@@ -37,6 +37,7 @@ export interface FoodTruck {
   is_open: boolean;
   address: string | null;
   business_type: string;
+  hours_hidden: boolean;
   social_instagram: string | null;
   social_tiktok: string | null;
   social_facebook: string | null;
