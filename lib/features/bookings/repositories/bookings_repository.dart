@@ -271,6 +271,11 @@ class BookingsRepository {
           'record_id': recordId,
           'booking_id': bookingId,
           'idempotency_key': idempotencyKey,
+          // This build sets Stripe.stripeAccountId client-side before
+          // confirming the PaymentSheet (see my_requests_screen.dart), so
+          // it's safe to ask the server for a direct charge on the connected
+          // account instead of the old destination-charge behavior.
+          'supports_direct_charge': true,
         },
       ).withNetworkTimeout;
       final data = res.data as Map<String, dynamic>;

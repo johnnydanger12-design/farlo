@@ -16,6 +16,7 @@ import '../../../core/widgets/tab_aware_bottom_sheet.dart';
 import '../../account/providers/notification_prefs_provider.dart';
 import '../../food_trucks/providers/food_truck_provider.dart';
 import '../../../core/widgets/snackbar_extensions.dart';
+import '../providers/dashboard_providers.dart';
 import '../providers/subscription_provider.dart';
 import '../../employees/widgets/announce_sheet.dart';
 import '../widgets/dashboard_calendar_section.dart';
@@ -64,10 +65,11 @@ class DashboardScreen extends ConsumerWidget {
           if (truck == null) {
             return const Center(child: Text('No business found.'));
           }
+          final stripeConnected = ref.watch(stripeConnectedProvider).asData?.value ?? false;
           return ListView(
             padding: const EdgeInsets.all(AppSpacing.lg),
             children: [
-              if (!truck.hasEverOpened) ...[
+              if (!DashboardGettingStartedCard.isComplete(truck, stripeConnected)) ...[
                 DashboardGettingStartedCard(
                   truck: truck,
                   onGoLive: () => _handleToggle(context, ref, true, truck.name),
@@ -102,10 +104,14 @@ class DashboardScreen extends ConsumerWidget {
                     _handleToggle(context, ref, val, truck.name),
               ),
               const SizedBox(height: AppSpacing.md),
-              if (truck.isOpen && truck.ordersEnabled) ...[
-                DashboardOrdersWidget(truckId: truck.id),
-                const SizedBox(height: AppSpacing.md),
-              ],
+              // Always shown — an owner needs to look back at past orders
+              // (a dispute, just curiosity) regardless of whether the truck
+              // is currently open/accepting orders. Only the "live" pending/
+              // in-progress rows below the header are naturally empty while
+              // closed; the header itself always links to the full order
+              // queue (with search) at /dashboard/orders.
+              DashboardOrdersWidget(truckId: truck.id),
+              const SizedBox(height: AppSpacing.md),
               DashboardCalendarSection(truckId: truck.id, truckName: truck.name),
             ],
           );

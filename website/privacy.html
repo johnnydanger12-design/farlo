@@ -14,7 +14,7 @@
 
   <div class="legal-hero">
     <h1>Privacy Policy</h1>
-    <p>Last updated: June 23, 2026</p>
+    <p>Last updated: July 24, 2026</p>
   </div>
 
   <div class="legal-body">
@@ -30,7 +30,7 @@
       <li>Menu information: item names, descriptions, prices, categories, and photos</li>
       <li>Employee information: if you are a business owner who adds employees, we store their email addresses and shift records</li>
       <li>Booking requests: event details, dates, times, location, guest count, and contact information you submit when requesting a private event</li>
-      <li>Financial information: estimates, deposit requests, and invoices exchanged between business owners and customers. Payment card details are never stored by Farlo — they are handled directly by Stripe (see Section 4).</li>
+      <li>Financial information: order payments, estimates, deposit requests, and invoices exchanged between business owners and customers. Payment card details are never stored by Farlo — they are handled directly by Stripe (see Section 4).</li>
       <li>Communications you send through the App, including booking messages</li>
     </ul>
 
@@ -47,6 +47,7 @@
     <ul>
       <li>If you sign in with Apple or Google, we receive basic profile information (name and email) from those providers, subject to your privacy settings with them</li>
       <li>If you connect a Stripe account as a business owner, we receive your Stripe account identifier to enable payment processing</li>
+      <li>If a business owner connects a point-of-sale system (Clover or Square), we receive their POS account credentials to enable order syncing — see Section 3 for how this affects customer order data</li>
     </ul>
 
     <h2>2. How We Use Your Information</h2>
@@ -72,6 +73,8 @@
         <ul>
           <li><strong>Supabase</strong> — database, authentication, and file storage (servers located in the United States)</li>
           <li><strong>Stripe</strong> — payment processing. When you make or receive a payment through the App, relevant transaction information is shared with Stripe. Stripe's privacy policy is available at <a href="https://stripe.com/privacy" style="color:#2563EB">stripe.com/privacy</a>.</li>
+          <li><strong>Clover and Square</strong> — point-of-sale integration. If a business you order from has connected Clover or Square, your order details (items and total) are shared with that provider so the order can print or display on their point-of-sale system, and — for Clover, and only if you provide a phone number at checkout — your phone number is shared to match your order to that business's own loyalty program.</li>
+          <li><strong>Resend</strong> — transactional email delivery (e.g. order receipts, booking confirmations, and account emails)</li>
           <li><strong>Firebase (Google)</strong> — push notifications</li>
           <li><strong>Google</strong> — maps, sign-in, and address autocomplete (Places API)</li>
           <li><strong>Apple</strong> — sign-in and App Store services</li>
@@ -165,7 +168,7 @@
     </ul>
 
     <h2>15. Third-Party Links and Services</h2>
-    <p>The App integrates with third-party services including Google Maps, Apple Maps, and Stripe. This Privacy Policy does not apply to those services. We encourage you to review the privacy policies of any third-party services you use.</p>
+    <p>The App integrates with third-party services including Google Maps, Apple Maps, Stripe, Clover, and Square. This Privacy Policy does not apply to those services. We encourage you to review the privacy policies of any third-party services you use.</p>
 
     <h2>16. Changes to This Policy</h2>
     <p>We may update this Privacy Policy from time to time. When we do, we will update the "Last updated" date at the top of this page and, for material changes, notify you through the App or by email. Your continued use of the App after changes constitutes your acceptance of the updated policy.</p>

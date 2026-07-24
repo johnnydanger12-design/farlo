@@ -39,9 +39,12 @@ Farlo is for independent operators who want the tools big chains have — withou
 food truck,local business,map,order,coffee shop,restaurant,catering,pop-up,open now,delivery
 
 ## What's New (latest version)
-- Business type support: food trucks, coffee shops, restaurants, and more can now list on Farlo
-- Stripe payment dashboard now accessible directly from the app
-- Improved open/closed status for all business types
+- Pay with Apple Pay at checkout
+- Every order now gets a pickup code and a clean confirmation screen, plus an emailed receipt with a link straight back to your order
+- See your past orders anytime from Account → Order History
+- Occasional reminder when a business you follow is open, right around lunchtime
+- Expanded Help & FAQ, with search
+- Business owners: your order queue is now always available, with search, so you can look back on any past order
 - Performance and stability improvements
 
 ## Support URL

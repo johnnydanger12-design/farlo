@@ -11,6 +11,7 @@ import 'app_shell.dart';
 import 'core/push_notification_service.dart';
 import 'core/rc_config.dart';
 import 'core/secure_local_storage.dart';
+import 'core/version_gate.dart';
 import 'firebase_options.dart';
 
 const _supabaseUrl = String.fromEnvironment('SUPABASE_URL');
@@ -24,6 +25,13 @@ Future<void> main() async {
 
   if (_stripePublishableKey.isNotEmpty) {
     Stripe.publishableKey = _stripePublishableKey;
+    // Registered 2026-07-23: Apple Developer merchant ID + Stripe iOS
+    // certificate, Xcode Apple Pay capability (Runner.entitlements'
+    // com.apple.developer.in-app-payments). Android has no Google Pay
+    // merchant setup yet, so this is iOS-only for now.
+    if (Platform.isIOS) {
+      Stripe.merchantIdentifier = 'merchant.com.farlo.app';
+    }
     await Stripe.instance.applySettings();
   }
 
@@ -53,6 +61,18 @@ Future<void> main() async {
       ),
     ),
   );
+
+  // Force-update gate: raised only when we deliberately decide stragglers on
+  // an old build need pushed forward (e.g. a future incident like the
+  // 2026-07-23 Stripe direct-charge one). Checked before anything else mounts
+  // so a blocked build never gets far enough to hit whatever it'd otherwise
+  // break. Fails open (see fetchVersionRequirement) so a network hiccup never
+  // locks anyone out.
+  final versionRequirement = await fetchVersionRequirement();
+  if (versionRequirement.minBuildNumber != null && kAppBuildNumber < versionRequirement.minBuildNumber!) {
+    runApp(UpdateRequiredApp(message: versionRequirement.updateMessage));
+    return;
+  }
 
   if (Firebase.apps.isEmpty) {
     await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);

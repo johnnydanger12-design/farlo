@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
@@ -9,6 +10,7 @@ import '../../../core/widgets/tab_aware_bottom_sheet.dart';
 import '../../../services/storage_service.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../map/models/food_truck.dart';
+import '../../orders/models/order.dart';
 import '../../orders/models/order_item.dart';
 import '../../orders/providers/orders_provider.dart';
 import '../../orders/widgets/order_cart_sheet.dart';
@@ -432,14 +434,17 @@ class FloatingCartBar extends ConsumerWidget {
       child: Padding(
         padding: const EdgeInsets.fromLTRB(AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.md),
         child: FilledButton(
-          onPressed: () {
-            showTabAwareModalBottomSheet(
+          onPressed: () async {
+            final order = await showTabAwareModalBottomSheet<Order>(
               context: context,
               tabIndex: 0,
               isScrollControlled: true,
               backgroundColor: Colors.transparent,
               builder: (_) => OrderCartSheet(truck: truck),
             );
+            if (order != null && context.mounted) {
+              context.push('/order-confirmation', extra: order);
+            }
           },
           style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
           child: Row(

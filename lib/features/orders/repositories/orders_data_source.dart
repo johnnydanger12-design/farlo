@@ -10,7 +10,7 @@ import '../models/order_item.dart';
 // replicating Supabase's fluent query-builder chain in a test double.
 
 const _orderSelect =
-    '*, order_items(*), food_trucks(name), profiles(display_name)';
+    '*, order_items(*), food_trucks(name, logo_url), profiles(display_name)';
 
 abstract class OrdersDataSource {
   Future<Order?> findOrderByPaymentIntent(String paymentIntentId);
@@ -22,6 +22,7 @@ abstract class OrdersDataSource {
     required String paymentIntentId,
     String? pickupNote,
     required double taxPrice,
+    String? stripeAccountId,
   });
 }
 
@@ -49,6 +50,7 @@ class SupabaseOrdersDataSource implements OrdersDataSource {
     required String paymentIntentId,
     String? pickupNote,
     required double taxPrice,
+    String? stripeAccountId,
   }) async {
     // total_price includes tax — matches the actual amount charged via Stripe
     // (create-payment-intent charges subtotal + tax as one PaymentIntent), so
@@ -64,6 +66,11 @@ class SupabaseOrdersDataSource implements OrdersDataSource {
           'tax_price': taxPrice,
           'stripe_payment_intent_id': paymentIntentId,
           if (pickupNote != null && pickupNote.isNotEmpty) 'pickup_note': pickupNote,
+          // Only set for direct charges (see create-payment-intent) — lets
+          // create-refund know which Stripe account a refund needs to be
+          // scoped to. Null means the old destination-charge path, which
+          // refunds against the platform account exactly as it always has.
+          'stripe_connected_account_id': ?stripeAccountId,
         })
         .select('id')
         .single()

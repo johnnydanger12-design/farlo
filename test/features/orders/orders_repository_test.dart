@@ -21,6 +21,8 @@ Order _order({String id = 'order1', String paymentIntentId = 'pi_1'}) => Order(
       items: const [],
       createdAt: DateTime(2026, 1, 1),
       updatedAt: DateTime(2026, 1, 1),
+      orderNumber: 100001,
+      pickupCode: 'A1B2',
     );
 
 void main() {

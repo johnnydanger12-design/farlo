@@ -12,6 +12,17 @@ class DashboardGettingStartedCard extends ConsumerStatefulWidget {
   final FoodTruck truck;
   final VoidCallback onGoLive;
 
+  /// Mirrors the `done` conditions of every step below — keep in sync if a
+  /// step is added/removed. Lets the dashboard keep showing this card until
+  /// every step (not just "has gone live") is actually complete.
+  static bool isComplete(FoodTruck truck, bool stripeConnected) {
+    return truck.logoUrl != null &&
+        truck.menuItems.isNotEmpty &&
+        truck.operatingHours.isNotEmpty &&
+        stripeConnected &&
+        truck.hasEverOpened;
+  }
+
   @override
   ConsumerState<DashboardGettingStartedCard> createState() => _DashboardGettingStartedCardState();
 }
@@ -30,6 +41,12 @@ class _DashboardGettingStartedCardState extends ConsumerState<DashboardGettingSt
         subtitle: 'Add a logo, description, and business type',
         done: widget.truck.logoUrl != null,
         onTap: () => context.go('/dashboard/edit-truck'),
+      ),
+      (
+        title: 'Add your menu',
+        subtitle: 'Customers can\'t order until you have at least one item',
+        done: widget.truck.menuItems.isNotEmpty,
+        onTap: () => context.go('/dashboard/manage-menu'),
       ),
       (
         title: 'Set business hours',

@@ -8,6 +8,7 @@ import '../../../core/constants/app_text_styles.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_text_field.dart';
 import '../../../core/widgets/snackbar_extensions.dart';
+import '../last_login_method.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/social_auth_buttons.dart';
 
@@ -24,6 +25,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
   bool _isLoading = false;
+  LastLoginMethod? _lastMethod;
+
+  @override
+  void initState() {
+    super.initState();
+    getLastLoginMethod().then((method) {
+      if (mounted) setState(() => _lastMethod = method);
+    });
+  }
 
   @override
   void dispose() {
@@ -106,10 +116,27 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   style: AppTextStyles.body,
                 ),
                 const SizedBox(height: AppSpacing.lg),
-                SocialAuthButtons(onError: _showError),
+                SocialAuthButtons(onError: _showError, lastMethod: _lastMethod),
                 const SizedBox(height: AppSpacing.lg),
                 const OrDivider(),
                 const SizedBox(height: AppSpacing.lg),
+                if (_lastMethod == LastLoginMethod.email) ...[
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Text(
+                        'Used last time',
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.primary),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                ],
                 AutofillGroup(
                   onDisposeAction: AutofillContextAction.cancel,
                   child: Column(

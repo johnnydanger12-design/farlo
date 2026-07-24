@@ -114,7 +114,12 @@ class AccountScreen extends ConsumerWidget {
                 const SizedBox(height: AppSpacing.lg),
               ],
               if (!user.isOwner) ...[
-                const SectionHeader('Bookings'),
+                const SectionHeader('Orders & Bookings'),
+                SettingsTile(
+                  icon: Icons.receipt_long_outlined,
+                  label: 'Order History',
+                  onTap: () => context.push('/account/my-orders'),
+                ),
                 SettingsTile(
                   icon: Icons.event_outlined,
                   label: 'My Event Requests',
@@ -145,18 +150,6 @@ class AccountScreen extends ConsumerWidget {
                 icon: Icons.privacy_tip_outlined,
                 label: 'Privacy Policy',
                 onTap: () => launchUrl(Uri.parse(_privacyUrl), mode: LaunchMode.externalApplication),
-              ),
-              SettingsTile(
-                icon: Icons.support_agent_outlined,
-                label: 'Contact Support',
-                onTap: () async {
-                  final uri = Uri(
-                    scheme: 'mailto',
-                    path: 'support@farlo.app',
-                    query: 'subject=Farlo%20Support%20Request',
-                  );
-                  if (await canLaunchUrl(uri)) await launchUrl(uri);
-                },
               ),
               const SizedBox(height: AppSpacing.lg),
               const SectionHeader('Account'),

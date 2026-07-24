@@ -5,6 +5,7 @@ class Order {
     required this.id,
     required this.truckId,
     this.truckName,
+    this.truckLogoUrl,
     required this.consumerId,
     this.consumerName,
     required this.status,
@@ -16,11 +17,14 @@ class Order {
     required this.items,
     required this.createdAt,
     required this.updatedAt,
+    required this.orderNumber,
+    required this.pickupCode,
   });
 
   final String id;
   final String truckId;
   final String? truckName;
+  final String? truckLogoUrl;
   final String consumerId;
   final String? consumerName;
   final String status; // pending | accepted | ready | completed | declined | cancelled
@@ -32,6 +36,11 @@ class Order {
   final List<OrderItem> items;
   final DateTime createdAt;
   final DateTime updatedAt;
+  // Permanent, globally sequential — the dispute/support/receipt reference.
+  final int orderNumber;
+  // Short 4-char uppercase alphanumeric, resets daily per truck — what
+  // actually gets called out at the pickup counter.
+  final String pickupCode;
 
   bool get isPending => status == 'pending';
   bool get isActive => status == 'accepted' || status == 'ready';
@@ -51,6 +60,7 @@ class Order {
       id: map['id'] as String,
       truckId: map['truck_id'] as String,
       truckName: truckMap?['name'] as String?,
+      truckLogoUrl: truckMap?['logo_url'] as String?,
       consumerId: map['consumer_id'] as String,
       consumerName: profileMap?['display_name'] as String?,
       status: map['status'] as String,
@@ -62,6 +72,8 @@ class Order {
       items: items,
       createdAt: DateTime.parse(map['created_at'] as String),
       updatedAt: DateTime.parse(map['updated_at'] as String),
+      orderNumber: (map['order_number'] as num).toInt(),
+      pickupCode: map['pickup_code'] as String,
     );
   }
 
@@ -70,6 +82,7 @@ class Order {
       id: id,
       truckId: truckId,
       truckName: truckName,
+      truckLogoUrl: truckLogoUrl,
       consumerId: consumerId,
       consumerName: consumerName,
       status: status ?? this.status,
@@ -81,6 +94,8 @@ class Order {
       items: items,
       createdAt: createdAt,
       updatedAt: updatedAt,
+      orderNumber: orderNumber,
+      pickupCode: pickupCode,
     );
   }
 }

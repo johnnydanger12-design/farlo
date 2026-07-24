@@ -13,7 +13,8 @@ class NotificationPrefsNotifier extends AsyncNotifier<NotifPrefs> {
   }
 
   NotifPrefs get _current =>
-      state.asData?.value ?? (pushEnabled: true, openAlert: true, announcementAlert: true, bookingAlert: true);
+      state.asData?.value ??
+      (pushEnabled: true, openAlert: true, announcementAlert: true, bookingAlert: true, lunchNudgeAlert: true);
 
   Future<void> setPushEnabled(bool value) async {
     state = AsyncData((
@@ -21,6 +22,7 @@ class NotificationPrefsNotifier extends AsyncNotifier<NotifPrefs> {
       openAlert: _current.openAlert,
       announcementAlert: _current.announcementAlert,
       bookingAlert: _current.bookingAlert,
+      lunchNudgeAlert: _current.lunchNudgeAlert,
     ));
     await _repo.updatePrefs(pushEnabled: value);
   }
@@ -31,6 +33,7 @@ class NotificationPrefsNotifier extends AsyncNotifier<NotifPrefs> {
       openAlert: value,
       announcementAlert: _current.announcementAlert,
       bookingAlert: _current.bookingAlert,
+      lunchNudgeAlert: _current.lunchNudgeAlert,
     ));
     await _repo.updatePrefs(openAlert: value);
   }
@@ -41,6 +44,7 @@ class NotificationPrefsNotifier extends AsyncNotifier<NotifPrefs> {
       openAlert: _current.openAlert,
       announcementAlert: value,
       bookingAlert: _current.bookingAlert,
+      lunchNudgeAlert: _current.lunchNudgeAlert,
     ));
     await _repo.updatePrefs(announcementAlert: value);
   }
@@ -51,8 +55,20 @@ class NotificationPrefsNotifier extends AsyncNotifier<NotifPrefs> {
       openAlert: _current.openAlert,
       announcementAlert: _current.announcementAlert,
       bookingAlert: value,
+      lunchNudgeAlert: _current.lunchNudgeAlert,
     ));
     await _repo.updatePrefs(bookingAlert: value);
+  }
+
+  Future<void> setLunchNudgeAlert(bool value) async {
+    state = AsyncData((
+      pushEnabled: _current.pushEnabled,
+      openAlert: _current.openAlert,
+      announcementAlert: _current.announcementAlert,
+      bookingAlert: _current.bookingAlert,
+      lunchNudgeAlert: value,
+    ));
+    await _repo.updatePrefs(lunchNudgeAlert: value);
   }
 }
 

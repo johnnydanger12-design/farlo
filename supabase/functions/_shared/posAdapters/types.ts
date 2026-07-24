@@ -32,6 +32,11 @@ export interface PosOrder {
   consumer_name: string;
   consumer_phone: string | null;
   order_items: PosOrderItem[];
+  // The short code a customer sees in-app/in their receipt email and expects
+  // to be called out at pickup (order.dart's pickupCode) — without this on
+  // the printed ticket, staff have no way to match a physical ticket back to
+  // the code the customer is actually listening for.
+  pickup_code: string;
 }
 
 export interface PosAdapter {

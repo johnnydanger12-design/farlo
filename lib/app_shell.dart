@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -18,6 +19,7 @@ class AppShell extends ConsumerStatefulWidget {
 
 class _AppShellState extends ConsumerState<AppShell> {
   StreamSubscription<AuthState>? _supabaseAuthSub;
+  StreamSubscription<Uri>? _orderLinkSub;
 
   @override
   void initState() {
@@ -28,11 +30,23 @@ class _AppShellState extends ConsumerState<AppShell> {
         ref.read(routerProvider).go('/set-new-password');
       }
     });
+
+    // farlo://order/<id> — the receipt email's "View Your Order" button
+    // (see OpenOrder.tsx on visit.farlo.app, which is the actual link target;
+    // that page then hands off to this scheme). Global/app-wide rather than
+    // scoped to one screen (unlike stripe-connect/square's own link
+    // listeners) since this needs to work from a cold start too.
+    _orderLinkSub = AppLinks().uriLinkStream.listen((uri) {
+      if (uri.scheme == 'farlo' && uri.host == 'order' && uri.pathSegments.isNotEmpty) {
+        ref.read(routerProvider).go('/order-lookup/${uri.pathSegments.first}');
+      }
+    });
   }
 
   @override
   void dispose() {
     _supabaseAuthSub?.cancel();
+    _orderLinkSub?.cancel();
     super.dispose();
   }
 

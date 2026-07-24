@@ -59,6 +59,8 @@ class _OrderQueueList extends ConsumerStatefulWidget {
 class _OrderQueueListState extends ConsumerState<_OrderQueueList> with WidgetsBindingObserver {
   RealtimeChannel? _channel;
   bool _doneExpanded = false;
+  final _searchController = TextEditingController();
+  String _query = '';
 
   @override
   void initState() {
@@ -87,7 +89,24 @@ class _OrderQueueListState extends ConsumerState<_OrderQueueList> with WidgetsBi
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     Supabase.instance.client.removeChannel(_channel!);
+    _searchController.dispose();
     super.dispose();
+  }
+
+  // Matches on whatever an owner would actually plug in here — a customer's
+  // name, the permanent order number (the dispute/support reference), the
+  // pickup code, or an item they remember ordering — so this doubles as the
+  // "someone's disputing a charge" lookup tool, not just a name filter.
+  List<Order> _filtered(List<Order> orders) {
+    final q = _query.trim().toLowerCase();
+    if (q.isEmpty) return orders;
+    return orders.where((o) {
+      if ((o.consumerName ?? '').toLowerCase().contains(q)) return true;
+      if (o.orderNumber.toString().contains(q)) return true;
+      if (o.pickupCode.toLowerCase().contains(q)) return true;
+      if (o.items.any((i) => i.name.toLowerCase().contains(q))) return true;
+      return false;
+    }).toList();
   }
 
   @override
@@ -114,74 +133,113 @@ class _OrderQueueListState extends ConsumerState<_OrderQueueList> with WidgetsBi
   @override
   Widget build(BuildContext context) {
     final asyncOrders = ref.watch(ownerOrdersProvider);
+    final searching = _query.trim().isNotEmpty;
 
-    return RefreshIndicator(
-      onRefresh: () async => ref.read(ownerOrdersProvider.notifier).load(widget.truckId),
-      child: asyncOrders.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Error: $e', style: AppTextStyles.bodySmall)),
-        data: (orders) {
-          final incoming = orders.where((o) => o.status == 'pending').toList();
-          final inProgress = orders.where((o) => o.status == 'accepted' || o.status == 'ready').toList();
-          final done = orders.where((o) => o.isTerminal).toList();
-
-          if (orders.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.receipt_long_outlined, size: 48, color: AppColors.textHint),
-                  const SizedBox(height: AppSpacing.md),
-                  Text('No orders yet', style: AppTextStyles.body.copyWith(color: AppColors.textSecondary)),
-                  const SizedBox(height: 4),
-                  Text('Orders will appear here in real time', style: AppTextStyles.caption),
-                ],
-              ),
-            );
-          }
-
-          return ListView(
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            children: [
-              if (incoming.isNotEmpty) ...[
-                _SectionHeader('Incoming (${incoming.length})'),
-                const SizedBox(height: AppSpacing.sm),
-                ...incoming.map((o) => _OrderCard(order: o, onTap: () => _openSheet(o))),
-                const SizedBox(height: AppSpacing.lg),
-              ],
-              if (inProgress.isNotEmpty) ...[
-                _SectionHeader('In Progress (${inProgress.length})'),
-                const SizedBox(height: AppSpacing.sm),
-                ...inProgress.map((o) => _OrderCard(order: o, onTap: () => _openSheet(o))),
-                const SizedBox(height: AppSpacing.lg),
-              ],
-              if (done.isNotEmpty) ...[
-                Semantics(
-                  label: _doneExpanded ? 'Collapse Done section' : 'Expand Done section',
-                  button: true,
-                  child: GestureDetector(
-                    onTap: () => setState(() => _doneExpanded = !_doneExpanded),
-                    child: Row(
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, 0),
+          child: TextField(
+            controller: _searchController,
+            decoration: InputDecoration(
+              hintText: 'Search by customer, order #, pickup code, or item',
+              prefixIcon: const Icon(Icons.search),
+              suffixIcon: searching
+                  ? IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () {
+                        _searchController.clear();
+                        setState(() => _query = '');
+                      },
+                    )
+                  : null,
+              isDense: true,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            onChanged: (v) => setState(() => _query = v),
+          ),
+        ),
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: () async => ref.read(ownerOrdersProvider.notifier).load(widget.truckId),
+            child: asyncOrders.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (e, _) => Center(child: Text('Error: $e', style: AppTextStyles.bodySmall)),
+              data: (allOrders) {
+                if (allOrders.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        _SectionHeader('Done (${done.length})'),
-                        const Spacer(),
-                        Icon(
-                          _doneExpanded ? Icons.expand_less : Icons.expand_more,
-                          color: AppColors.textHint,
-                        ),
+                        Icon(Icons.receipt_long_outlined, size: 48, color: AppColors.textHint),
+                        const SizedBox(height: AppSpacing.md),
+                        Text('No orders yet', style: AppTextStyles.body.copyWith(color: AppColors.textSecondary)),
+                        const SizedBox(height: 4),
+                        Text('Orders will appear here in real time', style: AppTextStyles.caption),
                       ],
                     ),
-                  ),
-                ),
-                if (_doneExpanded) ...[
-                  const SizedBox(height: AppSpacing.sm),
-                  ...done.map((o) => _OrderCard(order: o, onTap: () => _openSheet(o))),
-                ],
-              ],
-            ],
-          );
-        },
-      ),
+                  );
+                }
+
+                final orders = _filtered(allOrders);
+                final incoming = orders.where((o) => o.status == 'pending').toList();
+                final inProgress = orders.where((o) => o.status == 'accepted' || o.status == 'ready').toList();
+                final done = orders.where((o) => o.isTerminal).toList();
+
+                if (orders.isEmpty) {
+                  return Center(
+                    child: Text('No orders match "$_query"', style: AppTextStyles.bodySmall),
+                  );
+                }
+
+                return ListView(
+                  padding: const EdgeInsets.all(AppSpacing.lg),
+                  children: [
+                    if (incoming.isNotEmpty) ...[
+                      _SectionHeader('Incoming (${incoming.length})'),
+                      const SizedBox(height: AppSpacing.sm),
+                      ...incoming.map((o) => _OrderCard(order: o, onTap: () => _openSheet(o))),
+                      const SizedBox(height: AppSpacing.lg),
+                    ],
+                    if (inProgress.isNotEmpty) ...[
+                      _SectionHeader('In Progress (${inProgress.length})'),
+                      const SizedBox(height: AppSpacing.sm),
+                      ...inProgress.map((o) => _OrderCard(order: o, onTap: () => _openSheet(o))),
+                      const SizedBox(height: AppSpacing.lg),
+                    ],
+                    if (done.isNotEmpty) ...[
+                      Semantics(
+                        label: _doneExpanded ? 'Collapse Done section' : 'Expand Done section',
+                        button: true,
+                        child: GestureDetector(
+                          onTap: () => setState(() => _doneExpanded = !_doneExpanded),
+                          child: Row(
+                            children: [
+                              _SectionHeader('Done (${done.length})'),
+                              const Spacer(),
+                              Icon(
+                                _doneExpanded ? Icons.expand_less : Icons.expand_more,
+                                color: AppColors.textHint,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      // Auto-expand while searching — a search's whole point
+                      // is often finding a past (Done) order, so it shouldn't
+                      // stay collapsed just because that's the default state.
+                      if (_doneExpanded || searching) ...[
+                        const SizedBox(height: AppSpacing.sm),
+                        ...done.map((o) => _OrderCard(order: o, onTap: () => _openSheet(o))),
+                      ],
+                    ],
+                  ],
+                );
+              },
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -211,7 +269,7 @@ class _OrderCard extends StatelessWidget {
         onTap: onTap,
         title: Text(order.consumerName ?? 'Customer', style: AppTextStyles.label),
         subtitle: Text(
-          '$itemCount item${itemCount != 1 ? 's' : ''} · \$${order.totalPrice.toStringAsFixed(2)}',
+          '$itemCount item${itemCount != 1 ? 's' : ''} · \$${order.totalPrice.toStringAsFixed(2)} · #${order.orderNumber}',
           style: AppTextStyles.caption,
         ),
         trailing: Column(

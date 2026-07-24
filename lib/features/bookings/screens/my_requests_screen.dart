@@ -669,10 +669,21 @@ class _ConsumerFinancialSectionState extends ConsumerState<_ConsumerFinancialSec
         bookingId: widget.request.id,
         idempotencyKey: _idempotencyKeyFor(type, recordId),
       );
+      // The PaymentIntent is a direct charge living on the business's own
+      // connected Stripe account, not the platform's — the SDK has to be
+      // told that account before it can confirm/present it. Reset in the
+      // finally block below so it never leaks into some other Stripe SDK
+      // use elsewhere in the app.
+      Stripe.stripeAccountId = result['stripe_account_id'] as String;
+      await Stripe.instance.applySettings();
+      if (!mounted) return;
       await Stripe.instance.initPaymentSheet(
         paymentSheetParameters: SetupPaymentSheetParameters(
           paymentIntentClientSecret: result['client_secret'] as String,
           merchantDisplayName: 'Farlo',
+          // Apple Pay merchant ID registered 2026-07-23 (Stripe.merchantIdentifier
+          // set once in main.dart). No Google Pay merchant setup yet.
+          applePay: const PaymentSheetApplePay(merchantCountryCode: 'US'),
         ),
       );
       await Stripe.instance.presentPaymentSheet();
@@ -694,6 +705,11 @@ class _ConsumerFinancialSectionState extends ConsumerState<_ConsumerFinancialSec
     } catch (e) {
       if (mounted) setState(() => _error = _friendlyPaymentError(e));
     } finally {
+      // Always clear this back out, win or lose — it's a global SDK setting,
+      // not scoped to this checkout, so it must never leak into whatever the
+      // next Stripe SDK interaction anywhere in the app happens to be.
+      Stripe.stripeAccountId = null;
+      await Stripe.instance.applySettings();
       if (mounted) setState(() => _paying = false);
     }
   }

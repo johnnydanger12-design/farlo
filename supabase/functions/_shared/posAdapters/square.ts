@@ -59,7 +59,11 @@ async function createOrder(order: PosOrder, credentials: PosCredentials, _custom
       order: {
         location_id: credentials.square_location_id,
         line_items: lineItems,
-        note: order.pickup_note ?? undefined,
+        // Pickup code leads so staff can call it out at pickup, same
+        // reasoning as the Clover adapter's title field — an order.pickup_note
+        // (if any) follows after it rather than replacing it.
+        reference_id: `#${order.pickup_code}`,
+        note: order.pickup_note ? `#${order.pickup_code} — ${order.pickup_note}` : `#${order.pickup_code}`,
       },
     }),
   });

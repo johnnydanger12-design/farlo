@@ -192,6 +192,10 @@ class NotificationsScreen extends ConsumerWidget {
         context.go('/dashboard');
       case 'open_check':
         context.go(isOwner ? '/dashboard' : '/map');
+      case 'onboarding_menu_nudge':
+        context.go('/dashboard/manage-menu');
+      case 'lunch_nudge':
+        context.go('/favorites');
       case 'data_export_ready':
         showTabAwareModalBottomSheet<void>(
           context: context,
@@ -288,6 +292,8 @@ class _NotificationTile extends StatelessWidget {
       'order_declined' => Icons.cancel_outlined,
       'order_cancelled' => Icons.remove_shopping_cart_outlined,
       'clover_print_failed' => Icons.print_disabled_outlined,
+      'onboarding_menu_nudge' => Icons.restaurant_menu_outlined,
+      'lunch_nudge' => Icons.restaurant_outlined,
       _ => Icons.notifications_outlined,
     };
   }

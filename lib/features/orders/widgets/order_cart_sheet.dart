@@ -99,7 +99,7 @@ class _OrderCartSheetState extends ConsumerState<OrderCartSheet> {
     // session found live: an owner mid-onboarding with no Stripe account
     // connected made every consumer see that scary message despite zero
     // payment ever being attempted.
-    final ({String clientSecret, String paymentIntentId, double taxPrice}) checkout;
+    final ({String clientSecret, String paymentIntentId, double taxPrice, String stripeAccountId}) checkout;
     try {
       checkout = await repo.createPaymentIntent(
         truckId: widget.truck.id,
@@ -116,7 +116,16 @@ class _OrderCartSheetState extends ConsumerState<OrderCartSheet> {
     if (!mounted) return;
 
     try {
-      // 2. Init + present Stripe PaymentSheet
+      // 2. Init + present Stripe PaymentSheet. The PaymentIntent is a direct
+      // charge living on the business's own connected Stripe account, not
+      // the platform's — the SDK has to be told that account before it can
+      // confirm/present it, same as Stripe.publishableKey is set once at
+      // startup, just scoped per-checkout here since it varies per truck.
+      // Reset in the finally block below so it never leaks into some other
+      // Stripe SDK use elsewhere in the app.
+      Stripe.stripeAccountId = checkout.stripeAccountId;
+      await Stripe.instance.applySettings();
+      if (!mounted) return;
       await Stripe.instance.initPaymentSheet(
         paymentSheetParameters: SetupPaymentSheetParameters(
           paymentIntentClientSecret: checkout.clientSecret,
@@ -124,6 +133,9 @@ class _OrderCartSheetState extends ConsumerState<OrderCartSheet> {
           style: Theme.of(context).brightness == Brightness.dark
               ? ThemeMode.dark
               : ThemeMode.light,
+          // Apple Pay merchant ID registered 2026-07-23 (Stripe.merchantIdentifier
+          // set once in main.dart). No Google Pay merchant setup yet.
+          applePay: const PaymentSheetApplePay(merchantCountryCode: 'US'),
         ),
       );
       await Stripe.instance.presentPaymentSheet();
@@ -140,6 +152,7 @@ class _OrderCartSheetState extends ConsumerState<OrderCartSheet> {
         pickupNote: _pickupNoteCtrl.text.trim().isEmpty ? null : _pickupNoteCtrl.text.trim(),
         paymentIntentId: checkout.paymentIntentId,
         taxPrice: checkout.taxPrice,
+        stripeAccountId: checkout.stripeAccountId,
       );
 
       cartNotifier.clear();
@@ -171,6 +184,11 @@ class _OrderCartSheetState extends ConsumerState<OrderCartSheet> {
         );
       }
     } finally {
+      // Always clear this back out, win or lose — it's a global SDK setting,
+      // not scoped to this checkout, so it must never leak into whatever the
+      // next Stripe SDK interaction anywhere in the app happens to be.
+      Stripe.stripeAccountId = null;
+      await Stripe.instance.applySettings();
       if (mounted) setState(() => _paying = false);
     }
   }

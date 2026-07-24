@@ -115,8 +115,39 @@ class _OrderStatusSheetState extends ConsumerState<OrderStatusSheet> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      _timeAgo(order.createdAt),
+                      '${_timeAgo(order.createdAt)} · Order #${order.orderNumber}',
                       style: AppTextStyles.caption,
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+
+                    // Pickup code — the short, shout-across-the-counter
+                    // identifier (resets daily per truck), distinct from the
+                    // permanent order number above used for support/disputes.
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
+                        children: [
+                          Text(
+                            'PICKUP CODE',
+                            style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.w700, letterSpacing: 1.2),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            order.pickupCode,
+                            style: const TextStyle(
+                              fontSize: 32,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 3,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                     const SizedBox(height: AppSpacing.lg),
 

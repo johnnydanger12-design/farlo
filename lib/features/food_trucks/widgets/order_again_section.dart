@@ -75,9 +75,15 @@ SelectedModifier _resolveGroupChoice(
 // than watching its own provider — so an empty order history never leaves a
 // bare "Order Again" section title with nothing underneath it.
 class OrderAgainSection extends StatelessWidget {
-  const OrderAgainSection({super.key, required this.orders, required this.currentMenuItems});
+  const OrderAgainSection({
+    super.key,
+    required this.orders,
+    required this.currentMenuItems,
+    required this.truckId,
+  });
   final List<Order> orders;
   final List<MenuItem> currentMenuItems;
+  final String truckId;
 
   @override
   Widget build(BuildContext context) {
@@ -87,16 +93,21 @@ class OrderAgainSection extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         itemCount: orders.length,
         separatorBuilder: (_, _) => const SizedBox(width: AppSpacing.sm),
-        itemBuilder: (_, i) => _OrderAgainCard(order: orders[i], currentMenuItems: currentMenuItems),
+        itemBuilder: (_, i) => _OrderAgainCard(
+          order: orders[i],
+          currentMenuItems: currentMenuItems,
+          truckId: truckId,
+        ),
       ),
     );
   }
 }
 
 class _OrderAgainCard extends ConsumerWidget {
-  const _OrderAgainCard({required this.order, required this.currentMenuItems});
+  const _OrderAgainCard({required this.order, required this.currentMenuItems, required this.truckId});
   final Order order;
   final List<MenuItem> currentMenuItems;
+  final String truckId;
 
   // Matches the "+ X" / "No X" summary convention already used on the cart
   // sheet and order status sheet — without the customization, two past
@@ -117,6 +128,17 @@ class _OrderAgainCard extends ConsumerWidget {
     return '${labels.take(2).join(', ')} +${labels.length - 2} more';
   }
 
+  Future<void> _dismiss(BuildContext context, WidgetRef ref) async {
+    // Optimistic-feeling: the shelf refetches right after, so the card is
+    // just gone rather than needing its own local removal animation.
+    try {
+      await ref.read(ordersRepositoryProvider).hideFromOrderAgain(order.id);
+      ref.invalidate(recentOrdersAtTruckProvider(truckId));
+    } catch (_) {
+      if (context.mounted) context.showError('Couldn\'t remove that — try again.');
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Container(
@@ -126,39 +148,60 @@ class _OrderAgainCard extends ConsumerWidget {
         border: Border.all(color: AppColors.divider),
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Stack(
         children: [
-          Text(
-            _itemsSummary,
-            style: AppTextStyles.bodySmall.copyWith(fontWeight: FontWeight.w600),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const Spacer(),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('\$${order.totalPrice.toStringAsFixed(2)}', style: AppTextStyles.caption),
-              OutlinedButton(
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              Padding(
+                // Room for the dismiss button so it never overlaps the text.
+                padding: const EdgeInsets.only(right: AppSpacing.lg),
+                child: Text(
+                  _itemsSummary,
+                  style: AppTextStyles.bodySmall.copyWith(fontWeight: FontWeight.w600),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                onPressed: () {
-                  final skipped = reorderPastOrder(ref, order, currentMenuItems);
-                  if (skipped == order.items.length) {
-                    context.showInfo('Those items are no longer on the menu');
-                  } else if (skipped > 0) {
-                    context.showSuccess('Added to bag — $skipped item(s) no longer available');
-                  } else {
-                    context.showSuccess('Added to bag');
-                  }
-                },
-                child: const Text('Reorder'),
+              ),
+              const Spacer(),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('\$${order.totalPrice.toStringAsFixed(2)}', style: AppTextStyles.caption),
+                  OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    onPressed: () {
+                      final skipped = reorderPastOrder(ref, order, currentMenuItems);
+                      if (skipped == order.items.length) {
+                        context.showInfo('Those items are no longer on the menu');
+                      } else if (skipped > 0) {
+                        context.showSuccess('Added to bag — $skipped item(s) no longer available');
+                      } else {
+                        context.showSuccess('Added to bag');
+                      }
+                    },
+                    child: const Text('Reorder'),
+                  ),
+                ],
               ),
             ],
+          ),
+          Positioned(
+            top: -8,
+            right: -8,
+            child: IconButton(
+              icon: const Icon(Icons.close, size: 16),
+              tooltip: 'Remove from Order Again',
+              padding: const EdgeInsets.all(4),
+              constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+              visualDensity: VisualDensity.compact,
+              color: AppColors.textSecondary,
+              onPressed: () => _dismiss(context, ref),
+            ),
           ),
         ],
       ),

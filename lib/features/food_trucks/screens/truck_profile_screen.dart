@@ -478,7 +478,11 @@ class _TruckProfileContentState extends ConsumerState<_TruckProfileContent> {
                 SliverToBoxAdapter(
                   child: Section(
                     title: 'Order Again',
-                    child: OrderAgainSection(orders: recentOrders, currentMenuItems: truck.menuItems),
+                    child: OrderAgainSection(
+                      orders: recentOrders,
+                      currentMenuItems: truck.menuItems,
+                      truckId: truck.id,
+                    ),
                   ),
                 ),
                 const SectionSpacer(),

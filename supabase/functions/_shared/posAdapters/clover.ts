@@ -57,7 +57,10 @@ async function findOrCreateCustomer(phone: string, credentials: PosCredentials):
 // employee is set to a dedicated "Farlo" employee (created per-merchant in
 // their Clover dashboard) purely so the printed ticket shows a server name —
 // API-created orders otherwise print with no server name at all.
-// title is set to the customer's name so the ticket identifies whose order it is.
+// title leads with the pickup code (the same code the customer sees in-app
+// and in their receipt email) so staff can actually call it out at pickup —
+// without it here, the printed ticket has no way to be matched back to what
+// the customer is listening for.
 async function createOrder(order: PosOrder, credentials: PosCredentials, customerId: string | null): Promise<string> {
   const baseUrl = cloverBaseUrl(credentials.environment);
   const headers = authHeaders(credentials);
@@ -65,7 +68,7 @@ async function createOrder(order: PosOrder, credentials: PosCredentials, custome
   const orderBody: Record<string, unknown> = {
     state: 'Open',
     currency: 'USD',
-    title: order.consumer_name,
+    title: `#${order.pickup_code} — ${order.consumer_name}`,
     employee: { id: credentials.clover_employee_id },
   };
   if (credentials.clover_order_type_id) {

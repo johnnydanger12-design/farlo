@@ -50,6 +50,7 @@ class NotificationsDialog extends ConsumerWidget {
     final openAlert = prefs.asData?.value.openAlert ?? true;
     final announcementAlert = prefs.asData?.value.announcementAlert ?? true;
     final bookingAlert = prefs.asData?.value.bookingAlert ?? true;
+    final lunchNudgeAlert = prefs.asData?.value.lunchNudgeAlert ?? true;
     final notifier = ref.read(notificationPrefsProvider.notifier);
 
     return buildSheetContainer(
@@ -110,6 +111,13 @@ class NotificationsDialog extends ConsumerWidget {
                 subtitle: Text('Status updates on your private event requests', style: AppTextStyles.caption),
                 value: bookingAlert && pushEnabled,
                 onChanged: pushEnabled ? (v) => notifier.setBookingAlert(v) : null,
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text('Lunchtime Nudges', style: AppTextStyles.label),
+                subtitle: Text('Occasional reminder when businesses you follow are open', style: AppTextStyles.caption),
+                value: lunchNudgeAlert && pushEnabled,
+                onChanged: pushEnabled ? (v) => notifier.setLunchNudgeAlert(v) : null,
               ),
             ],
             const SizedBox(height: AppSpacing.md),

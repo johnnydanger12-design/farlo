@@ -25,7 +25,10 @@ import 'features/bookings/screens/booking_requests_screen.dart';
 import 'features/bookings/screens/my_requests_screen.dart';
 import 'features/food_trucks/screens/truck_profile_screen.dart';
 import 'features/notifications/screens/notifications_screen.dart';
+import 'features/orders/models/order.dart';
 import 'features/orders/screens/my_orders_screen.dart';
+import 'features/orders/screens/order_confirmation_screen.dart';
+import 'features/orders/screens/order_lookup_screen.dart';
 import 'features/orders/screens/order_queue_screen.dart';
 import 'features/orders/screens/stripe_connect_screen.dart';
 import 'features/pos_integration/screens/pos_integration_screen.dart';
@@ -50,6 +53,23 @@ final routerProvider = Provider<GoRouter>((ref) {
     initialLocation: '/map',
     refreshListenable: _AuthListenable(ref),
     redirect: (context, state) {
+      // GoRouter intercepts ANY platform-delivered URL as route information —
+      // including our farlo:// custom-scheme deep links, even though those
+      // are meant to be handled by AppLinks().uriLinkStream listeners
+      // (app_shell.dart, stripe_connect_screen.dart, connect_square_screen.dart),
+      // not matched as an app route. Left unhandled, this throws "no routes
+      // for location: farlo://order/<id>" and shows a raw error page —
+      // confirmed live testing the new order deep link. Translate the ones
+      // with a real destination; anything else falls back to /map instead
+      // of crashing (the relevant screen's own listener still runs
+      // independently and handles its own side effect either way).
+      if (state.uri.scheme == 'farlo') {
+        if (state.uri.host == 'order' && state.uri.pathSegments.isNotEmpty) {
+          return '/order-lookup/${state.uri.pathSegments.first}';
+        }
+        return '/map';
+      }
+
       final authAsync = ref.read(authProvider);
       final onboardingAsync = ref.read(onboardingProvider);
       return computeRedirect(
@@ -66,6 +86,14 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/register', builder: (c, s) => const RegisterScreen()),
       GoRoute(path: '/register-owner', builder: (c, s) => const RegisterOwnerScreen()),
       GoRoute(path: '/set-new-password', builder: (c, s) => const SetNewPasswordScreen()),
+      GoRoute(
+        path: '/order-confirmation',
+        builder: (c, s) => OrderConfirmationScreen(order: s.extra as Order),
+      ),
+      GoRoute(
+        path: '/order-lookup/:id',
+        builder: (c, s) => OrderLookupScreen(orderId: s.pathParameters['id']!),
+      ),
 
       // Consumer shell
       StatefulShellRoute.indexedStack(

@@ -263,6 +263,12 @@ static Future<void> sendTruckClosedAlert(String truckName) async {
       // ── Open-check notification ──────────────────────────────────────────────
       case 'open_check':
         router.go('/dashboard');
+      // ── Onboarding nudge ──────────────────────────────────────────────────
+      case 'onboarding_menu_nudge':
+        router.go('/dashboard/manage-menu');
+      // ── Lunchtime nudge (consumer) ────────────────────────────────────────
+      case 'lunch_nudge':
+        router.go('/favorites');
       default:
         break;
     }

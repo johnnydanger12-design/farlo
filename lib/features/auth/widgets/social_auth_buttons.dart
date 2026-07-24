@@ -2,12 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
+import '../../../core/constants/app_colors.dart';
+import '../last_login_method.dart';
 import '../providers/auth_provider.dart';
 
 class SocialAuthButtons extends ConsumerStatefulWidget {
-  const SocialAuthButtons({super.key, required this.onError});
+  const SocialAuthButtons({super.key, required this.onError, this.lastMethod});
 
   final void Function(String message) onError;
+
+  // Highlights whichever button matches how this device last signed in, so a
+  // returning user doesn't have to guess between Apple/Google/email. Null
+  // (first-ever launch, or last method was email) shows no badge here.
+  final LastLoginMethod? lastMethod;
 
   @override
   ConsumerState<SocialAuthButtons> createState() => _SocialAuthButtonsState();
@@ -51,6 +58,7 @@ class _SocialAuthButtonsState extends ConsumerState<SocialAuthButtons> {
         opacity: _loading ? 0.6 : 1.0,
         child: Column(
           children: [
+            if (widget.lastMethod == LastLoginMethod.apple) const _LastUsedBadge(),
             SignInWithAppleButton(
               onPressed: () => _run(
                 () => ref.read(authProvider.notifier).signInWithApple(),
@@ -60,12 +68,38 @@ class _SocialAuthButtonsState extends ConsumerState<SocialAuthButtons> {
               height: 52,
             ),
             const SizedBox(height: 12),
+            if (widget.lastMethod == LastLoginMethod.google) const _LastUsedBadge(),
             _GoogleButton(
               onPressed: () => _run(
                 () => ref.read(authProvider.notifier).signInWithGoogle(),
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LastUsedBadge extends StatelessWidget {
+  const _LastUsedBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: AppColors.primary.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: const Text(
+            'Used last time',
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.primary),
+          ),
         ),
       ),
     );

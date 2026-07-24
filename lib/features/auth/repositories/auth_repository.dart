@@ -6,6 +6,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/app_user.dart';
+import '../last_login_method.dart';
 import '../../../core/constants/supabase_constants.dart';
 import '../../../core/extensions/future_timeout.dart';
 
@@ -21,6 +22,7 @@ class AuthRepository {
       email: email,
       password: password,
     );
+    await setLastLoginMethod(LastLoginMethod.email);
     return _fetchProfile(response.user!.id);
   }
 
@@ -233,6 +235,7 @@ class AuthRepository {
         .where((s) => s != null && s.isNotEmpty)
         .join(' ');
 
+    await setLastLoginMethod(LastLoginMethod.apple);
     return _provisionSocialProfile(uid: uid, email: email, displayName: fullName);
   }
 
@@ -271,6 +274,7 @@ class AuthRepository {
     final email = account.email;
     final displayName = account.displayName ?? email.split('@').first;
 
+    await setLastLoginMethod(LastLoginMethod.google);
     return _provisionSocialProfile(uid: uid, email: email, displayName: displayName);
   }
 

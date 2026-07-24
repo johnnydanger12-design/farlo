@@ -6,6 +6,7 @@ typedef NotifPrefs = ({
   bool openAlert,
   bool announcementAlert,
   bool bookingAlert,
+  bool lunchNudgeAlert,
 });
 
 const _defaultPrefs = (
@@ -13,6 +14,7 @@ const _defaultPrefs = (
   openAlert: true,
   announcementAlert: true,
   bookingAlert: true,
+  lunchNudgeAlert: true,
 );
 
 class NotificationPrefsRepository {
@@ -24,7 +26,7 @@ class NotificationPrefsRepository {
 
     final data = await _client
         .from('notification_preferences')
-        .select('push_enabled, open_alert, announcement_alert, booking_alert')
+        .select('push_enabled, open_alert, announcement_alert, booking_alert, lunch_nudge_alert')
         .eq('user_id', userId)
         .maybeSingle()
         .withNetworkTimeout;
@@ -35,6 +37,7 @@ class NotificationPrefsRepository {
       openAlert: data['open_alert'] as bool? ?? true,
       announcementAlert: data['announcement_alert'] as bool? ?? true,
       bookingAlert: data['booking_alert'] as bool? ?? true,
+      lunchNudgeAlert: data['lunch_nudge_alert'] as bool? ?? true,
     );
   }
 
@@ -43,6 +46,7 @@ class NotificationPrefsRepository {
     bool? openAlert,
     bool? announcementAlert,
     bool? bookingAlert,
+    bool? lunchNudgeAlert,
   }) async {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) return;
@@ -55,6 +59,7 @@ class NotificationPrefsRepository {
         'open_alert': ?openAlert,
         'announcement_alert': ?announcementAlert,
         'booking_alert': ?bookingAlert,
+        'lunch_nudge_alert': ?lunchNudgeAlert,
       },
       onConflict: 'user_id',
     ).withNetworkTimeout;

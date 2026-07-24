@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
@@ -93,16 +94,31 @@ class _FaqScreenState extends ConsumerState<FaqScreen> {
               ),
               Expanded(
                 child: categories.isEmpty
-                    ? Center(
-                        child: Text(
-                          "No results for \"${_query.trim()}\"",
-                          style: AppTextStyles.body.copyWith(color: AppColors.textHint),
-                        ),
+                    ? ListView(
+                        padding: const EdgeInsets.all(AppSpacing.lg),
+                        children: [
+                          const SizedBox(height: AppSpacing.xl),
+                          Center(
+                            child: Text(
+                              "No results for \"${_query.trim()}\"",
+                              style: AppTextStyles.body.copyWith(color: AppColors.textHint),
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.lg),
+                          const _ContactSupportCard(),
+                        ],
                       )
                     : ListView.builder(
                         padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
-                        itemCount: categories.length,
+                        // +1 for the Contact Support footer card at the very end.
+                        itemCount: categories.length + 1,
                         itemBuilder: (context, index) {
+                          if (index == categories.length) {
+                            return const Padding(
+                              padding: EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.sm, AppSpacing.md, 0),
+                              child: _ContactSupportCard(),
+                            );
+                          }
                           final category = categories[index];
                           final questions = byCategory[category]!;
                           return Padding(
@@ -131,6 +147,57 @@ class _FaqScreenState extends ConsumerState<FaqScreen> {
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+// Deliberately at the bottom of the FAQ list, not a separate Account →
+// Support menu item — the FAQ should have a real chance to answer a
+// question before someone escalates to email (Johnny's call, 2026-07-24).
+class _ContactSupportCard extends StatelessWidget {
+  const _ContactSupportCard();
+
+  Future<void> _contactSupport() async {
+    final uri = Uri(
+      scheme: 'mailto',
+      path: 'support@farlo.app',
+      query: 'subject=Farlo%20Support%20Request',
+    );
+    if (await canLaunchUrl(uri)) await launchUrl(uri);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Still need help?', style: AppTextStyles.label),
+                const SizedBox(height: 2),
+                Text(
+                  "If you didn't find your answer above, we're happy to help.",
+                  style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          OutlinedButton.icon(
+            onPressed: _contactSupport,
+            icon: const Icon(Icons.support_agent_outlined, size: 18),
+            label: const Text('Contact Support'),
+          ),
+        ],
       ),
     );
   }

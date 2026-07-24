@@ -170,7 +170,7 @@ class _OrderCard extends StatelessWidget {
         onTap: onTap,
         title: Text(order.truckName ?? 'Business', style: AppTextStyles.label),
         subtitle: Text(
-          '$itemCount item${itemCount != 1 ? 's' : ''} · \$${order.totalPrice.toStringAsFixed(2)}',
+          '$itemCount item${itemCount != 1 ? 's' : ''} · \$${order.totalPrice.toStringAsFixed(2)} · Order #${order.orderNumber}',
           style: AppTextStyles.caption,
         ),
         trailing: Column(
